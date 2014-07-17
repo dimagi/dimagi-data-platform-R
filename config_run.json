@@ -1,0 +1,49 @@
+{
+	"data_platform": 
+	{
+		"reports": 
+		{
+			"start_date": "2010-01-01",
+			"end_date": "2014-07-01",
+			"modules": 
+			[
+				{
+					"name": "mobile_user_monthly_lifetime_tables",
+					"split_by": "country",
+					"text_color": "blue"
+				},
+
+				{
+					"name": "someotherreport",
+					"split_by": "business_unit"
+				}
+			]
+		},
+
+		"domains": 
+		{
+			"names": 
+			[
+				{
+					"name": "melissa-test-project"
+				},
+				{
+					"name": "up-nrhm"
+				}
+			],
+
+			"filters": 
+			[
+				{
+					"filterby": "country",
+					"values": "South Africa,India"
+				},
+
+				{
+					"filterby": "business_unit",
+					"values": "DSI"
+				}
+			]
+		}
+	}
+}

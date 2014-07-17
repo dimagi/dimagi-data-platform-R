@@ -1,0 +1,31 @@
+{
+	"data_platform": 
+	{
+		"database": 
+		{
+			"dbname": "data_platform_db",
+			"host": "localhost",
+			"port": "5432",
+			"user": "importer",
+			"pass": "notthis"
+		},
+
+		"directories": 
+		{
+			"tmp_files": "/home/mel/workspace/dimagi-data-platform/tmp_files",
+			"output": "/home/mel/workspace/dimagi-data-platform/output",
+			"input": "/home/mel/workspace/dimagi-data-platform/input"
+		},
+
+		"s3": 
+		{
+			"output_url": "s3://dimagi-data-platform/output",
+			"input_url": "s3://dimagi-data-platform/input"
+		},
+
+		"commcare_export": 
+		{
+			"username": "mloudon@dimagi.com"
+		}
+	}
+}
