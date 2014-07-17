@@ -1,17 +1,35 @@
-# called to run an R report module through Rscript, with command line arguments.
+setwd(".")
+source(file.path(getwd(),"function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 
-# get command line args (passed to Rscript)
-args <- commandArgs(trailingOnly = TRUE)
+run_conf <-get_run_config(getwd())
+system_conf <- get_system_config(getwd())
 
-r_script_path <- args[1] # where to find the other scripts we're sourcing
-config_path <- args[2] # where to find config.json
+output_dir <- system_conf$directories$output
 
-# get the config parameters
-source (file.path(r_script_path,"data_platform_funcs.R", fsep = .Platform$file.sep))
-conf <- get_config(config_path)
+# in debug mode, csv files from the dir r_test_data_dir are used instead of db queries
+debug_mode <- run_conf$debug
+if (debug_mode == T) {
+  source(file.path(getwd(),"function_libraries","csv_sources.R", fsep = .Platform$file.sep))
+  test_data_dir <- system_conf$directories$r_test_data_dir
+} else {
+  source(file.path(getwd(),"function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  con <- get_con(dbname=system_conf$database$dbname,
+                 user=system_conf$database$user,
+                 pass=system_conf$database$pass,
+                 host=system_conf$database$host, 
+                 port=system_conf$database$port)
+}
 
-# should the script use a csv file for testing instead of a database query?
-use_csv <- FALSE
+reports <- get_report_module_names(run_conf)
+# run the reports
+for (report in reports) {
+  report_file <- sprintf("%s.R", report)
+  
+  # we should call the render() method for each report and pass params, but for now
+  # just make sure we have set whatever variables it needs and source it.
+  source(file.path(getwd(),"report_modules",report_file, fsep = .Platform$file.sep))
+}
 
-# run the report
-source (file.path(r_script_path,report_module_script, fsep = .Platform$file.sep))
+if (debug_mode == F) {
+  close_con(con)
+}

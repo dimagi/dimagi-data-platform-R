@@ -2,7 +2,19 @@
 # should return whatever the DB query would return 
 # i.e. the function should set the correct data types before returning the data frame.
 
-get_interaction_table_from_csv <- function (filename) {
-v <- read.csv(filename, header = TRUE, stringsAsFactors = FALSE)
-return (v)
+get_test_data_csv <- function(path, filename){
+  print(sprintf("Loading table %s from csv, looking path %s",c(filename,path))
+  fullpath = file.path(path,filename, fsep = .Platform$file.sep)
+  csvfile <- read.csv(filename, header = TRUE, stringsAsFactors = FALSE)
+  return(csvfile)
+}
+
+get_interaction_table_from_csv <- function (path) {
+  filename = "interactions.csv"
+  return (get_test_data_csv(path,filename))
+}
+
+get_domain_table_from_csv <- function (path) {
+  filename = "domains.csv"
+  return (get_test_data_csv(path,filename))
 }

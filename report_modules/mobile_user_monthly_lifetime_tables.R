@@ -8,24 +8,13 @@ library(plyr)
 library(timeDate)
 library(reshape2)
 
-if (use_csv == TRUE) {
+if (debug_mode) {
   # get data from a csv file
-  csv_filename <- "/home/mel/Documents/2013-2014/dimagi/data_platform_R/first run sample data for mengji/interaction_table_sample2.csv"
-  source(file.path(r_script_path,"csv_sources.R", fsep = .Platform$file.sep),chdir=T)
-  v<-get_interaction_table_from_csv(csv_filename)
+  v<-get_interaction_table_from_csv(test_data_dir)
 } else {
   # get data from a database query
-  source(file.path(r_script_path,"db_queries.R", fsep = .Platform$file.sep),chdir=T)
-  con <- get_con(dbname=conf$database$dbname,
-                 user=conf$database$user,
-                 pass=conf$database$pass,
-                 host=conf$database$host, 
-                 port=conf$database$port)
   v <- get_interaction_table(con, domain_list)
-  close_con(con)
 }
-
-setwd(conf$directories$output)
 
 v$visit_date <- as.Date(v$time_start)
 v$month.index <- as.yearmon(v$visit_date) # obtaining year and month from Date
@@ -385,7 +374,7 @@ monthly_merge <- do.call("rbind.fill", m) # this does not filter out any flw wit
 
 
 #################################
-mainDir <- getwd()
+mainDir <- output_dir
 subDir0 <- "monthly"
 dir.create(file.path(mainDir, subDir0))
 setwd(file.path(mainDir, subDir0))
