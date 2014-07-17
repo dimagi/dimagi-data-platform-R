@@ -8,7 +8,7 @@ library(plyr)
 library(timeDate)
 library(reshape2)
 
-if (debug_mode) {
+if (debug_mode == T) {
   # get data from a csv file
   v<-get_interaction_table_from_csv(test_data_dir)
 } else {

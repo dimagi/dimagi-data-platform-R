@@ -62,7 +62,8 @@ get_domain_table <- function (con) {
 # interaction table (one row for each visit to a case, visit to two cases = two rows)
 # for all domains in list.
 get_interaction_table <- function (con, domain_list) {
-query <- sprintf("with total_forms as 
+  domain_names_str <- paste (sprintf("'%s'", domain_list), collapse=",")
+  query <- sprintf("with total_forms as 
                  (select visit_id as id, count (distinct id) as total_forms 
                  from form 
                  group by visit_id), 
@@ -77,7 +78,7 @@ query <- sprintf("with total_forms as
                  where form.visit_id = visit.id
                  group by visit.id),
                  home_visits as
-                 (select visit.id, bool_or(CASE WHEN (attributes->'Travel visit' = 'No') THEN FALSE 
+                 (select form.visit_id, bool_or(CASE WHEN (attributes->'Travel visit' = 'No') THEN FALSE 
                  WHEN (attributes->'Travel visit' = 'Yes') THEN TRUE ELSE null END) as home_visit
                  from visit
                  inner join form on (form.visit_id = visit.id)
@@ -85,7 +86,7 @@ query <- sprintf("with total_forms as
                  on (formdef.xmlns = form.xmlns
                  and formdef.app_id = form.app_id)
                  group by form.visit_id),
-                 case_visits as (select visit.id, cases.case_id from visit,form,case_event, cases
+                 case_visits as (select visit.id as visit_id, cases.case_id from visit,form,case_event, cases
                  where visit.id = form.visit_id
                  and form.id = case_event.form_id
                  and cases.id = case_event.case_id
@@ -105,7 +106,7 @@ query <- sprintf("with total_forms as
                  and case_visits.visit_id = visit.id
                  and users.domain_id = domain.id 
                  and domain.name in (%s) 
-                 order by visit.user_id, time_start", domain_list)
+                 order by visit.user_id, time_start", domain_names_str)
 
 rs <- dbSendQuery(con,query)
 v <- fetch(rs,n=-1)

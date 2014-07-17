@@ -4,6 +4,7 @@ source(file.path(getwd(),"function_libraries","config_file_funcs.R", fsep = .Pla
 run_conf <-get_run_config(getwd())
 system_conf <- get_system_config(getwd())
 
+domain_list <- get_domain_names(run_conf)
 output_dir <- system_conf$directories$output
 
 # in debug mode, csv files from the dir r_test_data_dir are used instead of db queries
