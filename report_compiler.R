@@ -23,14 +23,16 @@ if (debug_mode == T) {
   domain_table <- get_domain_table(con)
 }
 domains_for_run <- get_domains_for_run(domain_table,run_conf)
-
 reports <- get_report_module_names(run_conf)
 # run the reports
 for (report in reports) {
   report_file <- sprintf("%s.R", report)
+  report_options <- get_report_options(run_conf,report)
   
-  # we should call the render() method for each report and pass params, but for now
-  # just make sure we have set whatever variables it needs and source it.
+  # we should call the render() method for each report and pass params
+  # params for render_debug are domains_for_run, test_data_dir, report_options, output_dir
+  # params for render are con, domains_for_run, report_options, output_dir
+  # for now just make sure we have set whatever variables it needs and source it.
   source(file.path(getwd(),"report_modules",report_file, fsep = .Platform$file.sep))
 }
 
