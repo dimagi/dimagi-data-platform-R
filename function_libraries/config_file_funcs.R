@@ -67,15 +67,30 @@ get_report_options <- function (conf, report_name) {
 }
 
 
-# FUNCTION get_domain_names
-# gets any domains specified by name from the run config.
+# FUNCTION get_domain_names_include
+# gets any domains to include specified by name from the run config.
 # returns a list of domain names
 #
 # PARAMS 
 # conf : the run conf json object
-get_domain_names <- function (conf) {
-  domain_names <- conf$domains$names$name
+get_domain_names_include <- function (conf) {
+  domain_names <- strsplit(as.character(conf$domains$names_include),",")[[1]]
   return(domain_names)
+}
+
+# FUNCTION get_domain_names_exclude
+# gets any domains to exclude specified by name from the run config.
+# returns a list of domain names
+#
+# PARAMS 
+# conf : the run conf json object
+get_domain_names_exclude <- function (conf) {
+  domain_names <- strsplit(as.character(conf$domains$names_exclude),",")[[1]]
+  return(domain_names)
+}
+
+single_vec_split <- function(s, split=","){
+  return(strsplit(s, split)[[1]])
 }
 
 # FUNCTION get_domain_filters
@@ -85,9 +100,50 @@ get_domain_names <- function (conf) {
 # PARAMS 
 # conf : the run conf json object
 get_domain_filters <- function (conf) {
-  filterbys <- conf$domains$filters$filterby
-  filtervals <- conf$domains$filters$values
-  domain_filters <- as.data.frame(cbind (filterbys,filtervals))
-  domain_filters<-transform(domain_filters, filtervals = strsplit(as.character(filtervals),split=","))
+  domain_filters <- conf$domains$filters
+  domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
   return(domain_filters)
+}
+
+get_domains_for_filter <- function (domain_table, filter_by, vals) {
+  if (!(filter_by %in% names(domain_table))) {
+    stop(sprintf ("Domain table has no attribute named %s", filter_by))
+  }
+  matching_rows <- domain_table[domain_table[[filter_by]] %in% vals[[1]],]
+  if (nrow(matching_rows) == 0 ) {
+    warning(sprintf ("No rows with values in (%s) for attribute %s", paste(vals, collapse=","),filter_by))
+  }
+  return (matching_rows$name)
+}
+
+get_domains_for_run <- function (domain_table,conf) {
+  names_include <- get_domain_names_include(conf)
+  names_exclude <- get_domain_names_exclude(conf)
+  filters <- get_domain_filters(conf)
+  filters_include <- filters[filters[["type"]]=="include",]
+  filters_exclude <- filters[filters[["type"]]=="exclude",]
+  
+  domains_include <- vector()
+  # get domains to include from filters
+  if (length(filters_include) > 0) {
+    domains_include <- domain_table$name
+    for (i in 1:nrow(filters_include)) {
+      inc <- filters_include[i,]
+      matching_domains <- get_domains_for_filter(domain_table,filter_by=inc$filter_by,vals=inc$values)
+      domains_include <- intersect(domains_include,matching_domains)
+    }
+  }
+  
+  domains_exclude <- vector()
+  # get domains to exclude from filters
+  if (length(filters_exclude) > 0) {
+    for (j in 1:nrow(filters_exclude)) {
+      exc <- filters_exclude[j,]
+      matching_domains <- get_domains_for_filter(domain_table,filter_by=exc$filter_by,vals=exc$values)
+      domains_exclude <- union(domains_exclude,matching_domains)
+    }
+  }
+  
+  domains_for_run <- setdiff(union(domains_include, names_include), union(domains_exclude, names_exclude))
+  return (domains_for_run)
 }
