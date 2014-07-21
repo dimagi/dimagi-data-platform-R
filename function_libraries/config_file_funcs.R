@@ -46,6 +46,17 @@ get_report_module_names <- function (conf) {
   return(report_modules)
 }
 
+# FUNCTION get_aggregate_table_names
+# gets the names of the aggregate tables from the system config.
+# returns a list of aggregate table names
+#
+# PARAMS 
+# conf : the system conf json object
+get_aggregate_table_names <- function (conf) {
+  agg_tables <- conf$aggregate_tables$name
+  return(agg_tables)
+}
+
 # FUNCTION get_report_options
 # gets all report configuration options for the named report module -
 # both module-specific and general report run config

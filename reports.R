@@ -1,14 +1,13 @@
-setwd("/home/rstudio/workspace/dimagi-data-platform-R/")
+script_dir <- dirname(sys.frame(1)$ofile)
+setwd(script_dir)
 source(file.path(getwd(),"function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 
 run_conf <-get_run_config(getwd())
 system_conf <- get_system_config(getwd())
-
 output_dir <- system_conf$directories$output
 
 # in debug mode, csv files from the dir r_test_data_dir are used instead of db queries
 debug_mode <- run_conf$debug
-
 if (debug_mode == T) {
   source(file.path(getwd(),"function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   test_data_dir <- system_conf$directories$r_test_data_dir
@@ -22,8 +21,10 @@ if (debug_mode == T) {
                  port=system_conf$database$port)
   domain_table <- get_domain_table(con)
 }
+
 domains_for_run <- get_domains_for_run(domain_table,run_conf)
 reports <- get_report_module_names(run_conf)
+
 # run the reports
 for (report in reports) {
   report_file <- sprintf("%s.R", report)
@@ -39,3 +40,5 @@ for (report in reports) {
 if (debug_mode == F) {
   close_con(con)
 }
+
+
