@@ -13,10 +13,9 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
   mainDir <- output_dir
   
   for(i in 1:length(domain_names)){
-    print(sprintf("creating monthly aggregate tables for domain %s ", i))
+    print(sprintf("creating monthly aggregate tables for domain %s ", domain_names[i]))
     
-    source(file.path("aggregate_tables","get_interaction_section.R", fsep = .Platform$file.sep))
-    data <- get_interaction_subset(v, domain_names[i])
+    data <- subset <- data[which(v$domain == domain_names[i]), ]
     
     source(file.path("aggregate_tables","visit_table_run.R", fsep = .Platform$file.sep))
     source(file.path("aggregate_tables","export_tables.R", fsep = .Platform$file.sep))
