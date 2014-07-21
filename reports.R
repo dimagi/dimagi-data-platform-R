@@ -1,5 +1,6 @@
-script_dir <- dirname(sys.frame(1)$ofile)
-setwd(script_dir)
+#Start from here: debug mode = T for now because I am not using the database connection
+#Remove this note before committing
+
 source(file.path(getwd(),"function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 
 run_conf <-get_run_config(getwd())
