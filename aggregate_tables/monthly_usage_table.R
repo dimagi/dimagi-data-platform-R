@@ -16,6 +16,8 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
     dat <- v[v$domain == dname, ]
     
     assign("dat", dat, envir = .GlobalEnv)
+    assign("dname", dname, envir = .GlobalEnv)
+    
     if (nrow(dat) > 0) {
       source(file.path("aggregate_tables","visit_table_run.R", fsep = .Platform$file.sep))
       source(file.path("aggregate_tables","lifetime_run.R",fsep = .Platform$file.sep))
