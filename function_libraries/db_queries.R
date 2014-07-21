@@ -63,6 +63,7 @@ get_domain_table <- function (con) {
 # for all domains in list.
 get_interaction_table <- function (con, domain_list) {
   domain_names_str <- paste (sprintf("'%s'", domain_list), collapse=",")
+  print(sprintf("Getting interaction table for domains: %s", domain_names_str))
   query <- sprintf("with total_forms as 
                  (select visit_id as id, count (distinct id) as total_forms 
                  from form 

@@ -14,8 +14,7 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
   
   for(i in 1:length(domain_names)){
     print(sprintf("creating monthly aggregate tables for domain %s ", domain_names[i]))
-    
-    data <- subset <- data[which(v$domain == domain_names[i]), ]
+    data <- v[v$domain == domain_names[i], ]
     
     source(file.path("aggregate_tables","visit_table_run.R", fsep = .Platform$file.sep))
     source(file.path("aggregate_tables","export_tables.R", fsep = .Platform$file.sep))
@@ -42,7 +41,7 @@ create_tables_debug <- function (test_data_dir, output_dir){
 create_tables <- function (con, output_dir){
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
   domain_table <- get_domain_table(con)
-  v <- get_interaction_table(con, domain_table$name)
+  v <- get_interaction_table(con, domain_table$name[1:3])
   create_monthly_tables(domain_table,v, output_dir)
   close_con(con)
 }

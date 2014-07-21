@@ -4,7 +4,7 @@ data$month.index <- as.yearmon(data$visit_date) # obtaining year and month from 
 # Sorting
 data <- data[order(data$user_id, data$time_start), ]  # sort visits by user_id and first interaction time
 
-source("C:/Users/mengji/Desktop/R scripts/lifetime_func.R")
+source(file.path("aggregate_tables","lifetime_func.R", fsep = .Platform$file.sep))
 data <- within(data, date_difference <- dateDiff(visit_date, time_since_previous))
 data <- within(data, batch_entry <- batchEntry(date_difference, time_since_previous, 600))
 

@@ -78,7 +78,7 @@ user_10$active_day_percent <- user_10$active_days_per_month/user_10$days_on_cc
 user_10$new_case_percent <- user_10$case_registered/user_10$cum_case_registered 
 
 # numeric month index
-source("C:/Users/mengji/Desktop/R scripts/monthly_func.R") 
+source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
 user_10 <- user_10[order(user_10$user_id, user_10$month.index),]
 user_10 <- ddply(user_10, .(user_id), transform, numeric = monnb(first_visit_date))
 user_10 <- ddply(user_10, .(user_id), transform, diff = c(0, diff(numeric)))

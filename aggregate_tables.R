@@ -1,4 +1,4 @@
-source(file.path(getwd(),"function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 
 run_conf <-get_run_config(getwd())
 system_conf <- get_system_config(getwd())
@@ -9,7 +9,7 @@ debug_mode <- run_conf$debug
 if (debug_mode == T) {
   test_data_dir <- system_conf$directories$r_test_data_dir
 } else {
-  source(file.path(getwd(),"function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   con <- get_con(dbname=system_conf$database$dbname,
                  user=system_conf$database$user,
                  pass=system_conf$database$pass,
