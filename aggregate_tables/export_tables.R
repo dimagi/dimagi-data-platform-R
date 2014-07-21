@@ -1,8 +1,9 @@
 
 module <- c("visit", "lifetime", "monthly")
 
-tableOut <- function(data, x){
+tableOut <- function(path, dat, x){
   filename <- paste(module[x], sep = "", ".csv")
-  write.csv(data, filename)
+  fullpath <- file.path(path,filename,fsep=.Platform$file.sep)
+  write.csv(dat,fullpath)
 }
 

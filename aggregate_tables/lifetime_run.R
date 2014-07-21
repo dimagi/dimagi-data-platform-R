@@ -1,18 +1,18 @@
 # sort visits by time_start for a given user
-data <- data[order(data$user_id, data$time_start), ] 
+dat <- dat[order(dat$user_id, dat$time_start), ] 
 
 # first visit by a mobile worker throughout her CC lifecycle
-temp1 <- duplicated(data$user_id) # this returns logical results, first visit = FALSE, all following visits are duplicates & TRUE
-first.visit <- data[temp1 == FALSE, ] # this returns the first visit done each unqiue mobile user
+temp1 <- duplicated(dat$user_id) # this returns logical results, first visit = FALSE, all following visits are duplicates & TRUE
+first.visit <- dat[temp1 == FALSE, ] # this returns the first visit done each unqiue mobile user
 first.s <- first.visit[order(first.visit$user_id), ]
 
 # last visit by each unique mobile user
-temp2 <- duplicated(data$user_id, fromLast = TRUE) # last visit = FALSE
-last.visit <- data[temp2 == FALSE, ] 
+temp2 <- duplicated(dat$user_id, fromLast = TRUE) # last visit = FALSE
+last.visit <- dat[temp2 == FALSE, ] 
 last.s <- last.visit[order(last.visit$user_id), ]
 
 # total visits of a mobile worker in her CommCare lifecycle
-nvisits <- as.data.frame(table(data$user_id)) 
+nvisits <- as.data.frame(table(dat$user_id)) 
 nvisits <- nvisits[order(nvisits$Var1), ] # Var1 = user_id, Freq = occurrence of a mobile worker = total visits  
 
 # total days on CC: [first_active_date, last_active_date]
@@ -50,7 +50,7 @@ y$calendar_months_on_cc <- ifelse(y$calendar_months_on_cc < 0, 0, y$calendar_mon
 # I am not quite confident using this as a metric since we would have to drop a lot of users 
 # who have only been active for less than a month
 # we might have quite a lot of users showing such behavior pattern once we get data from more domains
-activity <- as.data.frame(table(data$user_id, data$month.index)) # total visits per month
+activity <- as.data.frame(table(dat$user_id, dat$month.index)) # total visits per month
 activity <- activity[which(activity$Freq != 0), ] # drops months in which there is no form submission/visit
 activity.count <- aggregate(activity$Var2, list(activity$Var1), function(x) length(unique(x))) # number of unique months a worker is actively visiting cases
 activity.count.s <- activity.count[order(activity.count$Group.1), ] # sort data by user_id
@@ -64,7 +64,7 @@ y$active_months <- ifelse(y$calendar_months_on_cc == 0, 0, y$active_months)
 y$active_month_percent <- as.numeric(round(y$active_months/y$calendar_months_on_cc, 2))  # denominator can be 0, active_month_percent in this case is NaN
 
 # total visits per day 
-activity_by_day <- as.data.frame(table(data$user_id, data$visit_date))
+activity_by_day <- as.data.frame(table(dat$user_id, dat$visit_date))
 activity_by_day <- activity_by_day[which(activity_by_day$Freq != 0),] # drop inactive days
 activity_by_day.count <- aggregate(activity_by_day$Var2, list(activity_by_day$Var1), function(x) length(unique(x))) # total active days of a user
 activity_by_day.count.s <- activity_by_day.count[order(activity_by_day.count$Group.1), ]
@@ -73,31 +73,31 @@ y$active_days <- activity_by_day.count.s$x
 y$active_day_percent <- round(y$active_days/y$days_on_cc, 2) 
 
 # total forms submitted by a mobile worker on CC
-nforms <- aggregate(total_forms~user_id, data = data, sum) 
+nforms <- aggregate(total_forms~user_id, data = dat, sum) 
 nforms <- nforms[order(nforms$user_id), ]
 y$nforms <- nforms$forms_per_visit
 
 # Visit duration. Median
-visit_duration <- aggregate(form_duration~user_id, data = data, median) # in seconds
+visit_duration <- aggregate(form_duration~user_id, data = dat, median) # in seconds
 y$median_visit_duration <- as.numeric(round(visit_duration$form_duration/60, 2)) # in minutes
 
 # total visits per day. Median
-d <- as.data.frame(table(data$visit_date, data$user_id)) # number of unique visits in a day by a given mobile user
+d <- as.data.frame(table(dat$visit_date, dat$user_id)) # number of unique visits in a day by a given mobile user
 d <- subset(d, Freq != 0) # drop inactive days
 dsub <- d[order(d$Var2), ] # sort by user_id
 d.median <- aggregate(dsub$Freq, list(dsub$Var2), median, na.rm = TRUE) 
 y$median_visits_per_day <- d.median$x  # median of unique visits in a day by a given user
 
 # total visits per month. Median
-m <- as.data.frame(table(data$month.index, data$user_id))
+m <- as.data.frame(table(dat$month.index, dat$user_id))
 m <- subset(m, Freq != 0)
 msub <- m[order(m$Var2), ]
 m.median <- aggregate(msub$Freq, list(msub$Var2), median, na.rm = TRUE)
 y$median_visits_per_month <- m.median$x
 
 # batch-entry visits vs. total visits 
-if(nrow(data) > length(unique(data$case_id))){
-  temp <- as.matrix(table(data$user_id, data$batch_entry)) # this returns a matrix of batch/non-batch for each unique worker
+if(nrow(dat) > length(unique(dat$case_id))){
+  temp <- as.matrix(table(dat$user_id, dat$batch_entry)) # this returns a matrix of batch/non-batch for each unique worker
   # be careful when all users in a domain have one one visit only... 
   if(length(unlist(dimnames(temp)[2])) > 1) { # meaning there are both batch and non-batch visits in a domain
     batch <- as.data.frame(temp[, "1"]) 
@@ -117,33 +117,33 @@ if(nrow(data) > length(unique(data$case_id))){
 
 
 # compute total number of cases registered by a user
-new_case <- ddply(data, .(user_id), function(x) length(which(x$new_case == 1))) # this returns total new cases with a first visit 
-follow_up <- ddply(data, .(user_id), function(x) length(which(x$follow_up == 1)))
+new_case <- ddply(dat, .(user_id), function(x) length(which(x$new_case == 1))) # this returns total new cases with a first visit 
+follow_up <- ddply(dat, .(user_id), function(x) length(which(x$follow_up == 1)))
 colnames(new_case)[2] <- c("new_cases") # rename variables would make it cleaner when we merge all data frames
 colnames(follow_up)[2] <- c("follow_up")
 
 # time elapsed (mins) between followup visits to the same case
-data <- data[order(data$user_id, data$time_start), ] 
-if(nrow(data)>1){
-  median_time_elapse <- aggregate(time_since_previous~user_id, data = data, median, na.rm = TRUE)
+dat <- dat[order(dat$user_id, dat$time_start), ] 
+if(nrow(dat)>1){
+  median_time_elapse <- aggregate(time_since_previous~user_id, data = dat, median, na.rm = TRUE)
   names(median_time_elapse) <- c("user_id", "median_time_elapse")
-  mean_time_elapse <- aggregate(time_since_previous~user_id, data = data, mean, na.rm = TRUE)
+  mean_time_elapse <- aggregate(time_since_previous~user_id, data = dat, mean, na.rm = TRUE)
   names(mean_time_elapse) <- c("user_id", "mean_time_elapse")    
 } else{
-  median_time_elapse <- data.frame(user_id = data$user_id, median_time_elapse = NA)
-  mean_time_elapse <- data.frame(user_id = data$user_id, mean_time_elapse = NA)  
+  median_time_elapse <- data.frame(user_id = dat$user_id, median_time_elapse = NA)
+  mean_time_elapse <- data.frame(user_id = dat$user_id, mean_time_elapse = NA)  
 }
 
 
-data <- data[order(data$user_id, data$case_id, data$time_start), ]
-dt1 <- tail(data$time_start, -1) # time_start of all visits except the first one
-dt2 <- head(data$time_end, -1) # time_end of all visits except the last one
-data$mins_elapse_flw_same_case <- c(NA, as.numeric(difftime(dt1, dt2, units = "mins"))) # for a given case, time elapsed between interactions with the same mobile worker
-data$mins_elapse_flw_same_case[which(diff(as.numeric(factor(data$user_id, ordered = TRUE))) != 0) + 1] <- NA # replace each mobile worker's first visit with NA
-data$mins_elapse_flw_same_case[which(diff(as.numeric(factor(data$case_id, ordered = TRUE))) != 0) + 1] <- NA # replace each mobile worker's registration visit with NA
+dat <- dat[order(dat$user_id, dat$case_id, dat$time_start), ]
+dt1 <- tail(dat$time_start, -1) # time_start of all visits except the first one
+dt2 <- head(dat$time_end, -1) # time_end of all visits except the last one
+dat$mins_elapse_flw_same_case <- c(NA, as.numeric(difftime(dt1, dt2, units = "mins"))) # for a given case, time elapsed between interactions with the same mobile worker
+dat$mins_elapse_flw_same_case[which(diff(as.numeric(factor(dat$user_id, ordered = TRUE))) != 0) + 1] <- NA # replace each mobile worker's first visit with NA
+dat$mins_elapse_flw_same_case[which(diff(as.numeric(factor(dat$case_id, ordered = TRUE))) != 0) + 1] <- NA # replace each mobile worker's registration visit with NA
 
 
-visitTimePercentage(data) -> visit_time_percentage
+visitTimePercentage(dat) -> visit_time_percentage
 reshapedVisitTime(visit_time_percentage) -> visit_time_percent # this returns the percentage of visits in morning, afternoon, night, and after midnight
 colnames(visit_time_percent)[1] <- c("user_id")
 
@@ -152,5 +152,5 @@ y <- Reduce(function(...) merge(..., all=T), merge_me)
 y$follow_up_percent <- round(y$follow_up/y$new_cases, 2) # this returns percentage of cases with >1 iteractions with the mobile user
 
 # adding domain name 
-y$domain <- rep(data$domain[1], nrow(y))  
+y$domain <- rep(dat$domain[1], nrow(y))  
 

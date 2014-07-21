@@ -1,57 +1,57 @@
 # compute monthly usage table for each mobile user
-data <- arrange(data, time_start)
-data$bar1 <- as.Date(timeFirstDayInMonth(as.character(data$visit_date), format = "%Y-%m-%d")) # this actually repeats the work done in lifetime table but for now i will just leave it the way it is
-data$bar2 <- as.Date(timeLastDayInMonth(as.character(data$visit_date), format = "%Y-%m-%d"))
-data$month.index <- as.factor(data$month.index)
+dat <- arrange(dat, time_start)
+dat$bar1 <- as.Date(timeFirstDayInMonth(as.character(dat$visit_date), format = "%Y-%m-%d")) # this actually repeats the work done in lifetime table but for now i will just leave it the way it is
+dat$bar2 <- as.Date(timeLastDayInMonth(as.character(dat$visit_date), format = "%Y-%m-%d"))
+dat$month.index <- as.factor(dat$month.index)
 
-user_0 <- ddply(data, user_id ~ month.index, nrow) # this counts visits happening in each month of a given user
+user_0 <- ddply(dat, user_id ~ month.index, nrow) # this counts visits happening in each month of a given user
 colnames(user_0)[3] <- c("visits")
 
 # total form submissions in each active month
-user_1 <- ddply(data, .(user_id, month.index), summarize, nforms_per_month = sum(total_forms)) 
+user_1 <- ddply(dat, .(user_id, month.index), summarize, nforms_per_month = sum(total_forms)) 
 
 # follow up visits per month: multiple visits can be done to one case
-user_2 <- ddply(data, .(user_id, month.index), summarize, follow_up_visits = sum(follow_up)) 
+user_2 <- ddply(dat, .(user_id, month.index), summarize, follow_up_visits = sum(follow_up)) 
 
 # follow up visits to a unique case in an active month
-user_3 <- ddply(data, .(user_id, month.index), function(x) length(unique(x[x$follow_up == 1, ]$case_id)))
+user_3 <- ddply(dat, .(user_id, month.index), function(x) length(unique(x[x$follow_up == 1, ]$case_id)))
 colnames(user_3)[3] <- c("follow_up_unique_case") 
 
 # total active days per active month
-user_4 <- ddply(data, .(user_id, month.index), function(x) length(unique(x$visit_date)))
+user_4 <- ddply(dat, .(user_id, month.index), function(x) length(unique(x$visit_date)))
 colnames(user_4)[3] <- c("active_days_per_month")
 
 # first/last active day in an active month
-user_5 <- ddply(data, .(user_id, month.index), function(x) min(x$visit_date))
+user_5 <- ddply(dat, .(user_id, month.index), function(x) min(x$visit_date))
 colnames(user_5)[3] <- c("first_visit_date")
-user_6 <- ddply(data, .(user_id, month.index), function(x) max(x$visit_date))
+user_6 <- ddply(dat, .(user_id, month.index), function(x) max(x$visit_date))
 colnames(user_6)[3] <- c("last_visit_date")
 
 # days between first and last active date in a month
 user_6$days_on_cc <- as.numeric(user_6$last_visit_date - user_5$first_visit_date) + 1 
 
 # total batch entry visits in an active month
-user_7 <- ddply(data, .(user_id, month.index), function(x) sum(x$batch_entry))
+user_7 <- ddply(dat, .(user_id, month.index), function(x) sum(x$batch_entry))
 colnames(user_7)[3] <- c("batch_entry")
 
 # median visits per active day in a given month
-user_temp <-  ddply(data, user_id ~ visit_date, nrow)
+user_temp <-  ddply(dat, user_id ~ visit_date, nrow)
 colnames(user_temp)[2:3] <- c("active_date", "nvisits")
 user_temp$month.index <- factor(as.yearmon(user_temp$active_date))
 user_8 <- ddply(user_temp, .(user_id, month.index), function(x) median(x$nvisits))
 colnames(user_8)[3] <- c("median_visits_per_active_day")
 
-user_9 <- ddply(data, .(user_id, month.index), function(x) median(x$form_duration))
+user_9 <- ddply(dat, .(user_id, month.index), function(x) median(x$form_duration))
 colnames(user_9)[3] <- c("median_visit_duration") # in seconds
 
 
 # new cases registered per month
-temp_1 <- ddply(data, .(user_id, month.index), function(x) length(which(x$new_case == 1)))
+temp_1 <- ddply(dat, .(user_id, month.index), function(x) length(which(x$new_case == 1)))
 colnames(temp_1)[3] <- c("case_registered")
 
 
 # proportion of visits in different time period in a day (am,pm,after-pm, etc)
-res1 <- ddply(data, c("user_id", "month.index"), function(x){
+res1 <- ddply(dat, c("user_id", "month.index"), function(x){
   r1 <- data.frame(table(x$visit_time)/nrow(x))
   names(r1) <- c('time', 'proportion')
   r1$proportion <- round(100*r1$proportion, 2)
@@ -67,8 +67,8 @@ user_10 <- Reduce(function(...) merge(..., all=T), merge_me)
 # followup rate to registered cases of a mobile worker
 user_10$cum_case_registered <- cumsum(user_10$case_registered)
 user_10$unique_case_followup_rate <- round(100*user_10$follow_up_unique_case/user_10$cum_case_registered, 2) # could be Inf if a mobile worker only visits cases already registered and shared by other mobile workers
-user_10$domain.index <- rep(data$domain.index[1], nrow(user_10))
-user_10$domain <- domain_names[i]
+user_10$domain.index <- rep(dat$domain.index[1], nrow(user_10))
+user_10$domain <- dname #TODO this shouldn't have to be global
 
 
 # Percentage indicator computation below
