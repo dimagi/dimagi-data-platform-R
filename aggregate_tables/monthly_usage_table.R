@@ -46,6 +46,7 @@ create_tables_debug <- function (test_data_dir, output_dir){
 create_tables <- function (con, output_dir){
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
   domain_table <- get_domain_table(con)
+  domain_table <-domain_table[domain_table$name,]
   v <- get_interaction_table(con, domain_table$name)
   create_monthly_tables(domain_table,v, output_dir)
   close_con(con)

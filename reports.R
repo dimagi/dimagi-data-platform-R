@@ -1,9 +1,7 @@
-script_dir <- dirname(sys.frame(1)$ofile)
-setwd(script_dir)
-source(file.path(getwd(),"function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 
-run_conf <-get_run_config(getwd())
-system_conf <- get_system_config(getwd())
+run_conf <-get_run_config(".")
+system_conf <- get_system_config(".")
 output_dir <- system_conf$directories$output
 
 # in debug mode, csv files from the dir r_test_data_dir are used instead of db queries
@@ -29,12 +27,13 @@ reports <- get_report_module_names(run_conf)
 for (report in reports) {
   report_file <- sprintf("%s.R", report)
   report_options <- get_report_options(run_conf,report)
+  source(file.path("report_modules",report_file, fsep = .Platform$file.sep))
   
-  # we should call the render() method for each report and pass params
-  # params for render_debug are domains_for_run, test_data_dir, report_options, output_dir
-  # params for render are con, domains_for_run, report_options, output_dir
-  # for now just make sure we have set whatever variables it needs and source it.
-  source(file.path(getwd(),"report_modules",report_file, fsep = .Platform$file.sep))
+  if (debug_mode == F) {
+    render(con,domains_for_run,report_options,output_dir)
+  } else {
+    render_debug(test_data_dir,domains_for_run,report_options,output_dir)
+  }
 }
 
 if (debug_mode == F) {
