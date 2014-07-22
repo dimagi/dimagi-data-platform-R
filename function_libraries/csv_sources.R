@@ -14,7 +14,15 @@ get_interaction_table_from_csv <- function (path) {
   return (get_test_data_csv(path,filename))
 }
 
+single_vec_split <- function(s, split=","){
+  spl <- strsplit(s, split)
+  unlisted <- spl[[1]]
+  return(unlisted)
+}
+
 get_domain_table_from_csv <- function (path) {
   filename = "domains.csv"
-  return (get_test_data_csv(path,filename))
+  dt <- get_test_data_csv(path,filename)
+  dt$sector <-lapply(dt$sector,single_vec_split)
+  return (dt)
 }

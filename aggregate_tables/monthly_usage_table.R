@@ -35,7 +35,6 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
   }
 }
 
-
 create_tables_debug <- function (test_data_dir, output_dir){
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep),chdir=T)
   domain_table <- get_domain_table_from_csv(test_data_dir)

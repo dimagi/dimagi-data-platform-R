@@ -101,8 +101,11 @@ get_domain_names_exclude <- function (conf) {
 }
 
 single_vec_split <- function(s, split=","){
-  return(strsplit(s, split)[[1]])
+  spl <- strsplit(s, split)
+  unlisted <- spl[[1]]
+  return(unlisted)
 }
+
 
 # FUNCTION get_domain_filters
 # gets filterby fields and values from run config

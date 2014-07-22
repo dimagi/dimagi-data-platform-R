@@ -14,20 +14,18 @@ return(con)
 
 # returns all attributes for domains in domain_list, sector and subsector names as lists
 get_domain_table <- function (con) {
-  normal_cols_q <- sprintf("select * from domain  
-                 order by name")
+  normal_cols_q <- "select * from domain order by name"
   rs <- dbSendQuery(con,normal_cols_q)
   normal_cols <- fetch(rs,n=-1)
   dbClearResult(rs)
   retframe<-normal_cols[, !(colnames(normal_cols) %in% c("attributes"))]
   
-  hstore_keyvalues_q <- sprintf("select name, (each(attributes)).* from domain 
-                 order by name")
+  hstore_keyvalues_q <- "select name, (each(attributes)).* from domain order by name"
   rs <- dbSendQuery(con,hstore_keyvalues_q)
   hstore_keyvalues <- fetch(rs,n=-1)
   dbClearResult(rs)
   hstore_wide<-dcast(hstore_keyvalues, name ~ key)
-  retframe<-merge(retframe,hstore_wide,by="name")
+  retframe<-merge(retframe,hstore_wide,by="name",all=T)
   
   sectors_q <- sprintf("select domain.name, 
               array(select sector.name 
@@ -41,7 +39,7 @@ get_domain_table <- function (con) {
   dbClearResult(rs)
   sectors<-transform(sectors, sector_arr = strsplit(substr(sector_arr,2,nchar(sector_arr)-1),split=","))
   sectors$sector_arr[sapply(sectors$sector_arr,length)==0]<-NA
-  retframe<-merge(retframe,sectors,by="name")
+  retframe<-merge(retframe,sectors,by="name",all=T)
   
   subsectors_q <- sprintf("select domain.name, 
               array(select subsector.name 
@@ -55,7 +53,7 @@ get_domain_table <- function (con) {
   dbClearResult(rs)
   subsectors<-transform(subsectors, subsector_arr = strsplit(substr(subsector_arr,2,nchar(subsector_arr)-1),split=","))
   subsectors$subsector_arr[sapply(subsectors$subsector_arr,length)==0]<-NA
-  retframe<-merge(retframe,subsectors,by="name")
+  retframe<-merge(retframe,subsectors,by="name",all=T)
   return(retframe)
 }
 
