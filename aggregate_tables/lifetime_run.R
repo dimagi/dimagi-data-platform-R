@@ -12,7 +12,7 @@ last.visit <- dat[temp2 == FALSE, ]
 last.s <- last.visit[order(last.visit$user_id), ]
 
 # total visits of a mobile worker in her CommCare lifecycle
-nvisits <- as.data.frame(table(dat$user_id)) 
+nvisits <- as.data.frame(table(dat$user_id,useNA = "ifany")) 
 nvisits <- nvisits[order(nvisits$Var1), ] # Var1 = user_id, Freq = occurrence of a mobile worker = total visits  
 
 # total days on CC: [first_active_date, last_active_date]
@@ -50,7 +50,7 @@ y$calendar_months_on_cc <- ifelse(y$calendar_months_on_cc < 0, 0, y$calendar_mon
 # I am not quite confident using this as a metric since we would have to drop a lot of users 
 # who have only been active for less than a month
 # we might have quite a lot of users showing such behavior pattern once we get data from more domains
-activity <- as.data.frame(table(dat$user_id, dat$month.index)) # total visits per month
+activity <- as.data.frame(table(dat$user_id, dat$month.index,useNA = "ifany")) # total visits per month
 activity <- activity[which(activity$Freq != 0), ] # drops months in which there is no form submission/visit
 activity.count <- aggregate(activity$Var2, list(activity$Var1), function(x) length(unique(x))) # number of unique months a worker is actively visiting cases
 activity.count.s <- activity.count[order(activity.count$Group.1), ] # sort data by user_id
@@ -64,7 +64,7 @@ y$active_months <- ifelse(y$calendar_months_on_cc == 0, 0, y$active_months)
 y$active_month_percent <- as.numeric(round(y$active_months/y$calendar_months_on_cc, 2))  # denominator can be 0, active_month_percent in this case is NaN
 
 # total visits per day 
-activity_by_day <- as.data.frame(table(dat$user_id, dat$visit_date))
+activity_by_day <- as.data.frame(table(dat$user_id, dat$visit_date,useNA = "ifany"))
 activity_by_day <- activity_by_day[which(activity_by_day$Freq != 0),] # drop inactive days
 activity_by_day.count <- aggregate(activity_by_day$Var2, list(activity_by_day$Var1), function(x) length(unique(x))) # total active days of a user
 activity_by_day.count.s <- activity_by_day.count[order(activity_by_day.count$Group.1), ]
@@ -82,14 +82,14 @@ visit_duration <- aggregate(form_duration~user_id, data = dat, median) # in seco
 y$median_visit_duration <- as.numeric(round(visit_duration$form_duration/60, 2)) # in minutes
 
 # total visits per day. Median
-d <- as.data.frame(table(dat$visit_date, dat$user_id)) # number of unique visits in a day by a given mobile user
+d <- as.data.frame(table(dat$visit_date, dat$user_id,useNA = "ifany")) # number of unique visits in a day by a given mobile user
 d <- subset(d, Freq != 0) # drop inactive days
 dsub <- d[order(d$Var2), ] # sort by user_id
 d.median <- aggregate(dsub$Freq, list(dsub$Var2), median, na.rm = TRUE) 
 y$median_visits_per_day <- d.median$x  # median of unique visits in a day by a given user
 
 # total visits per month. Median
-m <- as.data.frame(table(dat$month.index, dat$user_id))
+m <- as.data.frame(table(dat$month.index, dat$user_id,useNA = "ifany"))
 m <- subset(m, Freq != 0)
 msub <- m[order(m$Var2), ]
 m.median <- aggregate(msub$Freq, list(msub$Var2), median, na.rm = TRUE)
@@ -97,7 +97,7 @@ y$median_visits_per_month <- m.median$x
 
 # batch-entry visits vs. total visits 
 if(nrow(dat) > length(unique(dat$case_id))){
-  temp <- as.matrix(table(dat$user_id, dat$batch_entry)) # this returns a matrix of batch/non-batch for each unique worker
+  temp <- as.matrix(table(dat$user_id, dat$batch_entry,useNA = "ifany")) # this returns a matrix of batch/non-batch for each unique worker
   # be careful when all users in a domain have one one visit only... 
   if(length(unlist(dimnames(temp)[2])) > 1) { # meaning there are both batch and non-batch visits in a domain
     batch <- as.data.frame(temp[, "1"]) 

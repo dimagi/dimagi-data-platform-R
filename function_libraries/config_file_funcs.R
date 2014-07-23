@@ -1,3 +1,6 @@
+# FILE config_file_funcs.R
+# convenience functions to access configuration options from run_config.json and system_config.json
+
 # FUNCTION get_run_config
 # reads the file config_run.json at the specified path
 # loads the json and returns the data_platform section
@@ -100,9 +103,19 @@ get_domain_names_exclude <- function (conf) {
   return(domain_names)
 }
 
+# FUNCTION single_vec_split
+# splits a string at the character specified by split.
+# returns the first element of the list returned by strsplit
+#
+# PARAMS 
+# s: the string to split
+# split: the character to split on
 single_vec_split <- function(s, split=","){
-  return(strsplit(s, split)[[1]])
+  spl <- strsplit(s, split)
+  unlisted <- spl[[1]]
+  return(unlisted)
 }
+
 
 # FUNCTION get_domain_filters
 # gets filterby fields and values from run config
@@ -116,11 +129,20 @@ get_domain_filters <- function (conf) {
   return(domain_filters)
 }
 
+# FUNCTION get_domain_filters
+# gets domains matching a single filter, specified by filter_by and vals
+# returns a list of domain names
+#
+# PARAMS 
+# domain_table : the full domain table
+# filter_by : the name of the attribute (domain table column) to filter by
+# vals : domains with any of these values for the filter attribute should be returned - they match the filter
 get_domains_for_filter <- function (domain_table, filter_by, vals) {
   if (!(filter_by %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", filter_by))
   }
-  matching_rows <- domain_table[domain_table[[filter_by]] %in% vals[[1]],]
+  any_vals_match <- function(rowvals,filtervals) return (sum(rowvals %in% filtervals,na.rm=T)>0)
+  matching_rows <- domain_table[sapply(domain_table[[filter_by]],any_vals_match,vals[[1]]),]
   if (nrow(matching_rows) == 0 ) {
     warning(sprintf ("No rows with values in (%s) for attribute %s", paste(vals, collapse=","),filter_by))
   }
