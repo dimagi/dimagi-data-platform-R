@@ -36,6 +36,8 @@ get_interaction_table_from_csv <- function (path) {
 # s: the string to split
 # split: the character to split on
 single_vec_split <- function(s, split=","){
+  if (is.na(s)) return(s)
+  
   spl <- strsplit(s, split)
   unlisted <- spl[[1]]
   return(unlisted)
@@ -51,5 +53,6 @@ get_domain_table_from_csv <- function (path) {
   filename = "domains.csv"
   dt <- get_test_data_csv(path,filename)
   dt$sector <-lapply(dt$sector,single_vec_split)
+  dt$subsector <-lapply(dt$subsector,single_vec_split)
   return (dt)
 }

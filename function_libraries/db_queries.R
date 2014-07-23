@@ -27,32 +27,32 @@ get_domain_table <- function (con) {
   hstore_wide<-dcast(hstore_keyvalues, name ~ key)
   retframe<-merge(retframe,hstore_wide,by="name",all=T)
   
-  sectors_q <- sprintf("select domain.name, 
+  sectors_q <- "select domain.name, 
               array(select sector.name 
               from sector, domain_sector 
               where domain_sector.domain_id = domain.id 
-              and domain_sector.sector_id=sector.id) as sector_arr
+              and domain_sector.sector_id=sector.id) as sector
               from domain
-              order by domain.name")
+              order by domain.name"
   rs <- dbSendQuery(con,sectors_q)
   sectors <- fetch(rs,n=-1)
   dbClearResult(rs)
-  sectors<-transform(sectors, sector_arr = strsplit(substr(sector_arr,2,nchar(sector_arr)-1),split=","))
-  sectors$sector_arr[sapply(sectors$sector_arr,length)==0]<-NA
+  sectors<-transform(sectors, sector = strsplit(substr(sector,2,nchar(sector)-1),split=","))
+  sectors$sector[sapply(sectors$sector,length)==0]<-NA
   retframe<-merge(retframe,sectors,by="name",all=T)
   
-  subsectors_q <- sprintf("select domain.name, 
+  subsectors_q <- "select domain.name, 
               array(select subsector.name 
               from subsector, domain_subsector 
               where domain_subsector.domain_id = domain.id 
-              and domain_subsector.subsector_id=subsector.id) as subsector_arr
+              and domain_subsector.subsector_id=subsector.id) as subsector
               from domain
-              order by domain.name")
+              order by domain.name"
   rs <- dbSendQuery(con,subsectors_q)
   subsectors <- fetch(rs,n=-1)
   dbClearResult(rs)
-  subsectors<-transform(subsectors, subsector_arr = strsplit(substr(subsector_arr,2,nchar(subsector_arr)-1),split=","))
-  subsectors$subsector_arr[sapply(subsectors$subsector_arr,length)==0]<-NA
+  subsectors<-transform(subsectors, subsector = strsplit(substr(subsector,2,nchar(subsector)-1),split=","))
+  subsectors$subsector[sapply(subsectors$subsector,length)==0]<-NA
   retframe<-merge(retframe,subsectors,by="name",all=T)
   return(retframe)
 }
