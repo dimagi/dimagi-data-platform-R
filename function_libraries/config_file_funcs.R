@@ -1,3 +1,6 @@
+# FILE config_file_funcs.R
+# convenience functions to access configuration options from run_config.json and system_config.json
+
 # FUNCTION get_run_config
 # reads the file config_run.json at the specified path
 # loads the json and returns the data_platform section
@@ -100,6 +103,13 @@ get_domain_names_exclude <- function (conf) {
   return(domain_names)
 }
 
+# FUNCTION single_vec_split
+# splits a string at the character specified by split.
+# returns the first element of the list returned by strsplit
+#
+# PARAMS 
+# s: the string to split
+# split: the character to split on
 single_vec_split <- function(s, split=","){
   spl <- strsplit(s, split)
   unlisted <- spl[[1]]
@@ -119,6 +129,14 @@ get_domain_filters <- function (conf) {
   return(domain_filters)
 }
 
+# FUNCTION get_domain_filters
+# gets domains matching a single filter, specified by filter_by and vals
+# returns a list of domain names
+#
+# PARAMS 
+# domain_table : the full domain table
+# filter_by : the name of the attribute (domain table column) to filter by
+# vals : domains with any of these values for the filter attribute should be returned - they match the filter
 get_domains_for_filter <- function (domain_table, filter_by, vals) {
   if (!(filter_by %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", filter_by))

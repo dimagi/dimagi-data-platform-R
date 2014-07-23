@@ -1,7 +1,7 @@
 source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 
-run_conf <-get_run_config(getwd())
-system_conf <- get_system_config(getwd())
+run_conf <-get_run_config(".")
+system_conf <- get_system_config(".")
 output_dir <- system_conf$directories$output
 aggtables_output_subdir <- file.path(output_dir, "aggregate_tables")
 dir.create(aggtables_output_subdir, showWarnings = FALSE)
