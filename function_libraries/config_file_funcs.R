@@ -141,7 +141,8 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
   if (!(filter_by %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", filter_by))
   }
-  matching_rows <- domain_table[domain_table[[filter_by]] %in% vals[[1]],]
+  any_vals_match <- function(rowvals,filtervals) return (sum(rowvals %in% filtervals,na.rm=T)>0)
+  matching_rows <- domain_table[sapply(domain_table[[filter_by]],any_vals_match,vals[[1]]),]
   if (nrow(matching_rows) == 0 ) {
     warning(sprintf ("No rows with values in (%s) for attribute %s", paste(vals, collapse=","),filter_by))
   }
