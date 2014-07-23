@@ -6,8 +6,8 @@
 #------------------------------------------------------------------------------#
 
 # Clear workspace and attach packages
-rm(list = ls())
-suppressPackageStartupMessages
+# rm(list = ls())
+# suppressPackageStartupMessages
 library(zoo) #work with mm/yy calendar dates without day
 library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
@@ -114,7 +114,7 @@ df2 = ddply(all_monthly, .(user_id), function(x) {
 #This gives the attrition rate in the next month, using the # in obsnum as the denominator
 #Numerator is # of flws that are not retained in the next month from the previous month
 #This also gives the addition rate in the obsnum month, using # in obsnum as the denominator
-#Numerator is # of flws that were added in for that obsnu  
+#Numerator is # of flws that were added in for that obsnum  
 attrition_table = ddply(df2, .(obsnum), function(x) c(attrition=mean(!x$retained)*100, 
 additions=mean(x$addition)*100))
     
@@ -124,5 +124,25 @@ additions=mean(x$addition)*100))
 #CREATE PLOTS
 
 #-----------------------------------------------------------------------------#
+
+g_attrition = 
+  ggplot(data=attrition_table, aes(x=obsnum, y=attrition)) +
+    geom_line(color = "indianred1", size = 1.25)
+
+g_addition = 
+  ggplot(data=attrition_table, aes(x=obsnum, y=additions)) +
+  geom_line(color = "darkblue", size = 1.25)
+
+g_attrition_addition = 
+  ggplot(data=attrition_table, aes(x=obsnum)) + 
+  geom_line(aes(y = attrition, colour = "darkblue"), size = 1.25) + 
+  geom_line(aes(y = additions, colour = "indianred1"), size = 1.25)
+
+require(gridExtra)
+
+pdf("Attrition_addition.pdf")
+grid.arrange(g_attrition, g_addition, nrow=2)
+dev.off()
+
 
 

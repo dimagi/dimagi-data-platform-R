@@ -65,6 +65,7 @@ render_debug <- function (test_data_dir, domains_for_run, report_options, output
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  all_monthly = all_monthly[!(all_monthly$obsnum==136),]
   
   #Change column names names as needed
   colnames(all_monthly)[32] = "row_num"
@@ -148,13 +149,13 @@ render_debug <- function (test_data_dir, domains_for_run, report_options, output
   #Create stacked area graph
   #Figure out how to do a reverse legend here
   g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=domain_char)) +
-    geom_area() +
-    scale_fill_brewer(palette = "Accent") #, 
+    geom_area() #+
+    #scale_fill_brewer(palette = "Accent") #, 
   #                      breaks=rev(levels(overall$domain_char)))
   
   # Visits - by month index overall
   overall = ddply(all_monthly, .(obsnum), summarise,
-                  visits_med = median(visits, na.rm = T),
+                  visits_med <- median(visits, na.rm = T),
                   sd = sd(visits, na.rm=T),
                   n = sum(!is.na(visits)),
                   se = sd/sqrt(n))
