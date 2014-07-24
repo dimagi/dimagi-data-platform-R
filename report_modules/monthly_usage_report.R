@@ -18,17 +18,27 @@ library(plyr) #for ddply
 #test directory (render_debug) or with live data from the database connection (render)
 #Debug mode is set in the config_run file.
 
-d1 = domains_for_run[1:8]
-d2 = domains_for_run[10:14]
-d3 = domains_for_run[20:23]
-domains_for_run = append(d1,d2)
-domains_for_run = append(domains_for_run,d3)
-domains_for_run = domains_for_run[-10]
+# d1 = domains_for_run[1:8]
+# d2 = domains_for_run[10:14]
+#d3 = domains_for_run[20:23]
+#domains_for_run = append(d1,d2)
+#domains_for_run = append(domains_for_run,d3)
+#domains_for_run = domains_for_run[-10]
+#can use setdiff here to exclude domains by name
 
 render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
-  
-  source(file.path(getwd(),"function_libraries","csv_sources.R", fsep = .Platform$file.sep))
+  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table_from_csv (test_data_dir)
+  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+}
+
+render <- function (con, domains_for_run, report_options, output_dir) {
+  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  domain_table <- get_domain_table(con)
+  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+}
+  
+create_monthly_usage <- function (domain_table, domains_for_run, report_options, output_dir) {
   output_directory <- output_dir
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
 
@@ -97,7 +107,7 @@ render_debug <- function (test_data_dir, domains_for_run, report_options, output
   #Create new indicators as needed
   # % of unique cases followed-up (of cumulative open cases at month start)
   # Note that cum_case_registered is a cumulative of ALL cases registered by a FLW
-  # We need to change this to include only open cases belonging to a FLW in any
+  # TO DO: We need to change this to include only open cases belonging to a FLW in any
   # given month, otherwise the denominator will continue to inflate.
   # Will just use # of followed-up unique cases until we get the correct deonominator
   # Keep this here as a reminder till that happens 
@@ -546,6 +556,7 @@ render_debug <- function (test_data_dir, domains_for_run, report_options, output
   grid.arrange(g_case_fu_overall, g_case_fu_domains, nrow=2)
   dev.off()
 }
+
 #-----------------------------------------------------------------------------#
 
 #By FLW
