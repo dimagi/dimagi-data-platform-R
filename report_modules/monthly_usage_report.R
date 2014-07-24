@@ -65,7 +65,7 @@ render_debug <- function (test_data_dir, domains_for_run, report_options, output
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
-  all_monthly = all_monthly[!(all_monthly$obsnum==136),]
+  # all_monthly = all_monthly[!(all_monthly$obsnum==136),]
   
   #Change column names names as needed
   colnames(all_monthly)[32] = "row_num"
