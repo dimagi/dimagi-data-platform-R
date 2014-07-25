@@ -163,6 +163,37 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     #scale_fill_brewer(palette = "Accent") #, 
   #                      breaks=rev(levels(overall$domain_char)))
   
+  #By multiple domains
+  #Calculate median within each obsum & domain level. This creates an array
+  array_active = with(all_monthly, tapply(visits, 
+                                          list(obsnum, domain_char), median, 
+                                          na.rm = T))
+  #Convert array to a data frame
+  df_intermediate = as.data.frame(array_active)
+  
+  # Initialize vector and then append all medians together
+  vector_median = c() 
+  for (i in 1:(length(domain_levels))) {
+    vector_median = append(vector_median, df_intermediate[,i])
+  }
+  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
+  # the obsnum_levels and domain_levels 
+  df = as.data.frame(vector_median)
+  colnames(df) = c("visits_med")
+  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
+  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
+  df$domain_num <- as.factor(df$domain_num)
+  g_visits_med_domain = (
+    ggplot(data=df, aes(x=obsnum, y=visits_med)) +
+      geom_line(aes(group=domain_num, colour=domain_num))) +
+    scale_y_continuous(limits = c(0, (max(df$visits_med, na.rm = T) + 5))) + 
+    ggtitle("Visits (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Visits (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold"))
+  
   # Visits - by month index overall
   overall = ddply(all_monthly, .(obsnum), summarise,
                   visits_med <- median(visits, na.rm = T),
@@ -199,62 +230,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array
-  array_active = with(all_monthly, tapply(visits, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame(array_active)
-  
-  # Initialize vector and then append all medians together
-  vector_median = c() 
-  for (i in 1:(length(domain_levels))) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels 
-  df = as.data.frame(vector_median)
-  colnames(df) = c("visits_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_visits_med_domain = (
-    ggplot(data=df, aes(x=obsnum, y=visits_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) +
-    scale_y_continuous(limits = c(0, (max(df$visits_med, na.rm = T) + 5))) + 
-    ggtitle("Visits (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Visits (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold"))
-  
   #-----------------------------------------------------------------------------#
   
   #active_days_per_month by obsnum
-  
-  # Active days per month - overall by month index
-  overall = ddply(all_monthly, c("obsnum"), summarise,
-                  act_days_med = median(active_days_per_month, na.rm = T),
-                  sd = sd(active_days_per_month, na.rm=T),
-                  n = sum(!is.na(active_days_per_month)),
-                  se = sd/sqrt(n))
-  overall$ci95 = overall$se * qt(.975, overall$n-1)
-  
-  g_active_days_overall = 
-    ggplot(overall, aes(x = obsnum, y = act_days_med, 
-                        ymax = (max(df$active_days_med, na.rm = T) + 5))) + 
-    geom_line(colour = "indianred1", size = 1.5) +
-    geom_ribbon(aes(ymin = act_days_med - ci95, ymax = act_days_med + ci95),
-                alpha = 0.2) +
-    ggtitle("Active days (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Active days (#), median") +
-    theme(axis.text=element_text(size=12), 
-          axis.title=element_text(size=14,face="bold"))
   
   #By multiple domains
   #Calculate median within each obsum & domain level. This creates an array.
@@ -286,12 +264,62 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold")) 
   
+  # Active days per month - overall by month index
+  overall = ddply(all_monthly, c("obsnum"), summarise,
+                  act_days_med = median(active_days_per_month, na.rm = T),
+                  sd = sd(active_days_per_month, na.rm=T),
+                  n = sum(!is.na(active_days_per_month)),
+                  se = sd/sqrt(n))
+  overall$ci95 = overall$se * qt(.975, overall$n-1)
+  
+  g_active_days_overall = 
+    ggplot(overall, aes(x = obsnum, y = act_days_med, 
+                        ymax = (max(df$active_days_med, na.rm = T) + 5))) + 
+    geom_line(colour = "indianred1", size = 1.5) +
+    geom_ribbon(aes(ymin = act_days_med - ci95, ymax = act_days_med + ci95),
+                alpha = 0.2) +
+    ggtitle("Active days (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Active days (#), median") +
+    theme(axis.text=element_text(size=12), 
+          axis.title=element_text(size=14,face="bold"))
+  
   #-----------------------------------------------------------------------------#
   
   #median_visits_per_active_day by obsnum
+   
+  #By multiple domains
+  #Calculate median within each obsum & domain level. This creates an array.
+  array_active = with(all_monthly, tapply(median_visits_per_active_day, 
+                                          list(obsnum, domain_char), median, 
+                                          na.rm = T))
+  #Convert array to a data frame
+  df_intermediate = as.data.frame (array_active)
+  # Initialize a vector and then append all medians together in this vector
+  vector_median = c() 
+  for (i in 1:length(domain_levels)) {
+    vector_median = append(vector_median, df_intermediate[,i])
+  }
+  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
+  # the obsnum_levels and domain_levels
+  df = as.data.frame (vector_median)
+  colnames(df) = c("visits_active_day_med")
+  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
+  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
+  df$domain_num <- as.factor(df$domain_num)
+  g_visits_active_day_domains = (
+    ggplot(data=df, aes(x=obsnum, y=visits_active_day_med)) +
+      geom_line(aes(group=domain_num, colour=domain_num))) + 
+    scale_y_continuous(limits = c(0, (max(df$visits_active_day_med, na.rm = T) + 5))) + 
+    ggtitle("Visits per active day (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Visits per active day (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold")) 
   
   # Visits per active day - by month index
-  
   overall = ddply(all_monthly, .(obsnum), summarise,
                   visits_active_day_med = median(median_visits_per_active_day, 
                                                  na.rm = T),
@@ -328,36 +356,6 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array.
-  array_active = with(all_monthly, tapply(median_visits_per_active_day, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame (array_active)
-  # Initialize a vector and then append all medians together in this vector
-  vector_median = c() 
-  for (i in 1:length(domain_levels)) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels
-  df = as.data.frame (vector_median)
-  colnames(df) = c("visits_active_day_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_visits_active_day_domains = (
-    ggplot(data=df, aes(x=obsnum, y=visits_active_day_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, (max(df$visits_active_day_med, na.rm = T) + 5))) + 
-    ggtitle("Visits per active day (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Visits per active day (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold")) 
-  
   #-----------------------------------------------------------------------------#
   
   #Registered cases (#) by obsnum
@@ -374,8 +372,38 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     geom_area() +
     scale_fill_brewer(palette = "YlOrRd")
   
-  # Cases registered - by month index
+  #By multiple domains
+  #Calculate median within each obsum & domain level. This creates an array
+  array_active = with(all_monthly, tapply(case_registered, 
+                                          list(obsnum, domain_char), median, 
+                                          na.rm = T))
+  #Convert array to a data frame
+  df_intermediate = as.data.frame (array_active)
   
+  # Initialize vector and then append all medians together
+  vector_median = c() 
+  for (i in 1:length(domain_levels)) {
+    vector_median = append(vector_median, df_intermediate[,i])
+  }
+  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
+  # the obsnum_levels and domain_levels 
+  df = as.data.frame(vector_median)
+  colnames(df) = c("reg_med")
+  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
+  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
+  df$domain_num <- as.factor(df$domain_num)
+  g_reg_med_domains = (
+    ggplot(data=df, aes(x=obsnum, y=reg_med)) +
+      geom_line(aes(group=domain_num, colour=domain_num))) + 
+    scale_y_continuous(limits = c(0, (max(df$reg_med, na.rm = T) + 5))) + 
+    ggtitle("Registered cases (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Registered cases (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold")) 
+  
+  # Cases registered overall - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   reg_med = median(case_registered, na.rm = T),
                   sd = sd(case_registered, na.rm=T),
@@ -411,14 +439,18 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  
+  #-----------------------------------------------------------------------------#
+  #Unique cases followed-up (#) by obsnum (prefer % of total cumulative open cases)
+  #The denominator in this measure needs to be developed: need to count open cases 
+  #ONLY and exclude all cases that were closed in the previous month
+   
   #By multiple domains
   #Calculate median within each obsum & domain level. This creates an array
-  array_active = with(all_monthly, tapply(case_registered, 
+  array_active = with(all_monthly, tapply(follow_up_unique_case, 
                                           list(obsnum, domain_char), median, 
                                           na.rm = T))
   #Convert array to a data frame
-  df_intermediate = as.data.frame (array_active)
+  df_intermediate = as.data.frame(array_active)
   
   # Initialize vector and then append all medians together
   vector_median = c() 
@@ -428,28 +460,23 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   # Convert vector to dataframe - add domain numbers and obsnum back in, based on
   # the obsnum_levels and domain_levels 
   df = as.data.frame(vector_median)
-  colnames(df) = c("reg_med")
+  colnames(df) = c("case_fu_med")
   df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
   df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
   df$domain_num <- as.factor(df$domain_num)
-  g_reg_med_domains = (
-    ggplot(data=df, aes(x=obsnum, y=reg_med)) +
+  g_case_fu_domains = (
+    ggplot(data=df, aes(x=obsnum, y=case_fu_med)) +
       geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, (max(df$reg_med, na.rm = T) + 5))) + 
-    ggtitle("Registered cases (#) by month index") +
+    scale_y_continuous(limits = c(0, 
+                                  (max(df$case_fu_med, na.rm = T) + 5))) + 
+    ggtitle("Unique cases followed-up (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Registered cases (#), median") +
+    ylab("Unique cases followed-up (#), median") +
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold")) 
+                                                                   face="bold"))
   
-  #-----------------------------------------------------------------------------#
-  #Unique cases followed-up (#) by obsnum (prefer % of total cumulative open cases)
-  #The denominator in this measure needs to be developed: need to count open cases 
-  #ONLY and exclude all cases that were closed in the previous month
-  
-  # Cases followed-up - by month index
-  
+  # Cases followed-up overall - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   case_fu_med = median(follow_up_unique_case, na.rm = T),
                   sd = sd(follow_up_unique_case, na.rm=T),
@@ -484,38 +511,6 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     ylab("Cases followed-up (#), median") +
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
-  
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array
-  array_active = with(all_monthly, tapply(follow_up_unique_case, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame(array_active)
-  
-  # Initialize vector and then append all medians together
-  vector_median = c() 
-  for (i in 1:length(domain_levels)) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels 
-  df = as.data.frame(vector_median)
-  colnames(df) = c("case_fu_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_case_fu_domains = (
-    ggplot(data=df, aes(x=obsnum, y=case_fu_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, 
-                                  (max(df$case_fu_med, na.rm = T) + 5))) + 
-    ggtitle("Unique cases followed-up (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Unique cases followed-up (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold"))
   
   #-----------------------------------------------------------------------------#
   
