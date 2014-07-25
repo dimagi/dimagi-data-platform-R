@@ -41,21 +41,11 @@ render <- function (con, domains_for_run, report_options, output_dir) {
 create_monthly_usage <- function (domain_table, domains_for_run, report_options, output_dir) {
   output_directory <- output_dir
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
-
-  #Read in each individual aggregate table for each domain. Merge all together
-  #Initialize all_monthly table with the first domain_for_run
-  filename = file.path(read_directory, domains_for_run[1], "monthly.csv", fsep = .Platform$file.sep)
-  all_monthly = read.csv(file=filename, header = TRUE, as.is = TRUE)
-  all_monthly = all_monthly[,order(names(all_monthly))]
-  #Import each of the other tables one by one and rbind to initialized all_monthly
-  for (i in 1:length(domains_for_run)) {
-    filename = file.path(read_directory, domains_for_run[i], "monthly.csv", fsep = .Platform$file.sep)
-    import = read.csv(file=filename, header = TRUE, as.is = TRUE)
-    import = import[,order(names(import))]
-    names(import) = names(all_monthly) 
-    if (i > 1) {all_monthly = rbind(all_monthly, import)}
-  }
+  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+  monthly_merged <- merged_monthly_table (domains_for_run, read_directory)
+  all_monthly <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
   
+
   # Set my working directories and load local test data here
   # Work laptop
   #read_directory = "/Users/Rashmi/Dropbox (Dimagi)/R analysis/Rashmi/Sample monthly tables/"
@@ -78,11 +68,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   # all_monthly = all_monthly[!(all_monthly$obsnum==136),]
   
   #Change column names names as needed
-  colnames(all_monthly)[32] = "row_num"
-  colnames(all_monthly)[19] = "calendar_month"
-  colnames(all_monthly)[1] = "active_days_percent"
-  colnames(all_monthly)[28] = "obsnum"
-  colnames(all_monthly)[11] = "domain_char"
+  names (all_monthly)[names(all_monthly) == "X"] = "row_num"
+  names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
+  names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
+  names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
+  names (all_monthly)[names(all_monthly) == "domain"] = "domain_char"
   
   # Convert relevant indicators to percentages
   all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
@@ -113,11 +103,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   # Keep this here as a reminder till that happens 
   all_monthly$case_fu_per = (all_monthly$follow_up_unique_case/all_monthly$cum_case_registered)*100
   
-  # Extract unique levels from obsnum and domain_char
-  f1 = as.factor(all_monthly$obsnum)
-  obsnum_levels = as.numeric(levels(f1))
-  f2 = as.factor(all_monthly$domain_char)
-  domain_levels = levels(f2)
+  # Extract unique levels from obsnum and split_by
+  obsnum_levels = as.numeric(levels(as.factor(all_monthly$obsnum)))
+  split_by_levels = levels(all_monthly$split_by)
   #-----------------------------------------------------------------------------#
   
   #CREATE PLOTS
@@ -142,7 +130,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Violin plots: Compare density estimates of split-by groups
   #Note that depending the adjust (smoothing), it might appear that the first month
   #has less users than other month, though this definitely can't be the case.
-  p_violin_users = ggplot(all_monthly, aes(x=domain_char, y=obsnum)) +
+  p_violin_users = ggplot(all_monthly, aes(x=split_by, y=obsnum)) +
     geom_violin(scale = "count", adjust = .6, fill = "lightblue1") + 
     geom_boxplot(width = .1, fill = "burlywood4", outlier.colour = NA) +
     stat_summary(fun.y=median, geom = "point", fill="moccasin", shape = 21, 
@@ -154,11 +142,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Stacked area graph
   #Sum of visits by domain by obsnum
   #First sum visits across each domain for each obsnum
-  overall = ddply(all_monthly, .(domain_char, obsnum), summarise,
+  overall = ddply(all_monthly, .(split_by, obsnum), summarise,
                   sum_visits = sum(visits, na.rm=T))
   #Create stacked area graph
   #Figure out how to do a reverse legend here
-  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=domain_char)) +
+  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
     geom_area() #+
     #scale_fill_brewer(palette = "Accent") #, 
   #                      breaks=rev(levels(overall$domain_char)))
@@ -166,26 +154,26 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #By multiple domains
   #Calculate median within each obsum & domain level. This creates an array
   array_active = with(all_monthly, tapply(visits, 
-                                          list(obsnum, domain_char), median, 
+                                          list(obsnum, split_by), median, 
                                           na.rm = T))
   #Convert array to a data frame
   df_intermediate = as.data.frame(array_active)
   
   # Initialize vector and then append all medians together
   vector_median = c() 
-  for (i in 1:(length(domain_levels))) {
+  for (i in 1:(length(split_by_levels))) {
     vector_median = append(vector_median, df_intermediate[,i])
   }
   # Convert vector to dataframe - add domain numbers and obsnum back in, based on
   # the obsnum_levels and domain_levels 
   df = as.data.frame(vector_median)
   colnames(df) = c("visits_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
+  df$split_num = rep(1:length(split_by_levels), each = length(obsnum_levels))   
+  df$obsnum = rep(1:length(obsnum_levels), length(split_by_levels))
+  df$split_num <- as.factor(df$split_num)
   g_visits_med_domain = (
     ggplot(data=df, aes(x=obsnum, y=visits_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) +
+      geom_line(aes(group=split_num, colour=split_num))) +
     scale_y_continuous(limits = c(0, (max(df$visits_med, na.rm = T) + 5))) + 
     ggtitle("Visits (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
@@ -237,22 +225,22 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #By multiple domains
   #Calculate median within each obsum & domain level. This creates an array.
   array_active = with(all_monthly, tapply(active_days_per_month, 
-                                          list(obsnum, domain_char), median, 
+                                          list(obsnum, split_by), median, 
                                           na.rm = T))
   #Convert array to a data frame
   df_intermediate = as.data.frame (array_active)
   # Initialize a vector and then append all medians together in this vector
   vector_median = c() 
-  for (i in 1:length(domain_levels)) {
+  for (i in 1:length(split_by_levels)) {
     vector_median = append(vector_median, df_intermediate[,i])
   }
   # Convert vector to dataframe - add domain numbers and obsnum back in, based on
   # the obsnum_levels and domain_levels
   df = as.data.frame (vector_median)
   colnames(df) = c("active_days_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
+  df$split_num = rep(1:length(split_by_levels), each = length(obsnum_levels))   
+  df$obsnum = rep(1:length(obsnum_levels), length(split_by_levels))
+  df$split_num <- as.factor(df$split_num)
   g_active_days_domains = (
     ggplot(data=df, aes(x=obsnum, y=active_days_med)) +
       geom_line(aes(group=domain_num, colour=domain_num))) + 
