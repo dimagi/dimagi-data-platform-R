@@ -8,8 +8,9 @@ library(reshape2)
 
 create_monthly_tables <- function (domain_table, interaction_table, output_dir) {
   
-  v <<- interaction_table
-  domain_names <<- domain_table$name
+  v <- interaction_table
+  v$user_id[is.na(v$user_id)] <- "NONE"
+  domain_names <- domain_table$name
   
   for(dname in domain_names){
     print(sprintf("creating monthly aggregate tables for domain %s ", dname))
@@ -22,8 +23,13 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
       tryCatch({
         
         source(file.path("aggregate_tables","visit_table_run.R", fsep = .Platform$file.sep))
+        visit_table <- makeVisit(dat)
+        
         source(file.path("aggregate_tables","lifetime_run.R",fsep = .Platform$file.sep))
+        lifetime_table <- makeLifeTime(visit_table)
+        
         source(file.path("aggregate_tables","monthly_run.R",fsep = .Platform$file.sep))
+        monthly_table <- makeMonthly(visit_table)
         
         # export data
         source(file.path("aggregate_tables","export_tables.R", fsep = .Platform$file.sep))
