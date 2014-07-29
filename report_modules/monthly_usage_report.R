@@ -36,6 +36,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   monthly_merged <- merged_monthly_table (domains_for_run, read_directory)
   all_monthly <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
+  #monnb(d)
   
   #------------------------------------------------------------------------#
   
@@ -112,7 +113,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     geom_point(size = 6, shape = 19, alpha = 0.5, colour = "darkblue", 
                fill = "lightblue") +
     geom_line(colour = "darkblue") + 
-    scale_size_area()
+    scale_size_area() +
+    ggtitle("Number of users by monthly index") +
+    theme(plot.title = element_text(size=14, face="bold"))
   
   #By split-by
   #Violin plots: Compare density estimates of split-by groups
@@ -125,6 +128,17 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                  #size = 2.5) +
     ggtitle("Density distribution of users by monthly index") +
     theme(plot.title = element_text(size=14, face="bold"))
+  #-----------------------------------------------------------------------------#
+  #PRINT PLOTS AND EXPORT TO PDF
+  #-----------------------------------------------------------------------------#
+  require(gridExtra)
+  report_output_dir <- file.path(output_dir, "reports")
+  dir.create(report_output_dir, showWarnings = FALSE)
+  
+  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  pdf(outfile)
+  grid.arrange(p_users, p_violin_users, nrow=2)
+  dev.off()
 
   #-----------------------------------------------------------------------------#
   #Visits by obsnum
@@ -138,8 +152,15 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Figure out how to do a reverse legend here
   g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
     geom_area() +
-    scale_fill_brewer(palette = "Accent") #, 
+    scale_fill_brewer(palette = "Accent") +
+    ggtitle("Total visits (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold"))
   #                      breaks=rev(levels(overall$domain_char)))
+  
+  outfile <- file.path(report_output_dir,"Number_visits_total.pdf")
+  pdf(outfile)
+  grid.arrange(g_stacked_visits, nrow=1)
+  dev.off()
   
   #By split-by
   #Calculate median within each obsum & split-by level
@@ -197,6 +218,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
+  outfile <- file.path(report_output_dir,"Visits_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_visits_overall, g_visits_med_split, nrow=2)
+  dev.off()
+  
   #-----------------------------------------------------------------------------#
   #active_days_per_month by obsnum
   
@@ -206,7 +232,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                         active_days_med = median(active_days_per_month, na.rm=T))
   maximum_ci = max(overall_split$active_days_med, na.rm = T) + 5
 
-  g_active_days_domains = (
+  g_active_days_split = (
     ggplot(data=overall_split, aes(x=obsnum, y=active_days_med)) +
       geom_line(aes(group=split_by, colour=split_by), size=1.3)) + 
     scale_y_continuous(limits = c(0, maximum_ci)) + 
@@ -255,6 +281,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
+  outfile <- file.path(report_output_dir,"Active_days_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_active_days_overall, g_active_days_split, nrow=2)
+  dev.off()
+  
   #-----------------------------------------------------------------------------#
   
   #median_visits_per_active_day by obsnum
@@ -265,7 +296,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                         visits_active_day_med = median(median_visits_per_active_day, na.rm=T))
   maximum_ci = max(overall_split$visits_active_day_med, na.rm = T) + 5
   
-  g_visits_med_domain = (
+  g_visits_per_day_split = (
     ggplot(data=overall_split, aes(x=obsnum, y=visits_active_day_med)) +
       geom_line(aes(group=split_by, colour=split_by), size = 1.3)) +
     scale_y_continuous(limits = c(0, maximum_ci)) +
@@ -304,7 +335,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max[over_max_logical==T] = maximum_ci
   
   
-  g_visits_active_overall = 
+  g_visits_per_day_overall = 
     ggplot(overall, aes(x = obsnum, y = visits_active_day_med, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
@@ -315,6 +346,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     ylab("Median visits per active day (#), median") +
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
+  
+  outfile <- file.path(report_output_dir,"Visits_per_day_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_visits_per_day_overall, g_visits_per_day_split, nrow=2)
+  dev.off()
   
   #-----------------------------------------------------------------------------#
   
@@ -337,7 +373,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
                                                                    face="bold"))
   
-  # Visits - by month index overall
+  # Cases modified - by month index overall
   overall = ddply(all_monthly, .(obsnum), summarise,
                   cases_mod_med = median(total_cases_modified, na.rm = T),
                   sd = sd(total_cases_modified, na.rm=T),
@@ -376,6 +412,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
+  outfile <- file.path(report_output_dir,"Cases_modified_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_cases_mod_overall, g_cases_mod_split, nrow=2)
+  dev.off()
+  
   #-----------------------------------------------------------------------------#
   
   #Registered cases (#) by obsnum
@@ -390,7 +431,14 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   g_case_reg_sum = ggplot(overall, aes(x=obsnum, y=sum_registered, 
                                        fill=split_by)) + 
     geom_area() +
-    scale_fill_brewer(palette = "YlOrRd")
+    scale_fill_brewer(palette = "YlOrRd") +
+    ggtitle("Total registered cases (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold"))
+  
+  outfile <- file.path(report_output_dir,"Number_cases_reg_total.pdf")
+  pdf(outfile)
+  grid.arrange(g_case_reg_sum, nrow=1)
+  dev.off()
   
   #By multiple domains
   #Calculate median within each obsum & split-by level
@@ -449,6 +497,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
+  outfile <- file.path(report_output_dir,"Registered_cases.pdf")
+  pdf(outfile)
+  grid.arrange(g_reg_med_overall, g_reg_med_split, nrow=2)
+  dev.off()
+  
   #-----------------------------------------------------------------------------#
   
   #Unique cases followed-up (#) by obsnum (prefer % of total cumulative open cases)
@@ -458,8 +511,6 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #By multiple domains
   #Calculate median within each obsum & split-by level
   overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
-                        case_fu_med = median(follow_up_unique_case, na.rm=T))
-  overall_split = ddply(all_monthly, .(split_by, domain_char, obsnum), summarise,
                         case_fu_med = median(follow_up_unique_case, na.rm=T))
   maximum_ci = max(overall_split$case_fu_med, na.rm = T) + 5
   
@@ -513,23 +564,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  #-----------------------------------------------------------------------------#
-  
-  #PRINT PLOTS AND EXPORT TO PDF
-  
-  #-----------------------------------------------------------------------------#
-  require(gridExtra)
-  report_output_dir <- file.path(output_dir, "reports")
-  dir.create(report_output_dir, showWarnings = FALSE)
-  
-  outfile <- file.path(report_output_dir,"Users_visits_total.pdf")
+  outfile <- file.path(report_output_dir,"Cases_followed_up.pdf")
   pdf(outfile)
-  grid.arrange(p_users, g_stacked_visits, nrow=2)
-  dev.off()
-  
-  outfile <- file.path(report_output_dir,"Number_visits.pdf")
-  pdf(outfile)
-  grid.arrange(g_visits_overall, g_visits_med_domain, nrow=2)
+  grid.arrange(g_case_fu_overall, g_case_fu_split, nrow=2)
   dev.off()
  
 
