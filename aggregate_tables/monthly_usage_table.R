@@ -16,9 +16,6 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
     print(sprintf("creating monthly aggregate tables for domain %s ", dname))
     dat <- v[v$domain == dname, ]
     
-    assign("dat", dat, envir = .GlobalEnv)
-    assign("dname", dname, envir = .GlobalEnv)
-    
     if (nrow(dat) > 0) {
       tryCatch({
         
@@ -36,9 +33,9 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
         
         d_path <- file.path(output_dir, dname,fsep = .Platform$file.sep)
         dir.create(d_path,  showWarnings = FALSE)
-        tableOut(d_path,dat, 1)
-        tableOut(d_path,y, 2)
-        tableOut(d_path,user_10, 3)
+        tableOut(d_path,visit_table, 1)
+        tableOut(d_path,lifetime_table, 2)
+        tableOut(d_path,monthly_table, 3)
       }, error = function(cond) {
         message("Error, could not generate monthly table")
         message(cond)
