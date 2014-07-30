@@ -19,7 +19,6 @@ if (debug_mode == T) {
                  port=system_conf$database$port)
   domain_table <- get_domain_table(con)
 }
-
 domains_for_run <- get_domains_for_run(domain_table,run_conf)
 reports <- get_report_module_names(run_conf)
 
