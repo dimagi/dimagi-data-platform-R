@@ -34,9 +34,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   output_directory <- output_dir
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   monthly_merged <- merged_monthly_table (domains_for_run, read_directory)
   all_monthly <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
-  #monnb(d)
   
   #------------------------------------------------------------------------#
   
@@ -60,8 +60,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #for obsnum = 1. These cases threw off the rest of the obsnum calculations.
   #Now that we excluded those first_visit_dates, we are fine
   #e.g.pci-india,rmf,tns-sa
-  monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
-                         lt$year*12 + lt$mon } 
+  #monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
+                      #   lt$year*12 + lt$mon } 
   all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
   all_monthly <- all_monthly[order(all_monthly$domain, 
                                    all_monthly$user_id, all_monthly$month.index),]
@@ -132,7 +132,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #PRINT PLOTS AND EXPORT TO PDF
   #-----------------------------------------------------------------------------#
   require(gridExtra)
-  report_output_dir <- file.path(output_dir, "reports")
+  report_output_dir <- file.path(output_dir, "domain platform reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
   outfile <- file.path(report_output_dir,"Number_users.pdf")
@@ -152,6 +152,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Figure out how to do a reverse legend here
   g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
     geom_area() +
+    scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
     scale_fill_brewer(palette = "Accent") +
     ggtitle("Total visits (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold"))
@@ -187,13 +188,19 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$visits_med, na.rm = T) + 5
-  
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
+
   over_min_logical <- sapply(overall$visits_med - overall$ci95, 
-                             function(x) {if (is.na(x) | (x < -3) ) 
+                             function(x) 
+                               {if (is.na(x) | (x < -3) ) 
                                return (T) else return (F)})
   over_max_logical <- sapply(overall$visits_med + overall$ci95, 
-                             function(x, maximum_ci) {if (is.na(x) | (x > maximum_ci) ) 
-                               return (T) else return (F)},maximum_ci)
+                             function(x, maximum_ci) 
+                               {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -204,6 +211,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max[over_max_logical==F] = 
     (overall$visits_med + overall$ci95)[over_max_logical==F]
   over_max[over_max_logical==T] = maximum_ci
+  
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   
   g_visits_overall = 
@@ -251,13 +261,19 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$act_days_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
   over_min_logical <- sapply(overall$act_days_med - overall$ci95, 
-                             function(x) {if (is.na(x) | (x < -3) ) 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
                                return (T) else return (F)})
   over_max_logical <- sapply(overall$act_days_med + overall$ci95, 
-                             function(x, maximum_ci) {if (is.na(x) | (x > maximum_ci) ) 
-                               return (T) else return (F)},maximum_ci)
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -268,6 +284,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max[over_max_logical==F] = 
     (overall$act_days_med + overall$ci95)[over_max_logical==F]
   over_max[over_max_logical==T] = maximum_ci
+  
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_active_days_overall = 
     ggplot(overall, aes(x = obsnum, y = act_days_med, ymax = maximum_ci)) + 
@@ -316,13 +335,19 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$visits_active_day_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
   over_min_logical <- sapply(overall$visits_active_day_med - overall$ci95, 
-                             function(x) {if (is.na(x) | (x < -3) ) 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
                                return (T) else return (F)})
   over_max_logical <- sapply(overall$visits_active_day_med + overall$ci95, 
-                             function(x, maximum_ci) {if (is.na(x) | (x > maximum_ci) ) 
-                               return (T) else return (F)},maximum_ci)
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -334,6 +359,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     (overall$visits_active_day_med + overall$ci95)[over_max_logical==F]
   over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_visits_per_day_overall = 
     ggplot(overall, aes(x = obsnum, y = visits_active_day_med, ymax = maximum_ci)) + 
@@ -381,13 +408,19 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$cases_mod_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
   over_min_logical <- sapply(overall$cases_mod_med - overall$ci95, 
-                             function(x) {if (is.na(x) | (x < -3) ) 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
                                return (T) else return (F)})
   over_max_logical <- sapply(overall$cases_mod_med + overall$ci95, 
-                             function(x, maximum_ci) {if (is.na(x) | (x > maximum_ci) ) 
-                               return (T) else return (F)},maximum_ci)
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -399,6 +432,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     (overall$cases_mod_med + overall$ci95)[over_max_logical==F]
   over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_cases_mod_overall = 
     ggplot(overall, aes(x = obsnum, y = cases_mod_med, ymax = maximum_ci)) + 
@@ -431,6 +466,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   g_case_reg_sum = ggplot(overall, aes(x=obsnum, y=sum_registered, 
                                        fill=split_by)) + 
     geom_area() +
+    scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
     scale_fill_brewer(palette = "YlOrRd") +
     ggtitle("Total registered cases (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold"))
@@ -465,13 +501,19 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$reg_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
   over_min_logical <- sapply(overall$reg_med - overall$ci95, 
-                             function(x) {if (is.na(x) | (x < -3) ) 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
                                return (T) else return (F)})
   over_max_logical <- sapply(overall$reg_med + overall$ci95, 
-                             function(x, maximum_ci) {if (is.na(x) | (x > maximum_ci) ) 
-                               return (T) else return (F)},maximum_ci)
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -483,6 +525,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     (overall$reg_med + overall$ci95)[over_max_logical==F]
   over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_reg_med_overall = 
     ggplot(overall, aes(x = obsnum, y = reg_med, 
@@ -533,13 +577,19 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$case_fu_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
   over_min_logical <- sapply(overall$case_fu_med - overall$ci95, 
-                             function(x) {if (is.na(x) | (x < -3) ) 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
                                return (T) else return (F)})
   over_max_logical <- sapply(overall$case_fu_med + overall$ci95, 
-                             function(x, maximum_ci) {if (is.na(x) | (x > maximum_ci) ) 
-                               return (T) else return (F)},maximum_ci)
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -551,6 +601,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     (overall$case_fu_med + overall$ci95)[over_max_logical==F]
   over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_case_fu_overall = 
     ggplot(overall, aes(x = obsnum, y = case_fu_med, ymax = maximum_ci)) + 
