@@ -1,24 +1,7 @@
-# indicators of interest:
-    # active_days_per_month
-    # active_days_percent
-    # total forms submitted in a month
-    # total time spent on forms in a month
-    # batch entry 
-    # batch entry percent
-    # different clients visited in a month
-    # case registered in a month
-
-
-
-# import data from somewhere
-# monthly_merge <- .... 
-
-# do we want to exclude domains born within past 6 months from correlation report?
-
-# subset indicators to be included in correlation report
-cont_vars <- c("visits", "nforms_per_month", "numeric_index", "days_on_cc", "median_visits_per_active_day", "median_visit_duration", 
-          "active_days_percent", "batch_entry_percent", "new_case_percent", "follow_up_percent") # continuous variables
-cont_vars <- monthly_merge[, cont_vars]
+# numeric indicators to be included in correlation report
+cont_vars <- c("visits", "nforms_per_month", "numeric_index", "days_on_cc", "total_case_touched", "median_visit_duration", 
+          "median_visits_per_active_day", "active_day_percent") # continuous variables
+cont_vars <- monthly_table[, cont_vars]
 
 
 # Correlation matrix for continuous variables 
@@ -45,8 +28,9 @@ corstarsl <- function(x){
   Rnew <- cbind(Rnew[1:length(Rnew)-1])
   return(Rnew) 
 }
-Rnew <- corstarsl(cont_vars)
-print(Rnew)
+
+Rnew <- corstarsl(cont_vars) # this returns correlation matrix table with significance level 
+print(Rnew) 
 write.csv(Rnew, "corr_matrix.csv")
 
 
