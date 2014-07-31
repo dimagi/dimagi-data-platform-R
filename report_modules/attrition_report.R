@@ -13,6 +13,7 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr)
+library(pryr)
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
@@ -34,10 +35,10 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   output_directory <- output_dir
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
-  monthly_merged <- merged_monthly_table (domains_for_run, read_directory)
-  all_monthly <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
   
+  all_monthly <- merged_monthly_table (domains_for_run, read_directory)
+  all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
+  print(sprintf("Merged monthly table has %d rows; size in memory is %s bytes", nrow(all_monthly),object_size(all_monthly)))
   #------------------------------------------------------------------------#
   
   #Remove demo users
@@ -51,27 +52,8 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   end_date = as.Date(report_options$end_date)
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
-  
-  #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day. Sort by calendar_month for each FLW and then label each 
-  #month for each FLW in chronological order. 
-  #The function calculates number of months of a given Date from the origin
-  #Use this function to recalculate obsnum for FLWs that had weird first_visit_dates
-  #for obsnum = 1. These cases threw off the rest of the obsnum calculations.
-  #Now that we excluded those first_visit_dates, we are fine
-  #e.g.pci-india,rmf,tns-sa
-  #monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
-  #   lt$year*12 + lt$mon } 
-  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
-  all_monthly <- all_monthly[order(all_monthly$domain, 
-                                   all_monthly$user_id, all_monthly$month.index),]
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric = monnb(first_visit_date))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       diff = c(0, diff(numeric)))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric_index = cumsum(diff) + 1) 
-  
+  all_monthly <- add_numeric_index(all_monthly)
+
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
   names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
