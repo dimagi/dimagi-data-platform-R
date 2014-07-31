@@ -28,7 +28,7 @@ create_test_report <- function (domain_table, domains_for_run, report_options, o
   chart <- ggplot(data=overall, aes(x=split_by, y=sum_visits, fill=split_by)) +
     geom_bar(colour="black", stat="identity") +
     guides(fill=FALSE) + xlab(report_options$split_by) + ylab("Total Visits") +
-    ggtitle(sprintf("Total Visits by %s",report_options$split_by)) + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))+ scale_y_continuous(labels = comma)
+    ggtitle("Total Visits by Country") + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))+ scale_y_continuous(labels = comma)
   
   report_output_dir <- file.path(output_dir, "reports")
   dir.create(report_output_dir, showWarnings = FALSE)
