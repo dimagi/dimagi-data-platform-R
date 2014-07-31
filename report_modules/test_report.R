@@ -1,0 +1,40 @@
+library(ggplot2)
+library(gridExtra)
+library(RColorBrewer)
+library(scales)
+library(plyr)
+
+render <- function (con,domains_for_run,report_options,output_dir) {
+  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  domain_table <- get_domain_table(con)
+  create_test_report(domain_table, domains_for_run, report_options, output_dir)
+}
+
+render_debug <- function (test_data_dir,domains_for_run,report_options,output_dir){
+  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
+  domain_table <- get_domain_table_from_csv (test_data_dir)
+  create_test_report(domain_table, domains_for_run, report_options, output_dir)
+}
+
+create_test_report <- function (domain_table, domains_for_run, report_options, output_dir) {
+  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+  aggregate_tables_dir <- file.path(output_dir,"aggregate_tables", fsep = .Platform$file.sep)
+  monthly_merged <- merged_monthly_table (domains_for_run, aggregate_tables_dir)
+  report_data <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
+  
+  overall <- ddply(report_data, .(split_by), summarise,
+                   sum_visits = sum(visits, na.rm=T))
+  
+  chart <- ggplot(data=overall, aes(x=split_by, y=sum_visits, fill=split_by)) +
+    geom_bar(colour="black", stat="identity") +
+    guides(fill=FALSE) + xlab(report_options$split_by) + ylab("Total Visits") +
+    ggtitle(sprintf("Total Visits by %s",report_options$split_by)) + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))+ scale_y_continuous(labels = comma)
+  
+  report_output_dir <- file.path(output_dir, "reports")
+  dir.create(report_output_dir, showWarnings = FALSE)
+  outfile <- file.path(report_output_dir,"test_report.pdf")
+  pdf(outfile)
+  grid.arrange(chart, nrow=1)
+  dev.off()
+  
+}

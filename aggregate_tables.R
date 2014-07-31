@@ -30,7 +30,6 @@ for (aggtable in aggtables) {
   } else {
     create_tables_debug(test_data_dir,aggtables_output_subdir)
   }
-  
 }
 
 if (debug_mode == F) {

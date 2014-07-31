@@ -1,24 +1,28 @@
-# indicators of interest:
-    # active_days_per_month
-    # active_days_percent
-    # total forms submitted in a month
-    # total time spent on forms in a month
-    # batch entry 
-    # batch entry percent
-    # different clients visited in a month
-    # case registered in a month
-
-
-
+library("Hmisc")
 # import data from somewhere
-# monthly_merge <- .... 
+# all_monthly <- .... 
+#Run beginning of monthly usage report
+all_monthly$batch_entry_percent= (all_monthly$batch_entry_percent)*100
+all_monthly$median_visit_duration = round(all_monthly$median_visit_duration/60,
+                                          digits=2) 
+# monthly indicators of interest:
+    # active_days_percent
+    # total visits
+    # median_visits_per_active_day
+    # case_registered
+    # follow_up_unique_case
+    # median_visit_duration
+    # obsnum
+    # batch entry (wait on this till we have the correct data) 
+    # batch entry percent (wait on this till we have the correct data) 
 
 # do we want to exclude domains born within past 6 months from correlation report?
-
 # subset indicators to be included in correlation report
-cont_vars <- c("visits", "nforms_per_month", "numeric_index", "days_on_cc", "median_visits_per_active_day", "median_visit_duration", 
-          "active_days_percent", "batch_entry_percent", "new_case_percent", "follow_up_percent") # continuous variables
-cont_vars <- monthly_merge[, cont_vars]
+# continuous variables
+cont_vars <- c("visits", "active_days_percent", "obsnum", "median_visits_per_active_day", 
+               "median_visit_duration", "case_registered", "follow_up_unique_case") 
+
+all_cont <- all_monthly[,cont_vars]
 
 
 # Correlation matrix for continuous variables 
@@ -45,7 +49,7 @@ corstarsl <- function(x){
   Rnew <- cbind(Rnew[1:length(Rnew)-1])
   return(Rnew) 
 }
-Rnew <- corstarsl(cont_vars)
+Rnew <- corstarsl(all_cont)
 print(Rnew)
 write.csv(Rnew, "corr_matrix.csv")
 

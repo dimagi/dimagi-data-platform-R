@@ -88,7 +88,11 @@ get_report_options <- function (conf, report_name) {
 # PARAMS 
 # conf : the run conf json object
 get_domain_names_include <- function (conf) {
-  domain_names <- strsplit(as.character(conf$domains$names_include),",")[[1]]
+  if ("names_include" %in% names(conf$domains)) {
+    domain_names <- strsplit(as.character(conf$domains$names_include),",")[[1]]
+  } else {
+    domain_names <- vector()
+  }
   return(domain_names)
 }
 
@@ -99,7 +103,12 @@ get_domain_names_include <- function (conf) {
 # PARAMS 
 # conf : the run conf json object
 get_domain_names_exclude <- function (conf) {
-  domain_names <- strsplit(as.character(conf$domains$names_exclude),",")[[1]]
+  if ("names_exclude" %in% names(conf$domains)) {
+    domain_names <- strsplit(as.character(conf$domains$names_exclude),",")[[1]]
+  } else {
+    domain_names <- vector()
+  }
+  
   return(domain_names)
 }
 
@@ -124,8 +133,14 @@ single_vec_split <- function(s, split=","){
 # PARAMS 
 # conf : the run conf json object
 get_domain_filters <- function (conf) {
-  domain_filters <- conf$domains$filters
-  domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
+  if ("filters" %in% names(conf$domains)) {
+    domain_filters <- conf$domains$filters
+    domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
+  }
+  else
+  {
+    domain_filters <- vector()
+  }
   return(domain_filters)
 }
 
@@ -158,7 +173,7 @@ get_domains_for_run <- function (domain_table,conf) {
   
   domains_include <- vector()
   # get domains to include from filters
-  if (length(filters_include) > 0) {
+  if (nrow(filters_include) > 0) {
     domains_include <- domain_table$name
     for (i in 1:nrow(filters_include)) {
       inc <- filters_include[i,]
@@ -169,7 +184,7 @@ get_domains_for_run <- function (domain_table,conf) {
   
   domains_exclude <- vector()
   # get domains to exclude from filters
-  if (length(filters_exclude) > 0) {
+  if (nrow(filters_exclude) > 0) {
     for (j in 1:nrow(filters_exclude)) {
       exc <- filters_exclude[j,]
       matching_domains <- get_domains_for_filter(domain_table,filter_by=exc$filter_by,vals=exc$values)

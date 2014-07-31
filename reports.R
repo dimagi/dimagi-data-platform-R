@@ -19,12 +19,12 @@ if (debug_mode == T) {
                  port=system_conf$database$port)
   domain_table <- get_domain_table(con)
 }
-
 domains_for_run <- get_domains_for_run(domain_table,run_conf)
 reports <- get_report_module_names(run_conf)
 
 # run the reports
 for (report in reports) {
+  print(sprintf("Running report module: %s", report))
   report_file <- sprintf("%s.R", report)
   report_options <- get_report_options(run_conf,report)
   source(file.path("report_modules",report_file, fsep = .Platform$file.sep))
