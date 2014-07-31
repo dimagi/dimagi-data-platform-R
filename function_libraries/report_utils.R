@@ -9,9 +9,15 @@
 # aggregate_tables_dir: the directory for aggregate tables,  should be output_dir/aggregate_tables
 merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
   library(plyr)
-  monthly_path <- function (dname){ return (file.path (aggregate_tables_dir,dname,"monthly.csv", fsep = .Platform$file.sep))}
-  filenames <- sapply(domain_names,monthly_path)
-  merged <- rbind.fill(lapply(filenames, read.csv,header = TRUE, as.is = TRUE))
+  
+  read_csv_add_domain <- function (dname) {
+    monthly_table_file <- file.path (aggregate_tables_dir,dname,"monthly.csv", fsep = .Platform$file.sep)
+    df <- read.csv(monthly_table_file,header = TRUE)
+    df$domain <- dname
+    return(df)
+  }
+  
+  merged <- rbind.fill(lapply(domain_names, read_csv_add_domain))
   return(merged)
 }
 
