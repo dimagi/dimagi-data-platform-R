@@ -56,7 +56,7 @@ add_numeric_index <- function(all_monthly) {
   
   get_numeric_index <- function(x) {
     x <- ddply(x, .(user_id), transform, 
-               diff = c(0,lag(months_since_origin)))
+               diff = c(0,diff(months_since_origin)))
     x <- ddply(x, .( user_id), transform, 
                numeric_index = cumsum(diff) + 1)
   }
