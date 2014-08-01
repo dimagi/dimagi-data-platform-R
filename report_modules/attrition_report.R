@@ -13,7 +13,7 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr)
-library(pryr)
+library(dplyr)
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
@@ -38,7 +38,6 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
   all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
-  print(sprintf("Merged monthly table has %d rows; size in memory is %s bytes", nrow(all_monthly),object_size(all_monthly)))
   #------------------------------------------------------------------------#
   
   #Remove demo users
@@ -52,7 +51,18 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   end_date = as.Date(report_options$end_date)
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
-  all_monthly <- add_numeric_index(all_monthly)
+  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
+  all_monthly$months_since_origin <- sapply(all_monthly$first_visit_date,monnb)
+  all_monthly <- all_monthly[order(all_monthly$domain, 
+                                   all_monthly$user_id, all_monthly$months_since_origin),]
+  
+  all_monthly<-all_monthly %.%
+    group_by(domain,user_id) %.%
+    mutate(diff = months_since_origin - lag(months_since_origin, default=months_since_origin[1]))
+
+  all_monthly<-all_monthly %.%
+    group_by(domain,user_id) %.%
+    mutate(numeric_index = cumsum(diff) + 1)
 
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
