@@ -1,7 +1,7 @@
 require(plyr)
 
 # this calculates number of months of a given Date from the origin
-monnb <- function(d) { 
+months_since_origin <- function(d) { 
   lt <- as.POSIXlt(as.Date(d, origin="1900-01-01"))
   return(lt$year*12 + lt$mon)
 } 
