@@ -52,6 +52,10 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
   
+  #Convert calendar_month (character) to yearmon class since as.Date won't work 
+  #without a day.
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
+  
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
   names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
