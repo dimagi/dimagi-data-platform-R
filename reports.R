@@ -24,6 +24,7 @@ reports <- get_report_module_names(run_conf)
 
 # run the reports
 for (report in reports) {
+  print(sprintf("Running report module: %s", report))
   report_file <- sprintf("%s.R", report)
   report_options <- get_report_options(run_conf,report)
   source(file.path("report_modules",report_file, fsep = .Platform$file.sep))
