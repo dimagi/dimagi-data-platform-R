@@ -51,19 +51,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   end_date = as.Date(report_options$end_date)
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
-  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
-  all_monthly$months_since_origin <- sapply(all_monthly$first_visit_date,monnb)
-  all_monthly <- all_monthly[order(all_monthly$domain, 
-                                   all_monthly$user_id, all_monthly$months_since_origin),]
   
-  all_monthly<-all_monthly %.%
-    group_by(domain,user_id) %.%
-    mutate(diff = months_since_origin - lag(months_since_origin, default=months_since_origin[1]))
-
-  all_monthly<-all_monthly %.%
-    group_by(domain,user_id) %.%
-    mutate(numeric_index = cumsum(diff) + 1)
-
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
   names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"

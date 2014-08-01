@@ -74,8 +74,6 @@ makeMonthly <- function(dat){
   user_10$cum_case_registered <- cumsum(user_10$case_registered)
   user_10$unique_case_followup_rate <- round(100*user_10$follow_up_unique_case/user_10$cum_case_registered, 2) # could be Inf if a mobile worker only visits cases already registered and shared by other mobile workers
   user_10$domain.index <- rep(dat$domain.index[1], nrow(user_10))
-#  user_10$domain <- dname #TODO this shouldn't have to be global
-  
   
   # Percentage indicator computation below
   user_10$batch_entry_percent <- user_10$batch_entry/user_10$visits
@@ -84,11 +82,15 @@ makeMonthly <- function(dat){
   user_10$new_case_percent <- user_10$case_registered/user_10$cum_case_registered 
   
   # numeric month index
+  first_possible_visit_date <- as.Date("2010-01-01")
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   user_10 <- user_10[order(user_10$user_id, user_10$month.index),]
-  user_10 <- ddply(user_10, .(user_id), transform, numeric = monnb(first_visit_date))
-  user_10 <- ddply(user_10, .(user_id), transform, diff = c(0, diff(numeric)))
-  user_10 <- ddply(user_10, .(user_id), transform, numeric_index = cumsum(diff) + 1) 
+  filtered <- subset(user_10, first_visit_date >= first_possible_visit_date, 
+         select=c(user_id, month.index,first_visit_date))
+  filtered <- ddply(filtered, .(user_id), transform, numeric = months_since_origin(first_visit_date))
+  filtered <- ddply(filtered, .(user_id), transform, diff = c(0, diff(numeric)))
+  filtered <- ddply(filtered, .(user_id), transform, numeric_index = cumsum(diff) + 1)
+  user_10 <- merge(user_10,filtered,by=c("user_id","month.index"))
   
   # N+1/3/5 indicators
   user_10 <- ddply(user_10, .(user_id), transform, next_mon_1 = perf_predict(numeric_index, 1))
