@@ -56,24 +56,8 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
                        & all_monthly$last_visit_date <= end_date)
   
   #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day. Sort by calendar_month for each FLW and then label each 
-  #month for each FLW in chronological order. 
-  #The function calculates number of months of a given Date from the origin
-  #Use this function to recalculate obsnum for FLWs that had weird first_visit_dates
-  #for obsnum = 1. These cases threw off the rest of the obsnum calculations.
-  #Now that we excluded those first_visit_dates, we are fine
-  #e.g.pci-india,rmf,tns-sa
-  #monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
-  #   lt$year*12 + lt$mon } 
+  #without a day.
   all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
-  all_monthly <- all_monthly[order(all_monthly$domain, 
-                                   all_monthly$user_id, all_monthly$month.index),]
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric = monnb(first_visit_date))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       diff = c(0, diff(numeric)))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric_index = cumsum(diff) + 1) 
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
