@@ -13,6 +13,7 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr) #for ddply
+library(knitr) #for appending pdfs
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
@@ -560,7 +561,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   
   g_case_fu_split = (
     ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med)) +
-      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+      if (levels(split_by) > 10) {geom_line(aes(group=split_by), size = 1.3))}
+      else {geom_line(aes(group=split_by, colour=split_by), size = 1.3))} + 
     scale_y_continuous(limits = c(0, maximum_ci)) + 
     ggtitle("Unique cases followed-up (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
