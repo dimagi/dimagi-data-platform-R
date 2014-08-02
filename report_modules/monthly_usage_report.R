@@ -13,6 +13,8 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr) #for ddply
+library(knitr) #for appending pdfs
+library(dplyr)
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
@@ -35,7 +37,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
-  monthly_merged <- merged_monthly_table (domains_for_run, read_directory)
+  all_monthly <- merged_monthly_table (domains_for_run, read_directory)
   all_monthly <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
   
   #------------------------------------------------------------------------#
@@ -53,24 +55,8 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                        & all_monthly$last_visit_date <= end_date)
   
   #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day. Sort by calendar_month for each FLW and then label each 
-  #month for each FLW in chronological order. 
-  #The function calculates number of months of a given Date from the origin
-  #Use this function to recalculate obsnum for FLWs that had weird first_visit_dates
-  #for obsnum = 1. These cases threw off the rest of the obsnum calculations.
-  #Now that we excluded those first_visit_dates, we are fine
-  #e.g.pci-india,rmf,tns-sa
-  #monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
-                      #   lt$year*12 + lt$mon } 
+  #without a day.
   all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
-  all_monthly <- all_monthly[order(all_monthly$domain, 
-                                   all_monthly$user_id, all_monthly$month.index),]
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric = monnb(first_visit_date))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       diff = c(0, diff(numeric)))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric_index = cumsum(diff) + 1) 
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -560,7 +546,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   
   g_case_fu_split = (
     ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med)) +
-      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+    geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
     scale_y_continuous(limits = c(0, maximum_ci)) + 
     ggtitle("Unique cases followed-up (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +

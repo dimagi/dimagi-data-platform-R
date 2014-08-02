@@ -1,5 +1,7 @@
 # Utility functions for report modules
 
+
+
 # FUNCTION merged_monthly_table
 # gets all monthly.csv files for domains specified in domain_names
 # returns one merged table with all columns present in any monthly.csv
@@ -8,8 +10,6 @@
 # domain_names: a list of domain names to import monthly.csv files for
 # aggregate_tables_dir: the directory for aggregate tables,  should be output_dir/aggregate_tables
 merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
-  library(plyr)
-  
   read_csv_add_domain <- function (dname) {
     monthly_table_file <- file.path (aggregate_tables_dir,dname,"monthly.csv", fsep = .Platform$file.sep)
     df <- read.csv(monthly_table_file,header = TRUE)
