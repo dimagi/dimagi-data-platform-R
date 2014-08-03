@@ -43,6 +43,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
@@ -54,7 +55,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   
   #Convert calendar_month (character) to yearmon class since as.Date won't work 
   #without a day.
-  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -133,7 +134,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   report_output_dir <- file.path(output_dir, "domain platform reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  outfile <- file.path(report_output_dir,"Number_users_attrition.pdf")
   pdf(outfile)
   grid.arrange(p_users, nrow=1)
   dev.off()
