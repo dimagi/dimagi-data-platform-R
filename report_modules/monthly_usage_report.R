@@ -38,7 +38,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
-  all_monthly <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
+  all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
   
   #------------------------------------------------------------------------#
   
