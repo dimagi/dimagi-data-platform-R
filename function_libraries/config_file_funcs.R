@@ -67,7 +67,7 @@ get_aggregate_table_names <- function (conf) {
 #
 # PARAMS 
 # conf : the run conf json object
-# report_name : name of report module (should also be file name without .R)
+# report_name : name of report module (should always be file name without .R)
 get_report_options <- function (conf, report_name) {
   report_modules <- conf$reports$modules$name
   stopifnot (report_name %in% report_modules)
@@ -81,50 +81,22 @@ get_report_options <- function (conf, report_name) {
 }
 
 
-# FUNCTION get_domain_names_include
-# gets any domains to include specified by name from the run config.
+# FUNCTION get_named_domains
+# gets any domains to include or exclude specified by name from the run config.
 # returns a list of domain names
 #
-# PARAMS 
+# PARAMS
+# spec_type : one of "include" or "exclude"
 # conf : the run conf json object
-get_domain_names_include <- function (conf) {
-  if ("names_include" %in% names(conf$domains)) {
-    domain_names <- strsplit(as.character(conf$domains$names_include),",")[[1]]
+get_named_domains <- function (spec_type,conf) {
+  section <- sprintf("names_%s",spec_type)
+  if (section %in% names(conf$domains)) {
+    domain_names <- strsplit(as.character(conf$domains[[section]]),",")[[1]]
   } else {
     domain_names <- vector()
   }
   return(domain_names)
 }
-
-# FUNCTION get_domain_names_exclude
-# gets any domains to exclude specified by name from the run config.
-# returns a list of domain names
-#
-# PARAMS 
-# conf : the run conf json object
-get_domain_names_exclude <- function (conf) {
-  if ("names_exclude" %in% names(conf$domains)) {
-    domain_names <- strsplit(as.character(conf$domains$names_exclude),",")[[1]]
-  } else {
-    domain_names <- vector()
-  }
-  
-  return(domain_names)
-}
-
-# FUNCTION single_vec_split
-# splits a string at the character specified by split.
-# returns the first element of the list returned by strsplit
-#
-# PARAMS 
-# s: the string to split
-# split: the character to split on
-single_vec_split <- function(s, split=","){
-  spl <- strsplit(s, split)
-  unlisted <- spl[[1]]
-  return(unlisted)
-}
-
 
 # FUNCTION get_domain_filters
 # gets filterby fields and values from run config
@@ -135,11 +107,19 @@ single_vec_split <- function(s, split=","){
 get_domain_filters <- function (conf) {
   if ("filters" %in% names(conf$domains)) {
     domain_filters <- conf$domains$filters
-    domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
+    
+    if ("values" %in% names(domain_filters)) { # an include-all filter doesn't have values
+      single_vec_split <- function(s, split=","){
+        spl <- strsplit(s, split)
+        unlisted <- spl[[1]]
+        return(unlisted)
+      }
+      domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
+    }
   }
   else
   {
-    domain_filters <- vector()
+    domain_filters <- list()
   }
   return(domain_filters)
 }
@@ -165,33 +145,44 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
 }
 
 get_domains_for_run <- function (domain_table,conf) {
-  names_include <- get_domain_names_include(conf)
-  names_exclude <- get_domain_names_exclude(conf)
-  filters <- get_domain_filters(conf)
-  filters_include <- filters[filters[["type"]]=="include",]
-  filters_exclude <- filters[filters[["type"]]=="exclude",]
-  
+  names_include <- get_named_domains("include",conf)
+  names_exclude <- get_named_domains("exclude",conf)
   domains_include <- vector()
-  # get domains to include from filters
-  if (nrow(filters_include) > 0) {
-    domains_include <- domain_table$name
-    for (i in 1:nrow(filters_include)) {
-      inc <- filters_include[i,]
-      matching_domains <- get_domains_for_filter(domain_table,filter_by=inc$filter_by,vals=inc$values)
-      domains_include <- intersect(domains_include,matching_domains)
-    }
-  }
-  
   domains_exclude <- vector()
-  # get domains to exclude from filters
-  if (nrow(filters_exclude) > 0) {
-    for (j in 1:nrow(filters_exclude)) {
-      exc <- filters_exclude[j,]
-      matching_domains <- get_domains_for_filter(domain_table,filter_by=exc$filter_by,vals=exc$values)
-      domains_exclude <- union(domains_exclude,matching_domains)
+  filters <- get_domain_filters(conf)
+  
+  has_filters <- length(filters) > 0 # if filters is a list, you'll get a warning
+  if (has_filters) { 
+    filters_all <- filters[filters[["type"]]=="include-all",]
+    filters_include <- filters[filters[["type"]]=="include",]
+    filters_exclude <- filters[filters[["type"]]=="exclude",]
+    
+    
+    if (length(filters_all) > 0) {  # if we have an include-all, all domains are included unless excluded in a filter or by name
+      domains_include <- domain_table$name
+    }
+    else if (length(filters_include) > 0) {  # else get domains to include from filters by domain attrs
+      domains_include <- domain_table$name
+      for (i in 1:nrow(filters_include)) {
+        inc <- filters_include[i,]
+        matching_domains <- get_domains_for_filter(domain_table,filter_by=inc$filter_by,vals=inc$values)
+        domains_include <- intersect(domains_include,matching_domains)
+      }
+    }
+    
+    # get domains to exclude from filters
+    if (length(filters_exclude) > 0) {
+      for (j in 1:nrow(filters_exclude)) {
+        exc <- filters_exclude[j,]
+        matching_domains <- get_domains_for_filter(domain_table,filter_by=exc$filter_by,vals=exc$values)
+        domains_exclude <- union(domains_exclude,matching_domains)
+      }
     }
   }
   
-  domains_for_run <- setdiff(union(domains_include, names_include), union(domains_exclude, names_exclude))
+  # domains included by filter are included unless they match an exclude filter or are excluded by name
+  domains_for_run <- setdiff(domains_include, union(domains_exclude, names_exclude))
+  # named include domains are always included
+  domains_for_run <- rbind(names_include,domains_for_run)
   return (domains_for_run)
 }

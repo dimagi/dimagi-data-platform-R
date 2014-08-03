@@ -54,6 +54,7 @@ get_domain_table <- function (con) {
   subsectors<-transform(subsectors, subsector = strsplit(substr(subsector,2,nchar(subsector)-1),split=","))
   subsectors$subsector[sapply(subsectors$subsector,length)==0]<-NA
   retframe<-merge(retframe,subsectors,by="name",all=T)
+  retframe <- data.frame(retframe,check.names=T)
   return(retframe)
 }
 
