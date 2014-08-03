@@ -109,12 +109,17 @@ get_domain_filters <- function (conf) {
     domain_filters <- conf$domains$filters
     
     if ("values" %in% names(domain_filters)) { # an include-all filter doesn't have values
-      single_vec_split <- function(s, split=","){
-        spl <- strsplit(s, split)
-        unlisted <- spl[[1]]
-        return(unlisted)
+      
+      domain_filters$values <- conf$domains$filters$values
+      if(!is.na(domain_filters$values)) {
+        single_vec_split <- function(s, split=","){
+          spl <- strsplit(s, split)
+          unlisted <- spl[[1]]
+          return(unlisted)
+        }
+        domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
       }
-      domain_filters$values <- lapply(conf$domains$filters$values,single_vec_split,split=",")
+      
     }
   }
   else
@@ -136,8 +141,10 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
   if (!(filter_by %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", filter_by))
   }
-  any_vals_match <- function(rowvals,filtervals) return (sum(rowvals %in% filtervals,na.rm=T)>0)
-  matching_rows <- domain_table[sapply(domain_table[[filter_by]],any_vals_match,vals[[1]]),]
+  filter_vals <- vals[[1]]
+  any_vals_match <- function(row_vals,filter_vals) return (sum(row_vals %in% filter_vals,na.rm=T)>0)
+  matching_rows <- domain_table[sapply(domain_table[[filter_by]],any_vals_match,filter_vals),]
+  
   if (nrow(matching_rows) == 0 ) {
     warning(sprintf ("No rows with values in (%s) for attribute %s", paste(vals, collapse=","),filter_by))
   }
@@ -156,8 +163,7 @@ get_domains_for_run <- function (domain_table,conf) {
     filters_all <- filters[filters[["type"]]=="include-all",]
     filters_include <- filters[filters[["type"]]=="include",]
     filters_exclude <- filters[filters[["type"]]=="exclude",]
-    
-    
+
     if (length(filters_all) > 0) {  # if we have an include-all, all domains are included unless excluded in a filter or by name
       domains_include <- domain_table$name
     }
