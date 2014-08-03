@@ -13,18 +13,11 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr) #for ddply
+library(dplyr)
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
 #Debug mode is set in the config_run file.
-
-# d1 = domains_for_run[1:8]
-# d2 = domains_for_run[10:14]
-#d3 = domains_for_run[20:23]
-#domains_for_run = append(d1,d2)
-#domains_for_run = append(domains_for_run,d3)
-#domains_for_run = domains_for_run[-10]
-#can use setdiff here to exclude domains by name
 
 render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
@@ -41,83 +34,50 @@ render <- function (con, domains_for_run, report_options, output_dir) {
 create_monthly_usage <- function (domain_table, domains_for_run, report_options, output_dir) {
   output_directory <- output_dir
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
-
-  #Read in each individual aggregate table for each domain. Merge all together
-  #Initialize all_monthly table with the first domain_for_run
-  filename = file.path(read_directory, domains_for_run[1], "monthly.csv", fsep = .Platform$file.sep)
-  all_monthly = read.csv(file=filename, header = TRUE, as.is = TRUE)
-  all_monthly = all_monthly[,order(names(all_monthly))]
-  #Import each of the other tables one by one and rbind to initialized all_monthly
-  for (i in 1:length(domains_for_run)) {
-    filename = file.path(read_directory, domains_for_run[i], "monthly.csv", fsep = .Platform$file.sep)
-    import = read.csv(file=filename, header = TRUE, as.is = TRUE)
-    import = import[,order(names(import))]
-    names(import) = names(all_monthly) 
-    if (i > 1) {all_monthly = rbind(all_monthly, import)}
-  }
+  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
+  all_monthly <- merged_monthly_table (domains_for_run, read_directory)
+  all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
   
-  # Set my working directories and load local test data here
-  # Work laptop
-  #read_directory = "/Users/Rashmi/Dropbox (Dimagi)/R analysis/Rashmi/Sample monthly tables/"
-  #output_directory = "C:/Users/Rashmi/Dropbox (Dimagi)/R analysis/Visuals/DP demo/July 7 2014"
-  # Home laptop
-  # read_directory = "/Users/rdayalu/Dropbox (Dimagi)/R analysis/Rashmi/Sample monthly tables/"
-  # output_directory = "/Users/rdayalu/Dropbox (Dimagi)/R analysis/Visuals/DP demo/July 7 2014"
-  # Read in monthly tables - merged table
-  #filename = paste(read_directory, "monthly_merge.csv", sep="")
-  #all_monthly = read.csv(file=filename, header = TRUE, as.is = TRUE)
-  # setwd(output_directory)
-  # Give full path rather than setwd
-  # fullpath <- file.path(output_directory,filename,fsep=.Platform$file.sep)
-  # write.csv(dat,fullpath)
   #------------------------------------------------------------------------#
   
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
-  # all_monthly = all_monthly[!(all_monthly$obsnum==136),]
+  
+  #Remove any dates before report start_date and after report end_date
+  all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
+  all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
+  start_date = as.Date(report_options$start_date)
+  end_date = as.Date(report_options$end_date)
+  all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
+                       & all_monthly$last_visit_date <= end_date)
+  
   
   #Change column names names as needed
-  colnames(all_monthly)[32] = "row_num"
-  colnames(all_monthly)[19] = "calendar_month"
-  colnames(all_monthly)[1] = "active_days_percent"
-  colnames(all_monthly)[28] = "obsnum"
-  colnames(all_monthly)[11] = "domain_char"
+  names (all_monthly)[names(all_monthly) == "X"] = "row_num"
+  names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
+  names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
+  names (all_monthly)[names(all_monthly) == "domain"] = "domain_char"
+  names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
   
   # Convert relevant indicators to percentages
   all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
   #all_monthly$visits = as.numeric(all_monthly$visits)
   
-  #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day. Sort by calendar_month for each FLW and then label each 
-  #month for each FLW in chronological order. 
-  #all_monthly$calendar_month = as.yearmon(all_monthly$calendar_month, "%b-%y")
-  
-  #Create monthly index for each FLW
-  #Note: The code below doesn't care if an FLW has an inactive month. Only the
-  #months with observations are counted, so no FLW will have any gaps, which
-  #isn't correct. Mengji has rewritten this code.
-  # all_monthly = all_monthly[order(all_monthly$user_id,all_monthly$calendar_month),]
-  # all_monthly$obsnum = sequence(rle(all_monthly$user_id)$lengths)
-  
-  #Create a new domain variable with a character in the front so that it 
-  #can be used as a column name later without a problem
-  #all_monthly$domain_char = paste("d", all_monthly$domain.index, sep="")
-  
-  #Create new indicators as needed
+  # Create new indicators as needed
   # % of unique cases followed-up (of cumulative open cases at month start)
   # Note that cum_case_registered is a cumulative of ALL cases registered by a FLW
   # TO DO: We need to change this to include only open cases belonging to a FLW in any
   # given month, otherwise the denominator will continue to inflate.
   # Will just use # of followed-up unique cases until we get the correct deonominator
-  # Keep this here as a reminder till that happens 
+  # Will also calculate total_case_modified as the sum of cases registered and unique 
+  # cases followed-up, even though a case will be counted twice if registered and 
+  # follow-ed up in the same month.
+  # Keep these here as a reminder till we can make the necessary changes 
   all_monthly$case_fu_per = (all_monthly$follow_up_unique_case/all_monthly$cum_case_registered)*100
-  
-  # Extract unique levels from obsnum and domain_char
-  f1 = as.factor(all_monthly$obsnum)
-  obsnum_levels = as.numeric(levels(f1))
-  f2 = as.factor(all_monthly$domain_char)
-  domain_levels = levels(f2)
+  all_monthly$total_cases_modified = (all_monthly$case_registered + 
+                                        all_monthly$follow_up_unique_case) 
   #-----------------------------------------------------------------------------#
   
   #CREATE PLOTS
@@ -125,55 +85,104 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #-----------------------------------------------------------------------------#
   #Number of users by obsnum
   #Overall dataset
-  #2-D density plot of number of users by monthly index
+  #Number of users by monthly index
   all_monthly$count_user = 1
   overall = ddply(all_monthly, .(obsnum), summarise,
                   sum_user = sum(count_user, na.rm=T))
-  # p = ggplot(overall, aes(x=obsnum, y = sum_user))
-  # p + geom_point() + stat_density2d()
-  # p + stat_density2d(aes(fill=..density..), geom = "tile", contour = F)
+  #overall = ddply(all_monthly, .(domain_char), summarise,
+  #               min_value = min(obsnum, na.rm=T))
   p_users = ggplot(overall, aes(x=obsnum, y=sum_user)) +
     geom_point(size = 6, shape = 19, alpha = 0.5, colour = "darkblue", 
                fill = "lightblue") +
     geom_line(colour = "darkblue") + 
-    scale_size_area()
+    scale_size_area() +
+    ggtitle("Number of users by monthly index") +
+    theme(plot.title = element_text(size=14, face="bold"))
   
   #By split-by
   #Violin plots: Compare density estimates of split-by groups
   #Note that depending the adjust (smoothing), it might appear that the first month
   #has less users than other month, though this definitely can't be the case.
-  p_violin_users = ggplot(all_monthly, aes(x=domain_char, y=obsnum)) +
+  p_violin_users = ggplot(all_monthly, aes(x=split_by, y=obsnum)) +
     geom_violin(scale = "count", adjust = .6, fill = "lightblue1") + 
-    geom_boxplot(width = .1, fill = "burlywood4", outlier.colour = NA) +
-    stat_summary(fun.y=median, geom = "point", fill="moccasin", shape = 21, 
-                 size = 2.5)
+    #geom_boxplot(width = .1, fill = "burlywood4", outlier.colour = NA) +
+    #stat_summary(fun.y=median, geom = "point", fill="moccasin", shape = 21, 
+                 #size = 2.5) +
+    ggtitle("Density distribution of users by monthly index") +
+    theme(plot.title = element_text(size=14, face="bold"))
+  #-----------------------------------------------------------------------------#
+  #PRINT PLOTS AND EXPORT TO PDF
+  #-----------------------------------------------------------------------------#
+  require(gridExtra)
+  report_output_dir <- file.path(output_dir, "domain platform reports")
+  dir.create(report_output_dir, showWarnings = FALSE)
   
+  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  pdf(outfile)
+  grid.arrange(p_users, p_violin_users, nrow=2)
+  dev.off()
+
   #-----------------------------------------------------------------------------#
   #Visits by obsnum
   
   #Stacked area graph
-  #Sum of visits by domain by obsnum
-  #First sum visits across each domain for each obsnum
-  overall = ddply(all_monthly, .(domain_char, obsnum), summarise,
+  #Sum of visits by split-by by obsnum
+  #First sum visits across each split-by for each obsnum
+  overall = ddply(all_monthly, .(split_by, obsnum), summarise,
                   sum_visits = sum(visits, na.rm=T))
   #Create stacked area graph
   #Figure out how to do a reverse legend here
-  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=domain_char)) +
-    geom_area() #+
-    #scale_fill_brewer(palette = "Accent") #, 
+  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
+    geom_area() +
+    scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
+    scale_fill_brewer(palette = "Accent") +
+    ggtitle("Total visits (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold"))
   #                      breaks=rev(levels(overall$domain_char)))
+  
+  outfile <- file.path(report_output_dir,"Number_visits_total.pdf")
+  pdf(outfile)
+  grid.arrange(g_stacked_visits, nrow=1)
+  dev.off()
+  
+  #By split-by
+  #Calculate median within each obsum & split-by level
+  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                  visits_med = median(visits, na.rm=T))
+  maximum_ci = max(overall_split$visits_med, na.rm = T) + 5
+  
+  g_visits_med_split = (
+    ggplot(data=overall_split, aes(x=obsnum, y=visits_med)) +
+      geom_line(aes(group=split_by, colour=split_by), size=1.3)) +
+    scale_y_continuous(limits = c(0, maximum_ci)) + 
+    ggtitle("Visits (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Visits (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold"))
   
   # Visits - by month index overall
   overall = ddply(all_monthly, .(obsnum), summarise,
-                  visits_med <- median(visits, na.rm = T),
+                  visits_med = median(visits, na.rm = T),
                   sd = sd(visits, na.rm=T),
                   n = sum(!is.na(visits)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
-  
-  over_min_logical = (overall$visits_med - overall$ci95) < -3
-  over_max_logical = (overall$visits_med + overall$ci95) > 
-    (max(df$visits_med, na.rm = T) + 5)
+  maximum_ci = max(overall$visits_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
+
+  over_min_logical <- sapply(overall$visits_med - overall$ci95, 
+                             function(x) 
+                               {if (is.na(x) | (x < -3) ) 
+                               return (T) else return (F)})
+  over_max_logical <- sapply(overall$visits_med + overall$ci95, 
+                             function(x, maximum_ci) 
+                               {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -183,12 +192,14 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max=over_max_logical
   over_max[over_max_logical==F] = 
     (overall$visits_med + overall$ci95)[over_max_logical==F]
-  over_max[over_max_logical==T] = (max(df$visits_med, na.rm = T) + 5)
+  over_max[over_max_logical==T] = maximum_ci
+  
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   
   g_visits_overall = 
-    ggplot(overall, aes(x = obsnum, y = visits_med, 
-                        ymax = (max(df$visits_med, na.rm = T) + 5))) + 
+    ggplot(overall, aes(x = obsnum, y = visits_med, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
@@ -199,41 +210,30 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array
-  array_active = with(all_monthly, tapply(visits, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame(array_active)
-  
-  # Initialize vector and then append all medians together
-  vector_median = c() 
-  for (i in 1:(length(domain_levels))) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels 
-  df = as.data.frame(vector_median)
-  colnames(df) = c("visits_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_visits_med_domain = (
-    ggplot(data=df, aes(x=obsnum, y=visits_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) +
-    scale_y_continuous(limits = c(0, (max(df$visits_med, na.rm = T) + 5))) + 
-    ggtitle("Visits (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Visits (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold"))
+  outfile <- file.path(report_output_dir,"Visits_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_visits_overall, g_visits_med_split, nrow=2)
+  dev.off()
   
   #-----------------------------------------------------------------------------#
-  
   #active_days_per_month by obsnum
+  
+  #By split-by
+  #Calculate median within each obsum & domain level
+  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                        active_days_med = median(active_days_per_month, na.rm=T))
+  maximum_ci = max(overall_split$active_days_med, na.rm = T) + 5
+
+  g_active_days_split = (
+    ggplot(data=overall_split, aes(x=obsnum, y=active_days_med)) +
+      geom_line(aes(group=split_by, colour=split_by), size=1.3)) + 
+    scale_y_continuous(limits = c(0, maximum_ci)) + 
+    ggtitle("Active days (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Active days (#), median") +
+    theme(axis.text=element_text(size=12), 
+          axis.title=element_text(size=14,face="bold"))
   
   # Active days per month - overall by month index
   overall = ddply(all_monthly, c("obsnum"), summarise,
@@ -242,12 +242,38 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   n = sum(!is.na(active_days_per_month)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
+  maximum_ci = max(overall$act_days_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
+  
+  over_min_logical <- sapply(overall$act_days_med - overall$ci95, 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
+                               return (T) else return (F)})
+  over_max_logical <- sapply(overall$act_days_med + overall$ci95, 
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
+  
+  over_min=over_min_logical
+  over_min[over_min_logical==F] = 
+    (overall$act_days_med - overall$ci95)[over_min_logical==F]
+  over_min[over_min_logical==T] = -3
+  
+  over_max=over_max_logical
+  over_max[over_max_logical==F] = 
+    (overall$act_days_med + overall$ci95)[over_max_logical==F]
+  over_max[over_max_logical==T] = maximum_ci
+  
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_active_days_overall = 
-    ggplot(overall, aes(x = obsnum, y = act_days_med, 
-                        ymax = (max(df$active_days_med, na.rm = T) + 5))) + 
+    ggplot(overall, aes(x = obsnum, y = act_days_med, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
-    geom_ribbon(aes(ymin = act_days_med - ci95, ymax = act_days_med + ci95),
+    geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
     ggtitle("Active days (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
@@ -256,42 +282,33 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array.
-  array_active = with(all_monthly, tapply(active_days_per_month, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame (array_active)
-  # Initialize a vector and then append all medians together in this vector
-  vector_median = c() 
-  for (i in 1:length(domain_levels)) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels
-  df = as.data.frame (vector_median)
-  colnames(df) = c("active_days_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_active_days_domains = (
-    ggplot(data=df, aes(x=obsnum, y=active_days_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, (max(df$active_days_med, na.rm = T) + 5))) + 
-    ggtitle("Active days (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Active days (#), median") +
-    theme(axis.text=element_text(size=12), 
-          axis.title=element_text(size=14,face="bold")) 
+  outfile <- file.path(report_output_dir,"Active_days_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_active_days_overall, g_active_days_split, nrow=2)
+  dev.off()
   
   #-----------------------------------------------------------------------------#
   
   #median_visits_per_active_day by obsnum
   
-  # Visits per active day - by month index
+  #By multiple split-by
+  #Calculate median within each obsum & split-by level. This creates an array.
+  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                        visits_active_day_med = median(median_visits_per_active_day, na.rm=T))
+  maximum_ci = max(overall_split$visits_active_day_med, na.rm = T) + 5
   
+  g_visits_per_day_split = (
+    ggplot(data=overall_split, aes(x=obsnum, y=visits_active_day_med)) +
+      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) +
+    scale_y_continuous(limits = c(0, maximum_ci)) +
+    ggtitle("Visits per active day (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Visits per active day (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold")) 
+  
+  # Visits per active day - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   visits_active_day_med = median(median_visits_per_active_day, 
                                                  na.rm = T),
@@ -299,10 +316,20 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   n = sum(!is.na(median_visits_per_active_day)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
+  maximum_ci = max(overall$visits_active_day_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
-  over_min_logical = (overall$visits_active_day_med - overall$ci95) < -3
-  over_max_logical = (overall$visits_active_day_med + overall$ci95) > 
-    (max(df$visits_active_day_med, na.rm = T) + 5)
+  over_min_logical <- sapply(overall$visits_active_day_med - overall$ci95, 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
+                               return (T) else return (F)})
+  over_max_logical <- sapply(overall$visits_active_day_med + overall$ci95, 
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -312,12 +339,13 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max=over_max_logical
   over_max[over_max_logical==F] = 
     (overall$visits_active_day_med + overall$ci95)[over_max_logical==F]
-  over_max[over_max_logical==T] = (max(df$visits_active_day_med, na.rm = T) + 5)
+  over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
-  g_visits_active_overall = 
-    ggplot(overall, aes(x = obsnum, y = visits_active_day_med, 
-                        ymax = (max(df$visits_active_day_med, na.rm = T) + 5))) + 
+  g_visits_per_day_overall = 
+    ggplot(overall, aes(x = obsnum, y = visits_active_day_med, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
@@ -328,35 +356,83 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array.
-  array_active = with(all_monthly, tapply(median_visits_per_active_day, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame (array_active)
-  # Initialize a vector and then append all medians together in this vector
-  vector_median = c() 
-  for (i in 1:length(domain_levels)) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels
-  df = as.data.frame (vector_median)
-  colnames(df) = c("visits_active_day_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_visits_active_day_domains = (
-    ggplot(data=df, aes(x=obsnum, y=visits_active_day_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, (max(df$visits_active_day_med, na.rm = T) + 5))) + 
-    ggtitle("Visits per active day (#) by month index") +
+  outfile <- file.path(report_output_dir,"Visits_per_day_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_visits_per_day_overall, g_visits_per_day_split, nrow=2)
+  dev.off()
+  
+  #-----------------------------------------------------------------------------#
+  
+  # Cases modified (registered+followed-up) by obsnum
+  #By split-by
+  
+  #Calculate median within each obsum & split-by level
+  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                        cases_mod_med = median(total_cases_modified, na.rm=T))
+  maximum_ci = max(overall_split$cases_mod_med, na.rm = T) + 5
+  
+  g_cases_mod_split = (
+    ggplot(data=overall_split, aes(x=obsnum, y=cases_mod_med)) +
+      geom_line(aes(group=split_by, colour=split_by), size=1.3)) +
+    scale_y_continuous(limits = c(0, maximum_ci)) + 
+    ggtitle("Cases modified (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Visits per active day (#), median") +
+    ylab("Cases modified (#), median") +
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold")) 
+                                                                   face="bold"))
+  
+  # Cases modified - by month index overall
+  overall = ddply(all_monthly, .(obsnum), summarise,
+                  cases_mod_med = median(total_cases_modified, na.rm = T),
+                  sd = sd(total_cases_modified, na.rm=T),
+                  n = sum(!is.na(total_cases_modified)),
+                  se = sd/sqrt(n))
+  overall$ci95 = overall$se * qt(.975, overall$n-1)
+  maximum_ci = max(overall$cases_mod_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
+  
+  over_min_logical <- sapply(overall$cases_mod_med - overall$ci95, 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
+                               return (T) else return (F)})
+  over_max_logical <- sapply(overall$cases_mod_med + overall$ci95, 
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
+  
+  over_min=over_min_logical
+  over_min[over_min_logical==F] = 
+    (overall$cases_mod_med - overall$ci95)[over_min_logical==F]
+  over_min[over_min_logical==T] = -3
+  
+  over_max=over_max_logical
+  over_max[over_max_logical==F] = 
+    (overall$cases_mod_med + overall$ci95)[over_max_logical==F]
+  over_max[over_max_logical==T] = maximum_ci
+  
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
+  
+  g_cases_mod_overall = 
+    ggplot(overall, aes(x = obsnum, y = cases_mod_med, ymax = maximum_ci)) + 
+    geom_line(colour = "indianred1", size = 1.5) +
+    geom_ribbon(aes(ymin = over_min, ymax = over_max),
+                alpha = 0.2) +
+    ggtitle("Cases modified (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Cases modified (#), median") +
+    theme(axis.text=element_text(size=12), 
+          axis.title=element_text(size=14,face="bold"))
+  
+  outfile <- file.path(report_output_dir,"Cases_modified_median.pdf")
+  pdf(outfile)
+  grid.arrange(g_cases_mod_overall, g_cases_mod_split, nrow=2)
+  dev.off()
   
   #-----------------------------------------------------------------------------#
   
@@ -365,27 +441,61 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Stacked area graph
   #Sum of registered cases by domain by obsnum
   #First sum registered across each domain for each obsnum
-  overall = ddply(all_monthly, .(domain_char, obsnum), summarise,
+  overall = ddply(all_monthly, .(split_by, obsnum), summarise,
                   sum_registered = sum(case_registered, na.rm=T))
   #Create stacked area graph
   #Figure out how to do a reverse legend here
   g_case_reg_sum = ggplot(overall, aes(x=obsnum, y=sum_registered, 
-                                       fill=domain_char)) + 
+                                       fill=split_by)) + 
     geom_area() +
-    scale_fill_brewer(palette = "YlOrRd")
+    scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
+    scale_fill_brewer(palette = "YlOrRd") +
+    ggtitle("Total registered cases (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold"))
   
-  # Cases registered - by month index
+  outfile <- file.path(report_output_dir,"Number_cases_reg_total.pdf")
+  pdf(outfile)
+  grid.arrange(g_case_reg_sum, nrow=1)
+  dev.off()
   
+  #By multiple domains
+  #Calculate median within each obsum & split-by level
+  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                        reg_med = median(case_registered, na.rm=T))
+  maximum_ci = max(overall_split$reg_med, na.rm = T) + 5
+  
+  g_reg_med_split = (
+    ggplot(data=overall_split, aes(x=obsnum, y=reg_med)) +
+      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+    scale_y_continuous(limits = c(0, maximum_ci)) + 
+    ggtitle("Registered cases (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Registered cases (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold")) 
+  
+  # Cases registered overall - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   reg_med = median(case_registered, na.rm = T),
                   sd = sd(case_registered, na.rm=T),
                   n = sum(!is.na(case_registered)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
+  maximum_ci = max(overall$reg_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
-  over_min_logical = (overall$reg_med - overall$ci95) < -3
-  over_max_logical = (overall$reg_med + overall$ci95) > 
-    (max(df$reg_med, na.rm = T) + 5)
+  over_min_logical <- sapply(overall$reg_med - overall$ci95, 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
+                               return (T) else return (F)})
+  over_max_logical <- sapply(overall$reg_med + overall$ci95, 
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -395,12 +505,14 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max=over_max_logical
   over_max[over_max_logical==F] = 
     (overall$reg_med + overall$ci95)[over_max_logical==F]
-  over_max[over_max_logical==T] = (max(df$reg_med, na.rm = T) + 5)
+  over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_reg_med_overall = 
     ggplot(overall, aes(x = obsnum, y = reg_med, 
-                        ymax = (max(df$reg_med, na.rm = T) + 5))) + 
+                        ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
@@ -411,55 +523,55 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array
-  array_active = with(all_monthly, tapply(case_registered, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame (array_active)
-  
-  # Initialize vector and then append all medians together
-  vector_median = c() 
-  for (i in 1:length(domain_levels)) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels 
-  df = as.data.frame(vector_median)
-  colnames(df) = c("reg_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_reg_med_domains = (
-    ggplot(data=df, aes(x=obsnum, y=reg_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, (max(df$reg_med, na.rm = T) + 5))) + 
-    ggtitle("Registered cases (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Registered cases (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold")) 
+  outfile <- file.path(report_output_dir,"Registered_cases.pdf")
+  pdf(outfile)
+  grid.arrange(g_reg_med_overall, g_reg_med_split, nrow=2)
+  dev.off()
   
   #-----------------------------------------------------------------------------#
+  
   #Unique cases followed-up (#) by obsnum (prefer % of total cumulative open cases)
   #The denominator in this measure needs to be developed: need to count open cases 
   #ONLY and exclude all cases that were closed in the previous month
   
-  # Cases followed-up - by month index
+  #By multiple domains
+  #Calculate median within each obsum & split-by level
+  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                        case_fu_med = median(follow_up_unique_case, na.rm=T))
+  maximum_ci = max(overall_split$case_fu_med, na.rm = T) + 5
   
+  g_case_fu_split = (
+    ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med)) +
+      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+    scale_y_continuous(limits = c(0, maximum_ci)) + 
+    ggtitle("Unique cases followed-up (#) by month index") +
+    theme(plot.title = element_text(size=14, face="bold")) +
+    xlab("Month index") +
+    ylab("Unique cases followed-up (#), median") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold"))
+  
+  # Cases followed-up overall - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   case_fu_med = median(follow_up_unique_case, na.rm = T),
                   sd = sd(follow_up_unique_case, na.rm=T),
                   n = sum(!is.na(follow_up_unique_case)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
+  maximum_ci = max(overall$case_fu_med, na.rm = T) + 5
+  assign("maximum_ci", maximum_ci, envir=globalenv())
+  assign("overall", overall, envir=globalenv())
   
-  over_min_logical = (overall$case_fu_med - overall$ci95) < -3
-  over_max_logical = (overall$case_fu_med + overall$ci95) > 
-    (max(df$case_fu_med, na.rm = T) + 5)
+  over_min_logical <- sapply(overall$case_fu_med - overall$ci95, 
+                             function(x) 
+                             {if (is.na(x) | (x < -3) ) 
+                               return (T) else return (F)})
+  over_max_logical <- sapply(overall$case_fu_med + overall$ci95, 
+                             function(x, maximum_ci) 
+                             {if (is.na(x) | (x > maximum_ci) ) 
+                               return (T) else return (F)}, maximum_ci)
+  assign("over_min_logical",over_min_logical,envir=globalenv())
+  assign("over_max_logical",over_max_logical,envir=globalenv())
   
   over_min=over_min_logical
   over_min[over_min_logical==F] = 
@@ -469,12 +581,13 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   over_max=over_max_logical
   over_max[over_max_logical==F] = 
     (overall$case_fu_med + overall$ci95)[over_max_logical==F]
-  over_max[over_max_logical==T] = (max(df$case_fu_med, na.rm = T) + 5)
+  over_max[over_max_logical==T] = maximum_ci
   
+  assign("over_min",over_min,envir=globalenv())
+  assign("over_max",over_max,envir=globalenv())
   
   g_case_fu_overall = 
-    ggplot(overall, aes(x = obsnum, y = case_fu_med, 
-                        ymax = (max(df$case_fu_med, na.rm = T) + 5))) + 
+    ggplot(overall, aes(x = obsnum, y = case_fu_med, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
@@ -485,97 +598,13 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  #By multiple domains
-  #Calculate median within each obsum & domain level. This creates an array
-  array_active = with(all_monthly, tapply(follow_up_unique_case, 
-                                          list(obsnum, domain_char), median, 
-                                          na.rm = T))
-  #Convert array to a data frame
-  df_intermediate = as.data.frame(array_active)
-  
-  # Initialize vector and then append all medians together
-  vector_median = c() 
-  for (i in 1:length(domain_levels)) {
-    vector_median = append(vector_median, df_intermediate[,i])
-  }
-  # Convert vector to dataframe - add domain numbers and obsnum back in, based on
-  # the obsnum_levels and domain_levels 
-  df = as.data.frame(vector_median)
-  colnames(df) = c("case_fu_med")
-  df$domain_num = rep(1:length(domain_levels), each = length(obsnum_levels))   
-  df$obsnum = rep(1:length(obsnum_levels), length(domain_levels))
-  df$domain_num <- as.factor(df$domain_num)
-  g_case_fu_domains = (
-    ggplot(data=df, aes(x=obsnum, y=case_fu_med)) +
-      geom_line(aes(group=domain_num, colour=domain_num))) + 
-    scale_y_continuous(limits = c(0, 
-                                  (max(df$case_fu_med, na.rm = T) + 5))) + 
-    ggtitle("Unique cases followed-up (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
-    xlab("Month index") +
-    ylab("Unique cases followed-up (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold"))
-  
-  #-----------------------------------------------------------------------------#
-  
-  #PRINT PLOTS AND EXPORT TO PDF
-  
-  #-----------------------------------------------------------------------------#
-  require(gridExtra)
-  
-  pdf("Users_visits_total.pdf")
-  grid.arrange(p_users, g_stacked_visits, nrow=2)
+  outfile <- file.path(report_output_dir,"Cases_followed_up.pdf")
+  pdf(outfile)
+  grid.arrange(g_case_fu_overall, g_case_fu_split, nrow=2)
   dev.off()
-  
-  pdf("Users_total_split.pdf")
-  grid.arrange(p_violin_users, nrow=1)
-  dev.off()
-  
-  pdf("Number_visits.pdf")
-  grid.arrange(g_visits_overall, g_visits_med_domain, nrow=2)
-  dev.off()
-  
-  pdf("Active_days.pdf")
-  grid.arrange(g_active_days_overall, g_active_days_domains, nrow=2)
-  dev.off()
-  
-  pdf("Visits_active_day.pdf")
-  grid.arrange(g_visits_active_overall, g_visits_active_day_domains, nrow=2)
-  dev.off()
-  
-  pdf("Registered_total.pdf")
-  grid.arrange(g_case_reg_sum, nrow=1)
-  dev.off()
-  
-  pdf("Registered_cases.pdf")
-  grid.arrange(g_reg_med_overall, g_reg_med_domains, nrow=2)
-  dev.off()
-  
-  pdf("Cases_followed_up.pdf")
-  grid.arrange(g_case_fu_overall, g_case_fu_domains, nrow=2)
-  dev.off()
+ 
+
 }
 
 #-----------------------------------------------------------------------------#
 
-#By FLW
-#NA values in active_days_% will lead to gaps in the graphs
-#ggplot(data = all_monthly, aes(x = all_monthly$obsnum,
-#                              y = all_monthly$active_days_percent, 
-#                             colour = user_id)) + geom_line() + geom_point()
-
-#By single domain
-#Single domain plot
-#Calculate median by obsnum. This creates an array
-#list_active = tapply (all_monthly$active_days_percent, all_monthly$obsnum, 
-#                     FUN = median, na.rm = T) 
-#Convert to dataframe
-#df_single_domain = as.data.frame (list_active)
-#df_single_domain$obsnum = obsnum_levels
-#Plot out single domain
-#plot(df_single_domain$obsnum, df_single_domain$list_active, type = "b", col = "blue",  
-#    xlim = c(1, max(df_single_domain$obsnum)+1),
-#   ylim = c(1, max(df_single_domain$list_active, na.rm = T)+10),
-#  main = "Days active (median %) by monthly index",
-# xlab = "Monthly index", ylab = "Days active, median (%)") 
