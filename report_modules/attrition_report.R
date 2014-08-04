@@ -43,6 +43,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
@@ -51,6 +52,10 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   end_date = as.Date(report_options$end_date)
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
+  
+  #Convert calendar_month (character) to yearmon class since as.Date won't work 
+  #without a day.
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -69,8 +74,8 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   #If not equal, then the FLW was not retained (retained = F) 
   #The next t row should always be just one step up from the previous t row (addition = F)
   #If not equal, then the flw was added (addition = T) 
-  df2 = ddply(all_monthly, .(user_id), function(x) {
-    x = x[order(x$obsnum), ]
+  
+  retain_add <- function(x) {
     if (length(x$obsnum) == 1) {
       x$retained <- FALSE
       x$addition <- TRUE
@@ -80,7 +85,14 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
       x$addition <- c(TRUE, x$obsnum[2:length(x$obsnum)] != x$obsnum[1:(length(x$obsnum)-1)] + 1)
     }
     return(x)
-  })
+  }
+  
+  #Get rid of calendar_month for this part because it is not supported for this
+  #operation. We can always add it back later.
+  df1 = select(all_monthly, -calendar_month)
+  df1 = arrange(df1, user_id, obsnum)
+  df_group = group_by(df1, user_id)
+  df2 <- retain_add(df_group)
   
   #This gives the attrition rate in the next month, using the # in obsnum as the denominator
   #Numerator is # of flws that are not retained in the next month from the previous month
@@ -122,7 +134,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   report_output_dir <- file.path(output_dir, "domain platform reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  outfile <- file.path(report_output_dir,"Number_users_attrition.pdf")
   pdf(outfile)
   grid.arrange(p_users, nrow=1)
   dev.off()

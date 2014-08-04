@@ -46,6 +46,7 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
@@ -56,24 +57,8 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
                        & all_monthly$last_visit_date <= end_date)
   
   #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day. Sort by calendar_month for each FLW and then label each 
-  #month for each FLW in chronological order. 
-  #The function calculates number of months of a given Date from the origin
-  #Use this function to recalculate obsnum for FLWs that had weird first_visit_dates
-  #for obsnum = 1. These cases threw off the rest of the obsnum calculations.
-  #Now that we excluded those first_visit_dates, we are fine
-  #e.g.pci-india,rmf,tns-sa
-  #monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
-  #   lt$year*12 + lt$mon } 
-  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
-  all_monthly <- all_monthly[order(all_monthly$domain, 
-                                   all_monthly$user_id, all_monthly$month.index),]
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric = monnb(first_visit_date))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       diff = c(0, diff(numeric)))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric_index = cumsum(diff) + 1) 
+  #without a day.
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -114,7 +99,7 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
   report_output_dir <- file.path(output_dir, "domain platform reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  outfile <- file.path(report_output_dir,"Number_users_real_time.pdf")
   pdf(outfile)
   grid.arrange(p_users, nrow=1)
   dev.off()

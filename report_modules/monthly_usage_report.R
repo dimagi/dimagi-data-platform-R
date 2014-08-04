@@ -13,7 +13,7 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr) #for ddply
-library(dplyr)
+library(knitr) #for appending pdfs
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
@@ -44,6 +44,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
@@ -53,6 +54,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
   
+  #Convert calendar_month (character) to yearmon class since as.Date won't work 
+  #without a day.
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -117,7 +121,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   report_output_dir <- file.path(output_dir, "domain platform reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  outfile <- file.path(report_output_dir,"Number_users_monthly_usage.pdf")
   pdf(outfile)
   grid.arrange(p_users, p_violin_users, nrow=2)
   dev.off()
@@ -236,7 +240,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
           axis.title=element_text(size=14,face="bold"))
   
   # Active days per month - overall by month index
-  overall = ddply(all_monthly, c("obsnum"), summarise,
+  overall = ddply(all_monthly, .(obsnum), summarise,
                   act_days_med = median(active_days_per_month, na.rm = T),
                   sd = sd(active_days_per_month, na.rm=T),
                   n = sum(!is.na(active_days_per_month)),
@@ -541,8 +545,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   maximum_ci = max(overall_split$case_fu_med, na.rm = T) + 5
   
   g_case_fu_split = (
-    ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med)) +
-      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+    ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med))) +
     scale_y_continuous(limits = c(0, maximum_ci)) + 
     ggtitle("Unique cases followed-up (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
@@ -551,6 +554,14 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
                                                                    face="bold"))
   
+  if (nlevels(all_monthly$split_by) > 10) {
+    g_case_fu_split = g_case_fu_split + 
+      geom_line(aes(group=split_by), size = 1.3, colour = "darkslateblue")
+  } else {
+    g_case_fu_split = g_case_fu_split + 
+      geom_line(aes(group=split_by, colour=split_by), size = 1.3)
+  }
+   
   # Cases followed-up overall - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   case_fu_med = median(follow_up_unique_case, na.rm = T),
