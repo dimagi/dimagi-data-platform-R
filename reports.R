@@ -7,11 +7,11 @@ output_dir <- system_conf$directories$output
 # in debug mode, csv files from the dir r_test_data_dir are used instead of db queries
 debug_mode <- run_conf$debug
 if (debug_mode == T) {
-  source(file.path(getwd(),"function_libraries","csv_sources.R", fsep = .Platform$file.sep))
+  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   test_data_dir <- system_conf$directories$r_test_data_dir
   domain_table <- get_domain_table_from_csv (test_data_dir)
 } else {
-  source(file.path(getwd(),"function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   con <- get_con(dbname=system_conf$database$dbname,
                  user=system_conf$database$user,
                  pass=system_conf$database$pass,
