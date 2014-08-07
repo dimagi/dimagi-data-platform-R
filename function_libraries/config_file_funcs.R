@@ -7,10 +7,9 @@
 #
 # PARAMS 
 # config_path : path to config file config_run.json
-get_run_config <- function (config_path) {
-  config_file = file.path(config_path,"config_run.json", fsep = .Platform$file.sep)
+get_run_config <- function (path_to_run_config) {
   library("jsonlite")
-  conf<-fromJSON(config_file)$data_platform
+  conf<-fromJSON(path_to_run_config)$data_platform
   return(conf)
 }
 
@@ -20,10 +19,9 @@ get_run_config <- function (config_path) {
 #
 # PARAMS 
 # config_path : path to config file config_run.json
-get_system_config <- function (config_path) {
-  config_file = file.path(config_path,"config_system.json", fsep = .Platform$file.sep)
+get_system_config <- function (path_to_system_config) {
   library("jsonlite")
-  conf<-fromJSON(config_file)$data_platform
+  conf<-fromJSON(path_to_system_config)$data_platform
   return(conf)
 }
 

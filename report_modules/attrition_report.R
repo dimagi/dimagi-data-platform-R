@@ -19,21 +19,23 @@ library(dplyr)
 #test directory (render_debug) or with live data from the database connection (render)
 #Debug mode is set in the config_run file.
 
-render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
+render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table_from_csv (test_data_dir)
-  create_attrition(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_attrition(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-render <- function (con, domains_for_run, report_options, output_dir) {
+render <- function (con, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(con)
-  create_attrition(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_attrition(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-create_attrition <- function (domain_table, domains_for_run, report_options, output_dir) {
+create_attrition <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   output_directory <- output_dir
-  read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
+  read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
@@ -131,13 +133,15 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   #PRINT PLOTS AND EXPORT TO PDF
   #-----------------------------------------------------------------------------#
   require(gridExtra)
-  report_output_dir <- file.path(output_dir, "domain platform reports")
+  module_pdfs <- list()
+  report_output_dir <- file.path(tmp_report_pdf_dir, "reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
   outfile <- file.path(report_output_dir,"Number_users_attrition.pdf")
   pdf(outfile)
   grid.arrange(p_users, nrow=1)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   #-----------------------------------------------------------------------------#
   # Attrition and Addition (%) graphs - overall
   
@@ -197,11 +201,15 @@ create_attrition <- function (domain_table, domains_for_run, report_options, out
   pdf(outfile)
   grid.arrange(g_attrition, g_attrition_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
 
   outfile <- file.path(report_output_dir,"Addition.pdf")
   pdf(outfile)
   grid.arrange(g_addition, g_addition_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
+  
+  return(module_pdfs)
   
 }
 

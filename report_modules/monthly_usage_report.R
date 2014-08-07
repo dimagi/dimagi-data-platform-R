@@ -19,21 +19,23 @@ library(knitr) #for appending pdfs
 #test directory (render_debug) or with live data from the database connection (render)
 #Debug mode is set in the config_run file.
 
-render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
+render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table_from_csv (test_data_dir)
-  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_monthly_usage(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-render <- function (con, domains_for_run, report_options, output_dir) {
+render <- function (con, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(con)
-  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_monthly_usage(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
   
-create_monthly_usage <- function (domain_table, domains_for_run, report_options, output_dir) {
+create_monthly_usage <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   output_directory <- output_dir
-  read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
+  read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
@@ -118,13 +120,15 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #PRINT PLOTS AND EXPORT TO PDF
   #-----------------------------------------------------------------------------#
   require(gridExtra)
-  report_output_dir <- file.path(output_dir, "domain platform reports")
+  module_pdfs <- list()
+  report_output_dir <- file.path(tmp_report_pdf_dir, "reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
   outfile <- file.path(report_output_dir,"Number_users_monthly_usage.pdf")
   pdf(outfile)
   grid.arrange(p_users, p_violin_users, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
 
   #-----------------------------------------------------------------------------#
   #Visits by obsnum
@@ -148,6 +152,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_stacked_visits, nrow=1)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #By split-by
   #Calculate median within each obsum & split-by level
@@ -218,6 +223,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_visits_overall, g_visits_med_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   #active_days_per_month by obsnum
@@ -290,6 +296,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_active_days_overall, g_active_days_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -364,6 +371,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_visits_per_day_overall, g_visits_per_day_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -437,6 +445,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_cases_mod_overall, g_cases_mod_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -461,6 +470,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_case_reg_sum, nrow=1)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #By multiple domains
   #Calculate median within each obsum & split-by level
@@ -531,6 +541,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_reg_med_overall, g_reg_med_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -613,6 +624,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_case_fu_overall, g_case_fu_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
  
 
 }
