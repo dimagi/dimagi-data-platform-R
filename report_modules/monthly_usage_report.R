@@ -10,6 +10,7 @@
 #suppressPackageStartupMessages
 library(zoo) #work with mm/yy calendar dates without day
 library(ggplot2) #graphing across multiple domains
+library(scales) #to customize ggplot axis labeling
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr) #for ddply
@@ -44,9 +45,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
-  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
-  
+ 
   #Remove any dates before report start_date and after report end_date
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
   all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
   start_date = as.Date(report_options$start_date)
@@ -58,7 +59,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #without a day.
   all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
-  #Change column names names as needed
+  #Change column names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
   names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
   names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
@@ -67,21 +68,15 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   
   # Convert relevant indicators to percentages
   all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
-  #all_monthly$visits = as.numeric(all_monthly$visits)
   
   # Create new indicators as needed
-  # % of unique cases followed-up (of cumulative open cases at month start)
+  # TO DO: % of unique cases followed-up (of cumulative open cases at month start)
   # Note that cum_case_registered is a cumulative of ALL cases registered by a FLW
-  # TO DO: We need to change this to include only open cases belonging to a FLW in any
+  # We need to change this to include only open cases belonging to a FLW in any
   # given month, otherwise the denominator will continue to inflate.
   # Will just use # of followed-up unique cases until we get the correct deonominator
-  # Will also calculate total_case_modified as the sum of cases registered and unique 
-  # cases followed-up, even though a case will be counted twice if registered and 
-  # follow-ed up in the same month.
-  # Keep these here as a reminder till we can make the necessary changes 
+  # Keep this here as a reminder till we can make the necessary changes 
   all_monthly$case_fu_per = (all_monthly$follow_up_unique_case/all_monthly$cum_case_registered)*100
-  all_monthly$total_cases_modified = (all_monthly$case_registered + 
-                                        all_monthly$follow_up_unique_case) 
   #-----------------------------------------------------------------------------#
   
   #CREATE PLOTS
@@ -93,27 +88,31 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   all_monthly$count_user = 1
   overall = ddply(all_monthly, .(obsnum), summarise,
                   sum_user = sum(count_user, na.rm=T))
-  #overall = ddply(all_monthly, .(domain_char), summarise,
-  #               min_value = min(obsnum, na.rm=T))
+
   p_users = ggplot(overall, aes(x=obsnum, y=sum_user)) +
     geom_point(size = 6, shape = 19, alpha = 0.5, colour = "darkblue", 
                fill = "lightblue") +
     geom_line(colour = "darkblue") + 
     scale_size_area() +
-    ggtitle("Number of users by monthly index") +
+    scale_x_continuous(breaks=c(seq(0, max(all_monthly$obsnum), by = 10))) + 
+    xlab("Month index") +
+    ylab("Total # of users") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                   face="bold")) + 
+    ggtitle("Number of users by month index") +
     theme(plot.title = element_text(size=14, face="bold"))
   
-  #By split-by
+  #By split-by for # of categories < = 10
   #Violin plots: Compare density estimates of split-by groups
   #Note that depending the adjust (smoothing), it might appear that the first month
   #has less users than other month, though this definitely can't be the case.
+  if (nlevels(all_monthly$split_by) <= 10) {
   p_violin_users = ggplot(all_monthly, aes(x=split_by, y=obsnum)) +
     geom_violin(scale = "count", adjust = .6, fill = "lightblue1") + 
-    #geom_boxplot(width = .1, fill = "burlywood4", outlier.colour = NA) +
-    #stat_summary(fun.y=median, geom = "point", fill="moccasin", shape = 21, 
-                 #size = 2.5) +
     ggtitle("Density distribution of users by monthly index") +
     theme(plot.title = element_text(size=14, face="bold"))
+}
+  
   #-----------------------------------------------------------------------------#
   #PRINT PLOTS AND EXPORT TO PDF
   #-----------------------------------------------------------------------------#
@@ -121,11 +120,17 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   report_output_dir <- file.path(output_dir, "domain platform reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
+  if (nlevels(all_monthly$split_by) > 10) {
+  outfile <- file.path(report_output_dir,"Number_users_monthly_usage.pdf")
+  pdf(outfile)
+  grid.arrange(p_users, nrow=1)
+  dev.off()
+} else {
   outfile <- file.path(report_output_dir,"Number_users_monthly_usage.pdf")
   pdf(outfile)
   grid.arrange(p_users, p_violin_users, nrow=2)
   dev.off()
-
+}
   #-----------------------------------------------------------------------------#
   #Visits by obsnum
   
@@ -134,15 +139,29 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #First sum visits across each split-by for each obsnum
   overall = ddply(all_monthly, .(split_by, obsnum), summarise,
                   sum_visits = sum(visits, na.rm=T))
-  #Create stacked area graph
-  #Figure out how to do a reverse legend here
-  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
+  #Create stacked area graph for total number of visits 
+  #First set the correct number of colors in the color scale
+  #color_values = nlevels(all_monthly$split_by)
+  #getPalette = colorRampPalette(brewer.pal(8, "Accent"))
+  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, 
+                                         fill=split_by)) +
     geom_area() +
     scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
-    scale_fill_brewer(palette = "Accent") +
+    scale_y_continuous(labels = comma) + 
+    #scale_fill_brewer(getPalette(color_values)) +
+    xlab("Month index") +
+    ylab("Total # of visits") +
+    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                 face="bold")) +
     ggtitle("Total visits (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold"))
-  #                      breaks=rev(levels(overall$domain_char)))
+    theme(plot.title = element_text(size=14, face="bold"), 
+          legend.position="none")
+  
+    if (nlevels(all_monthly$split_by) <= 10) {
+    g_stacked_visits = g_stacked_visits + scale_fill_brewer(palette = "Accent")
+    } else {
+      g_stacked_visits = g_stacked_visits
+    }
   
   outfile <- file.path(report_output_dir,"Number_visits_total.pdf")
   pdf(outfile)
@@ -437,6 +456,81 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_cases_mod_overall, g_cases_mod_split, nrow=2)
   dev.off()
+
+#-----------------------------------------------------------------------------#
+
+# Unique cases touched (#) by obsnum (this includes cases registered and/or
+# followed up in any given month)
+
+#By multiple domains
+#Calculate median within each obsum & split-by level
+overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
+                      cases_touched_med = median(total_case_touched, na.rm=T))
+maximum_ci = max(overall_split$cases_touched_med, na.rm = T) + 5
+
+g_case_touch_split = (
+  ggplot(data=overall_split, aes(x=obsnum, y=cases_touched_med)) +
+    geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+  scale_y_continuous(limits = c(0, maximum_ci)) + 
+  ggtitle("Unique cases visited (#) by month index") +
+  theme(plot.title = element_text(size=14, face="bold")) +
+  xlab("Month index") +
+  ylab("Unique cases visited (#), median") +
+  theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
+                                                                 face="bold")) 
+
+# Cases registered overall - by month index
+overall = ddply(all_monthly, .(obsnum), summarise,
+                cases_touched_med = median(total_case_touched, na.rm = T),
+                sd = sd(total_case_touched, na.rm=T),
+                n = sum(!is.na(total_case_touched)),
+                se = sd/sqrt(n))
+overall$ci95 = overall$se * qt(.975, overall$n-1)
+maximum_ci = max(overall$cases_touched_med, na.rm = T) + 5
+assign("maximum_ci", maximum_ci, envir=globalenv())
+assign("overall", overall, envir=globalenv())
+
+over_min_logical <- sapply(overall$cases_touched_med - overall$ci95, 
+                           function(x) 
+                           {if (is.na(x) | (x < -3) ) 
+                             return (T) else return (F)})
+over_max_logical <- sapply(overall$cases_touched_med + overall$ci95, 
+                           function(x, maximum_ci) 
+                           {if (is.na(x) | (x > maximum_ci) ) 
+                             return (T) else return (F)}, maximum_ci)
+assign("over_min_logical",over_min_logical,envir=globalenv())
+assign("over_max_logical",over_max_logical,envir=globalenv())
+
+over_min=over_min_logical
+over_min[over_min_logical==F] = 
+  (overall$cases_touched_med - overall$ci95)[over_min_logical==F]
+over_min[over_min_logical==T] = -3
+
+over_max=over_max_logical
+over_max[over_max_logical==F] = 
+  (overall$cases_touched_med + overall$ci95)[over_max_logical==F]
+over_max[over_max_logical==T] = maximum_ci
+
+assign("over_min",over_min,envir=globalenv())
+assign("over_max",over_max,envir=globalenv())
+
+g_case_touched_overall = 
+  ggplot(overall, aes(x = obsnum, y = cases_touched_med, 
+                      ymax = maximum_ci)) + 
+  geom_line(colour = "indianred1", size = 1.5) +
+  geom_ribbon(aes(ymin = over_min, ymax = over_max),
+              alpha = 0.2) +
+  ggtitle("Unique cases visited (#) by month index") +
+  theme(plot.title = element_text(size=14, face="bold")) +
+  xlab("Month index") +
+  ylab("Unique cases visited (#), median") +
+  theme(axis.text=element_text(size=12), 
+        axis.title=element_text(size=14,face="bold"))
+
+outfile <- file.path(report_output_dir,"Unique_cases_visited.pdf")
+pdf(outfile)
+grid.arrange(g_case_touched_overall, g_case_touch_split, nrow=2)
+dev.off()
   
   #-----------------------------------------------------------------------------#
   
