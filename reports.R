@@ -45,7 +45,7 @@ if (length(domains_for_run) == 0) {
     report_pdfs <- c(report_pdfs,module_pdfs)
   }
   
-  report_file_name <- file.path(output_dir,paste(run_conf$reports$report_file_name,"pdf",sep="."))
+  report_file_name <- file.path(system_conf$directories$output,paste(run_conf$reports$report_file_name,"pdf",sep="."))
   system2(command = "pdftk",args = c(shQuote(report_pdfs), "cat output", shQuote(report_file_name)))
 }
 
