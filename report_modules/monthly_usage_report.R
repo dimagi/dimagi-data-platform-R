@@ -35,7 +35,7 @@ render <- function (con, domains_for_run, report_options, aggregate_tables_dir, 
 }
   
 create_monthly_usage <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  output_directory <- output_dir
+  #output_directory <- output_dir
   read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
@@ -139,34 +139,42 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #-----------------------------------------------------------------------------#
   #Visits by obsnum
   
-  #Stacked area graph
+  #Stacked area graph for total number of visits
   #Sum of visits by split-by by obsnum
   #First sum visits across each split-by for each obsnum
   overall = ddply(all_monthly, .(split_by, obsnum), summarise,
                   sum_visits = sum(visits, na.rm=T))
-  #Create stacked area graph for total number of visits 
+  
   #First set the correct number of colors in the color scale
   #color_values = nlevels(all_monthly$split_by)
   #getPalette = colorRampPalette(brewer.pal(8, "Accent"))
-  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, 
-                                         fill=split_by)) +
+  
+  if (nlevels(all_monthly$split_by) > 10) {
+  g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
     geom_area() +
     scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
     scale_y_continuous(labels = comma) + 
     #scale_fill_brewer(getPalette(color_values)) +
     xlab("Month index") +
     ylab("Total # of visits") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                 face="bold")) +
+    theme(axis.text=element_text(size=12), 
+          axis.title=element_text(size=14, face="bold")) +
     ggtitle("Total visits (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold"), 
           legend.position="none")
-  
-    if (nlevels(all_monthly$split_by) <= 10) {
-    g_stacked_visits = g_stacked_visits + scale_fill_brewer(palette = "Accent")
-    } else {
-      g_stacked_visits = g_stacked_visits
-    }
+  } else {
+    g_stacked_visits = ggplot(overall, aes(x=obsnum, y=sum_visits, fill=split_by)) +
+      geom_area() +
+      scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
+      scale_y_continuous(labels = comma) + 
+      scale_fill_brewer(palette = "Accent") +
+      xlab("Month index") +
+      ylab("Total # of visits") +
+      theme(axis.text=element_text(size=12), 
+            axis.title=element_text(size=14, face="bold")) +
+      ggtitle("Total visits (#) by month index") +
+      theme(plot.title = element_text(size=14, face="bold"))
+}
   
   outfile <- file.path(report_output_dir,"Number_visits_total.pdf")
   pdf(outfile)
@@ -180,16 +188,31 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
                   visits_med = median(visits, na.rm=T))
   maximum_ci = max(overall_split$visits_med, na.rm = T) + 5
   
+if (nlevels(all_monthly$split_by) > 10) {
   g_visits_med_split = (
     ggplot(data=overall_split, aes(x=obsnum, y=visits_med)) +
-      geom_line(aes(group=split_by, colour=split_by), size=1.3)) +
+      geom_line(aes(group=split_by, colour=split_by), size=1.0)) + 
     scale_y_continuous(limits = c(0, maximum_ci)) + 
-    ggtitle("Visits (#) by month index") +
-    theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
     ylab("Visits (#), median") +
-    theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                   face="bold"))
+    theme(axis.text=element_text(size=12), 
+          axis.title=element_text(size=14, face="bold")) +
+    ggtitle("Visits (#) by month index") +
+        theme(plot.title = element_text(size=14, face="bold"), 
+          legend.position = "none")
+    } else {
+      g_visits_med_split = (
+        ggplot(data=overall_split, aes(x=obsnum, y=visits_med)) +
+          geom_line(aes(group=split_by, colour=split_by), size=1.3)) + 
+        scale_y_continuous(limits = c(0, maximum_ci)) + 
+        xlab("Month index") +
+        ylab("Visits (#), median") +
+        theme(axis.text=element_text(size=12), 
+              axis.title=element_text(size=14, face="bold")) +
+        ggtitle("Visits (#) by month index") +
+        theme(plot.title = element_text(size=14, face="bold"))
+    }
+    
   
   # Visits - by month index overall
   overall = ddply(all_monthly, .(obsnum), summarise,

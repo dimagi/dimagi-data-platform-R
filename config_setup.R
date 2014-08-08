@@ -1,1 +1,1 @@
-config_run_path <- file.path("/home/mel/workspace/dimagi-data-platform-R/config_run.json")
+config_run_path <- file.path("/Users/rdayalu/Dropbox (Dimagi)/S3 files/config_files/config_run_test.json")
