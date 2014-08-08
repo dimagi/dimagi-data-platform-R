@@ -34,7 +34,7 @@ render <- function (con, domains_for_run, report_options, aggregate_tables_dir, 
 }
 
 create_attrition <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  output_directory <- output_dir
+  output_directory <- tmp_report_pdf_dir
   read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   
