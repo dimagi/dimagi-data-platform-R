@@ -191,7 +191,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
 if (nlevels(all_monthly$split_by) > 10) {
   g_visits_med_split = (
     ggplot(data=overall_split, aes(x=obsnum, y=visits_med)) +
-      geom_line(aes(group=split_by, colour=split_by), size=1.0)) + 
+    geom_line(aes(group=split_by, colour = split_by), size=0.7)) + 
     scale_y_continuous(limits = c(0, maximum_ci)) + 
     xlab("Month index") +
     ylab("Visits (#), median") +
@@ -203,7 +203,7 @@ if (nlevels(all_monthly$split_by) > 10) {
     } else {
       g_visits_med_split = (
         ggplot(data=overall_split, aes(x=obsnum, y=visits_med)) +
-          geom_line(aes(group=split_by, colour=split_by), size=1.3)) + 
+        geom_line(aes(group=split_by, colour=split_by), size=1.3)) + 
         scale_y_continuous(limits = c(0, maximum_ci)) + 
         xlab("Month index") +
         ylab("Visits (#), median") +
