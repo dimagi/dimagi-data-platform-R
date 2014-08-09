@@ -1,7 +1,5 @@
 # Utility functions for report modules
 
-
-
 # FUNCTION merged_monthly_table
 # gets all monthly.csv and device_type_monthly files for domains specified in domain_names
 # returns one merged table with all columns present in any monthly aggregate table csv file
@@ -11,18 +9,23 @@
 # aggregate_tables_dir: the directory for aggregate tables,  should be output_dir/aggregate_tables
 merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
   read_csv_add_domain <- function (dname) {
-    monthly_table_file <- file.path (aggregate_tables_dir,dname,"monthly.csv", fsep = .Platform$file.sep)
-    df <- read.csv(monthly_table_file,header = TRUE)
-    df$domain <- dname
-    
-    devices_table_file <- file.path (aggregate_tables_dir,dname,"device_type_monthly.csv", fsep = .Platform$file.sep)
-    devs <- read.csv(devices_table_file,header = TRUE)
-    
-    df <- merge(x=df,y=devs,by.x=c("user_id","month.index"),by.y=c("user_id","yrmon"))
-    return(df)
+    tryCatch({
+      monthly_table_file <- file.path (aggregate_tables_dir,dname,"monthly.csv", fsep = .Platform$file.sep)
+      df <- read.csv(monthly_table_file,header = TRUE)
+      devices_table_file <- file.path (aggregate_tables_dir,dname,"device_type_monthly.csv", fsep = .Platform$file.sep)
+      devs <- read.csv(devices_table_file,header = TRUE)
+      df$domain <- dname
+      df <- merge(x=df,y=devs,by.x=c("user_id","month.index"),by.y=c("user_id","yrmon"))
+      return(df)
+    }, error = function(cond) {
+      message(sprintf("\nError, could not load monthly table for domin %s.",dname))
+      message(cond)
+    })
   }
-  
-  merged <- rbind.fill(lapply(domain_names, read_csv_add_domain))
+  require(plyr)
+  all_monthly_tables <- lapply(domain_names, read_csv_add_domain)
+  merged <- rbind.fill(all_monthly_tables)
+  detach("package:plyr")
   return(merged)
 }
 

@@ -17,7 +17,7 @@ get_device_type_for_month <- function (values) {
           sep="", collapse=" ")
     return (s)
   } else {
-    return ('multi')
+    return ('Multi')
   }
 }
 
