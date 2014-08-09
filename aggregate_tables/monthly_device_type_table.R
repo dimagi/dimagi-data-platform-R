@@ -1,4 +1,4 @@
-require(dplyr)
+library(zoo)
 
 create_tables <- function (con,aggtables_output_subdir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
@@ -22,7 +22,7 @@ get_device_type_for_month <- function (values) {
 }
 
 create_monthly_device_type_table <- function (device_type_table, aggtables_output_subdir) {
-  
+  library(dplyr)
   domain_names <- unique(device_type_table$domain_name)
   
   for(dname in domain_names) {
@@ -42,4 +42,5 @@ create_monthly_device_type_table <- function (device_type_table, aggtables_outpu
     write.csv(devices_for_month,file_path)
     
   }
+  detach("package:dplyr")
 }

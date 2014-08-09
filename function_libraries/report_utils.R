@@ -3,17 +3,22 @@
 
 
 # FUNCTION merged_monthly_table
-# gets all monthly.csv files for domains specified in domain_names
-# returns one merged table with all columns present in any monthly.csv
+# gets all monthly.csv and device_type_monthly files for domains specified in domain_names
+# returns one merged table with all columns present in any monthly aggregate table csv file
 #
 # PARAMS 
-# domain_names: a list of domain names to import monthly.csv files for
+# domain_names: a list of domain names to import monthly aggregate table csv files for
 # aggregate_tables_dir: the directory for aggregate tables,  should be output_dir/aggregate_tables
 merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
   read_csv_add_domain <- function (dname) {
     monthly_table_file <- file.path (aggregate_tables_dir,dname,"monthly.csv", fsep = .Platform$file.sep)
     df <- read.csv(monthly_table_file,header = TRUE)
     df$domain <- dname
+    
+    devices_table_file <- file.path (aggregate_tables_dir,dname,"device_type_monthly.csv", fsep = .Platform$file.sep)
+    devs <- read.csv(devices_table_file,header = TRUE)
+    
+    df <- merge(x=df,y=devs,by.x=c("user_id","month.index"),by.y=c("user_id","yrmon"))
     return(df)
   }
   
