@@ -21,21 +21,23 @@ library(plyr) #for ddply
 #test directory (render_debug) or with live data from the database connection (render)
 #Debug mode is set in the config_run file.
 
-render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
+render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table_from_csv (test_data_dir)
-  create_real_time(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_real_time(domain_table, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-render <- function (con, domains_for_run, report_options, output_dir) {
+render <- function (con, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(con)
-  create_real_time(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_real_time(domain_table, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-create_real_time <- function (domain_table, domains_for_run, report_options, output_dir) {
-  output_directory <- output_dir
-  read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
+create_real_time <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
+  output_directory <- tmp_report_pdf_dir
+  read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   monthly_merged <- merged_monthly_table (domains_for_run, read_directory)
@@ -46,6 +48,7 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
@@ -56,24 +59,8 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
                        & all_monthly$last_visit_date <= end_date)
   
   #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day. Sort by calendar_month for each FLW and then label each 
-  #month for each FLW in chronological order. 
-  #The function calculates number of months of a given Date from the origin
-  #Use this function to recalculate obsnum for FLWs that had weird first_visit_dates
-  #for obsnum = 1. These cases threw off the rest of the obsnum calculations.
-  #Now that we excluded those first_visit_dates, we are fine
-  #e.g.pci-india,rmf,tns-sa
-  #monnb <- function(d) { lt <- as.POSIXlt(as.Date(d, origin="1900-01-01")); 
-  #   lt$year*12 + lt$mon } 
-  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b-%y")
-  all_monthly <- all_monthly[order(all_monthly$domain, 
-                                   all_monthly$user_id, all_monthly$month.index),]
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric = monnb(first_visit_date))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       diff = c(0, diff(numeric)))
-  all_monthly <- ddply(all_monthly, .(domain, user_id), transform, 
-                       numeric_index = cumsum(diff) + 1) 
+  #without a day.
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -111,13 +98,15 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
   #PRINT PLOTS AND EXPORT TO PDF
   #-----------------------------------------------------------------------------#
   require(gridExtra)
-  report_output_dir <- file.path(output_dir, "domain platform reports")
+  module_pdfs <- list()
+  report_output_dir <- file.path(tmp_report_pdf_dir, "reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  outfile <- file.path(report_output_dir,"Number_users_real_time.pdf")
   pdf(outfile)
   grid.arrange(p_users, nrow=1)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -193,6 +182,7 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
   pdf(outfile)
   grid.arrange(g_batch_med_split, g_batch_overall, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -266,5 +256,7 @@ create_real_time <- function (domain_table, domains_for_run, report_options, out
   pdf(outfile)
   grid.arrange(g_visit_dur_split, g_visit_dur_overall, nrow=2)
   dev.off() 
-}
+  module_pdfs <- c(module_pdfs,outfile)
+  
+  return(module_pdfs)}
 

@@ -13,27 +13,29 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 library(plyr) #for ddply
-library(dplyr)
+library(knitr) #for appending pdfs
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
 #Debug mode is set in the config_run file.
 
-render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
+render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table_from_csv (test_data_dir)
-  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_monthly_usage(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-render <- function (con, domains_for_run, report_options, output_dir) {
+render <- function (con, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(con)
-  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_monthly_usage(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
   
-create_monthly_usage <- function (domain_table, domains_for_run, report_options, output_dir) {
-  output_directory <- output_dir
-  read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
+create_monthly_usage <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
+  output_directory <- tmp_report_pdf_dir
+  read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
@@ -44,6 +46,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
@@ -53,6 +56,9 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                        & all_monthly$last_visit_date <= end_date)
   
+  #Convert calendar_month (character) to yearmon class since as.Date won't work 
+  #without a day.
+  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
   #Change column names names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
@@ -114,13 +120,15 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   #PRINT PLOTS AND EXPORT TO PDF
   #-----------------------------------------------------------------------------#
   require(gridExtra)
-  report_output_dir <- file.path(output_dir, "domain platform reports")
+  module_pdfs <- list()
+  report_output_dir <- file.path(tmp_report_pdf_dir, "reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Number_users.pdf")
+  outfile <- file.path(report_output_dir,"Number_users_monthly_usage.pdf")
   pdf(outfile)
   grid.arrange(p_users, p_violin_users, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
 
   #-----------------------------------------------------------------------------#
   #Visits by obsnum
@@ -144,6 +152,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_stacked_visits, nrow=1)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #By split-by
   #Calculate median within each obsum & split-by level
@@ -214,6 +223,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_visits_overall, g_visits_med_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   #active_days_per_month by obsnum
@@ -236,7 +246,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
           axis.title=element_text(size=14,face="bold"))
   
   # Active days per month - overall by month index
-  overall = ddply(all_monthly, c("obsnum"), summarise,
+  overall = ddply(all_monthly, .(obsnum), summarise,
                   act_days_med = median(active_days_per_month, na.rm = T),
                   sd = sd(active_days_per_month, na.rm=T),
                   n = sum(!is.na(active_days_per_month)),
@@ -286,6 +296,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_active_days_overall, g_active_days_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -360,6 +371,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_visits_per_day_overall, g_visits_per_day_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -433,6 +445,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_cases_mod_overall, g_cases_mod_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -457,6 +470,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_case_reg_sum, nrow=1)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #By multiple domains
   #Calculate median within each obsum & split-by level
@@ -527,6 +541,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_reg_med_overall, g_reg_med_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
   
@@ -541,8 +556,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   maximum_ci = max(overall_split$case_fu_med, na.rm = T) + 5
   
   g_case_fu_split = (
-    ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med)) +
-      geom_line(aes(group=split_by, colour=split_by), size = 1.3)) + 
+    ggplot(data=overall_split, aes(x=obsnum, y=case_fu_med))) +
     scale_y_continuous(limits = c(0, maximum_ci)) + 
     ggtitle("Unique cases followed-up (#) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
@@ -551,6 +565,14 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
                                                                    face="bold"))
   
+  if (nlevels(all_monthly$split_by) > 10) {
+    g_case_fu_split = g_case_fu_split + 
+      geom_line(aes(group=split_by), size = 1.3, colour = "darkslateblue")
+  } else {
+    g_case_fu_split = g_case_fu_split + 
+      geom_line(aes(group=split_by, colour=split_by), size = 1.3)
+  }
+   
   # Cases followed-up overall - by month index
   overall = ddply(all_monthly, .(obsnum), summarise,
                   case_fu_med = median(follow_up_unique_case, na.rm = T),
@@ -602,6 +624,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   pdf(outfile)
   grid.arrange(g_case_fu_overall, g_case_fu_split, nrow=2)
   dev.off()
+  module_pdfs <- c(module_pdfs,outfile)
  
 
 }

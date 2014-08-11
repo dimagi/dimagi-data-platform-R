@@ -59,11 +59,8 @@ get_domain_table <- function (con) {
 }
 
 # interaction table (one row for each visit to a case, visit to two cases = two rows)
-# for all domains in list.
-get_interaction_table <- function (con, domain_list) {
-  domain_names_str <- paste (sprintf("'%s'", domain_list), collapse=",")
-  print(sprintf("Getting interaction table for domains: %s", domain_names_str))
-  query <- sprintf("with total_forms as 
+get_interaction_table <- function (con) {
+  query <- "with total_forms as 
                  (select visit_id as id, count (distinct id) as total_forms 
                  from form 
                  group by visit_id), 
@@ -105,8 +102,24 @@ get_interaction_table <- function (con, domain_list) {
                  and home_visits.visit_id = visit.id
                  and case_visits.visit_id = visit.id
                  and users.domain_id = domain.id 
-                 and domain.name in (%s) 
-                 order by visit.user_id, time_start", domain_names_str)
+                 order by visit.user_id, time_start"
+
+rs <- dbSendQuery(con,query)
+v <- fetch(rs,n=-1)
+dbClearResult(rs)
+return(v)
+}
+
+# domain, user, date and device type for every form
+get_device_type_table <- function (con) {
+query <- "select domain.name as domain_name, users.user_id, form.time_start, to_char(form.time_start, 'Mon YYYY') as month, 
+                    CASE WHEN app_version LIKE '%Nokia%' THEN 'nokia'
+                    WHEN app_version LIKE '%ODK%' THEN 'android'
+                    WHEN app_version is null THEN 'none' 
+                    ELSE 'other' END as device
+                    from form, users, domain
+                    where form.user_id = users.id
+                    and form.domain_id = domain. id"
 
 rs <- dbSendQuery(con,query)
 v <- fetch(rs,n=-1)

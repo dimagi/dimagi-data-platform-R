@@ -2,11 +2,11 @@
 # install/import libraries 
 library(zoo)
 library(digest)
-library(plyr)
 library(timeDate)
 library(reshape2)
 
 create_monthly_tables <- function (domain_table, interaction_table, output_dir) {
+  library(plyr)
   
   v <- interaction_table
   v$user_id[is.na(v$user_id)] <- "NONE"
@@ -42,6 +42,7 @@ create_monthly_tables <- function (domain_table, interaction_table, output_dir) 
       })
     }
   }
+  detach("package:plyr")
 }
 
 create_tables_debug <- function (test_data_dir, output_dir){
@@ -54,7 +55,7 @@ create_tables_debug <- function (test_data_dir, output_dir){
 create_tables <- function (con, output_dir){
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
   domain_table <- get_domain_table(con)
-  v <- get_interaction_table(con, domain_table$name)
+  v <- get_interaction_table(con)
   create_monthly_tables(domain_table,v, output_dir)
   close_con(con)
 }
