@@ -31,7 +31,7 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   
   
   # Correlation matrix for continuous variables (this function lives in report_utils.R)
-  Rnew <- corstarsl(cont_vars) # this returns correlation matrix table with significance level 
+  Rnew <- corstarsl(cont_vars) 
   print(Rnew)   
   write.csv(Rnew, file.path(output_dir, "correlation table.csv", fsep = .Platform$file.sep))
 

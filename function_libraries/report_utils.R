@@ -49,26 +49,27 @@ add_splitby_col <- function (data_table, domain_table, splitby_var) {
 }
 
 
-# FUNCTION corstarsl (correlation table with significance level, numeric variables only)
-  # source code: http://ohiodata.blogspot.com/2012/06/correlation-tables-in-r-flagged-with.html
+# FUNCTION corstarsl
+# creates correlation of continuous variables
+# returns a triangle correlation table with significance levels. p<0.001, ***; p<0.01, **; p<0.05, *
+# correlation coefficients are truncated to two decimal
+#
+# PARAMS
+# names of continuous variables in any aggregate table
+# source code: http://ohiodata.blogspot.com/2012/06/correlation-tables-in-r-flagged-with.html
 corstarsl <- function(x){ 
   x <- as.matrix(x) 
   R <- rcorr(x)$r 
   p <- rcorr(x)$P 
-  ## define notions for significance levels; spacing is important.
   mystars <- ifelse(p < .001, "***", ifelse(p < .01, "** ", ifelse(p < .05, "* ", " ")))
-  ## trunctuate the matrix that holds the correlations to two decimal
   R <- format(round(cbind(rep(-1.11, ncol(x)), R), 2))[,-1] 
-  ## build a new matrix that includes the correlations with their apropriate stars 
-  Rnew <- matrix(paste(R, mystars, sep=""), ncol=ncol(x)) 
+  Rnew <- matrix(paste(R, mystars, sep=""), ncol=ncol(x))   ## build a new matrix that includes the correlations with their apropriate stars 
   diag(Rnew) <- paste(diag(R), " ", sep="") 
   rownames(Rnew) <- colnames(x) 
   colnames(Rnew) <- paste(colnames(x), "", sep="") 
-  ## remove upper triangle
-  Rnew <- as.matrix(Rnew)
+  Rnew <- as.matrix(Rnew)      ## remove upper triangle
   Rnew[upper.tri(Rnew, diag = TRUE)] <- ""
   Rnew <- as.data.frame(Rnew) 
-  ## remove last column and return the matrix (which is now a data frame)
-  Rnew <- cbind(Rnew[1:length(Rnew)-1])
+  Rnew <- cbind(Rnew[1:length(Rnew)-1])    ## remove last column and return the matrix (which is now a data frame)
   return(Rnew) 
 }
