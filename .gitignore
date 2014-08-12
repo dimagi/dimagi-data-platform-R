@@ -3,3 +3,4 @@
 .RData
 config_run.json
 config_system.json
+*.stamp
