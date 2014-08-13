@@ -26,7 +26,6 @@ $(DBSTAMP):
 INTERACTIONS_CSV = $(RAW_DATA_DIR)/interactions.csv
 VISITS_R = aggregate_tables/visit_table_run.R
 VISITS_TABLE = .visits-table.stamp
-DBNAME = test
 
 $(VISITS_TABLE): $(VISITS_R) $(INTERACTIONS_CSV) $(DBSTAMP)
 	Rscript $(VISITS_R) $(INTERACTIONS_CSV) $(DBNAME)
