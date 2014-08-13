@@ -1,18 +1,20 @@
 library(Hmisc)
 # import and merge monthly usage data per domain (at this stage we are not doing domain specific correlations)
-render_debug <- function (test_data_dir, domains_for_run, report_options, output_dir) {
+render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table_from_csv (test_data_dir)
-  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_monthly_usage(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-render <- function (con, domains_for_run, report_options, output_dir) {
+render <- function (con, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(con)
-  create_monthly_usage(domain_table, domains_for_run, report_options, output_dir)
+  module_pdfs <- create_monthly_usage(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
+  return(module_pdfs)
 }
 
-create_monthly_usage <- function (domain_table, domains_for_run, report_options, output_dir) {
+create_monthly_correlation_report <- function (domain_table, domains_for_run, report_options, output_dir) {
   output_directory <- output_dir
   read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
@@ -30,9 +32,11 @@ create_monthly_usage <- function (domain_table, domains_for_run, report_options,
   cont_vars <- monthly_table[, cont_vars]
   
   
-  # Correlation matrix for continuous variables (this function lives in report_utils.R)
+  # Correlation triangle for continuous variables (this function lives in report_utils.R)
   Rnew <- corstarsl(cont_vars) 
   print(Rnew)   
   write.csv(Rnew, file.path(output_dir, "correlation table.csv", fsep = .Platform$file.sep))
 
 }
+
+
