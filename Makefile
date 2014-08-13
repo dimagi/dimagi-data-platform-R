@@ -14,9 +14,9 @@
 # http://www.opussoftware.com/tutorial/TutMakefile.htm
 RAW_DATA_DIR = ~/Dropbox/dimagi-data-platform-R/my_test_data
 DBNAME = test
-DBSTAMP = .database.stamp
 
 # The leading dash prevents make from exiting on an error.
+DBSTAMP = .database.stamp
 $(DBSTAMP):
 	-createdb $(DBNAME)
 	touch $(DBSTAMP)
@@ -31,3 +31,17 @@ DBNAME = test
 $(VISITS_TABLE): $(VISITS_R) $(INTERACTIONS_CSV) $(DBSTAMP)
 	Rscript $(VISITS_R) $(INTERACTIONS_CSV) $(DBNAME)
 	touch $(VISITS_TABLE)
+
+LIFETIME_TABLE = .lifetime-table.stamp
+INDICATORS_R = indicators.R
+
+$(LIFETIME_TABLE): $(INDICATORS_R) $(VISITS_TABLE)
+	Rscript $(INDICATORS_R) lifetime $(DBNAME)
+
+# TODO: We've got a bit of copying and pasting going on with the
+# lifetime vs. monthly tables, we should think about DRY.
+MONTHLY_TABLE = .monthly-table.stamp
+INDICATORS_R = indicators.R
+
+$(MONTHLY_TABLE): $(INDICATORS_R) $(VISITS_TABLE)
+	Rscript $(INDICATORS_R) monthly $(DBNAME)
