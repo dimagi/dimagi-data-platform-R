@@ -1,10 +1,11 @@
 library(dplyr)
 library(zoo)
 library(DBI)
+library(RPostgreSQL)
 
 source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
 
-makeVisit <- function(dat) {
+makeVisit <- function(db, dat) {
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.yearmon(dat$visit_date) # obtaining year and month from Date
@@ -26,7 +27,8 @@ makeVisit <- function(dat) {
                            ifelse(dat$time_ffs >= "12:00:00" & dat$time_ffs < "18:00:00", "afternoon",
                                   ifelse(dat$time_ffs >= "18:00:00" & dat$time_ffs < "24:00:00", "night", "after midnight")))
 
-  return(dat)
+  dbWriteTable(db$con, value=as.data.frame(dat), name="visits", append=TRUE)
+  return(data.frame(written=TRUE))
 }
 
 args <- commandArgs(trailingOnly=TRUE)
@@ -34,22 +36,11 @@ inpath <- args[1]
 dbname <- args[2]
 
 cat(paste("Reading interactions from:", inpath, "\n"))
-interactions <- read.csv(inpath, header=TRUE, stringsAsFactors=FALSE, nrows=10000)
+interactions <- read.csv(inpath, header=TRUE, stringsAsFactors=FALSE, nrows=-1)
 interactions$user_id[is.na(interactions$user_id)] <- "NONE"
-
-cat("Creating visits from interactions.\n")
-visits <- group_by(interactions, domain) %.% do(makeVisit(.))
-
-## Cut down on our memory usage before we try writing to the database.
-rm(interactions)
 
 cat(paste("Writing visits to database:", dbname, "\n"))
 db <- src_postgres(dbname=dbname)
 dbRemoveTable(db$con, name='visits')
-copy_to(db, df=visits, name='visits', temporary=FALSE)
-
-## TODO: I need to use dbWriteTable on chunks of the data to get the
-## whole thing into the database without memory explosions. To get
-## around this for right now, I'm only going to work on a subset of
-## the data.
-## https://groups.google.com/forum/#!topic/manipulatr/IsRVJWoMPe4
+makeVisit2 <- function(dat) makeVisit(db, dat)
+quiet <- interactions %.% group_by(domain) %.% do(makeVisit2(.))
