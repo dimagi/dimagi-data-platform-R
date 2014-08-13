@@ -47,3 +47,5 @@ INDICATORS_R = indicators.R
 $(MONTHLY_TABLE): $(INDICATORS_R) $(VISITS_TABLE) indicators.json
 	Rscript $(INDICATORS_R) monthly_indicators $(DBNAME)
 	touch $(MONTHLY_TABLE)
+
+tables: $(LIFETIME_TABLE) $(MONTHLY_TABLE)
