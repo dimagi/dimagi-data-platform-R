@@ -1,5 +1,8 @@
 library(dplyr)
 library(DBI)
+library(rjson)
+
+source('s_dplyr.R')
 
 ## I've ported the first few indicators from lifetime_run.R. There are
 ## a lot more indicators to port over...
@@ -8,18 +11,6 @@ nvisits <- function(x) nrow(x)
 first_visit_date <- function(x) min(x$visit_date)
 last_visit_date <- function(x) max(x$visit_date)
 days_on_cc <- function(x) as.numeric(last_visit_date(x) - first_visit_date(x)) + 1
-
-lifetime.indicators <- list(
-    'nvisits',
-    'first_visit_date',
-    'last_visit_date',
-    'days_on_cc'
-    )
-
-monthly.indicators <- list(
-    'nvisits',
-    'days_on_cc'
-    )
 
 Aggregate <- function(data, indicator.names) {
     f <- function(block) {
@@ -37,31 +28,21 @@ MyCopy <- function(db, df, name) {
     copy_to(db, df=df, name=name, temporary=FALSE)
 }
 
-## TODO: Combine MakeLifetimeIndicators and MakeMonthlyIndicators.
-MakeLifetimeIndicators <- function(dbname) {
+MakeIndicators <- function(dbname, indicator.type) {
     db <- src_postgres(dbname=dbname)
     visits <- tbl(db, 'visits')
 
-    lifetime <- group_by(visits, user_id) %.%
-        Aggregate(lifetime.indicators)
-    MyCopy(db, lifetime, 'lifetime')
-}
+    indicator.info <- fromJSON(file='indicators.json')[[indicator.type]]
+    indicator.names <- indicator.info[['functions']]
+    group.by.str <- paste(indicator.info[['by']], collapse=', ')
 
-MakeMonthlyIndicators <- function(dbname) {
-    db <- src_postgres(dbname=dbname)
-    visits <- tbl(db, 'visits')
-
-    monthly <- group_by(visits, month.index, user_id) %.%
-        Aggregate(lifetime.indicators)
-    MyCopy(db, monthly, 'monthly')
+    indicators <- visits %.% s_group_by(group.by.str) %.%
+        Aggregate(indicator.names)
+    MyCopy(db, indicators, indicator.type)
 }
 
 args <- commandArgs(trailingOnly=TRUE)
 indicator.type <- args[1]
 dbname <- args[2]
 
-if (indicator.type == 'lifetime') {
-    MakeLifetimeIndicators(dbname)
-} else if (indicator.type == 'monthly') {
-    MakeMonthlyIndicators(dbname)
-}
+MakeIndicators(dbname, indicator.type)

@@ -1,0 +1,18 @@
+{
+    "lifetime_indicators": {
+        "functions": [
+            "nvisits",
+            "first_visit_date",
+            "last_visit_date",
+            "days_on_cc"
+            ],
+        "by": ["user_id"]
+    },
+    "monthly_indicators": {
+        "functions": [
+            "nvisits",
+            "days_on_cc"
+            ],
+        "by": ["user_id", "month.index"]
+    }
+}

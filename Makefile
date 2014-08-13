@@ -36,12 +36,14 @@ LIFETIME_TABLE = .lifetime-table.stamp
 INDICATORS_R = indicators.R
 
 $(LIFETIME_TABLE): $(INDICATORS_R) $(VISITS_TABLE)
-	Rscript $(INDICATORS_R) lifetime $(DBNAME)
+	Rscript $(INDICATORS_R) lifetime_indicators $(DBNAME)
+	touch $(LIFETIME_TABLE)
 
 # TODO: We've got a bit of copying and pasting going on with the
 # lifetime vs. monthly tables, we should think about DRY.
 MONTHLY_TABLE = .monthly-table.stamp
 INDICATORS_R = indicators.R
 
-$(MONTHLY_TABLE): $(INDICATORS_R) $(VISITS_TABLE)
-	Rscript $(INDICATORS_R) monthly $(DBNAME)
+$(MONTHLY_TABLE): $(INDICATORS_R) $(VISITS_TABLE) indicators.json
+	Rscript $(INDICATORS_R) monthly_indicators $(DBNAME)
+	touch $(MONTHLY_TABLE)
