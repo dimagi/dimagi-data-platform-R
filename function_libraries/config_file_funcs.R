@@ -157,7 +157,6 @@ get_domains_for_run <- function (domain_table,conf) {
   domains_include <- vector()
   domains_exclude <- vector()
   filters <- get_domain_filters(conf)
-  print(filters)
   
   has_filters <- length(filters) > 0 # if filters is a list, you'll get a warning
   if (has_filters) { 
@@ -165,7 +164,7 @@ get_domains_for_run <- function (domain_table,conf) {
     filters_include <- filters[filters[["type"]]=="include",]
     filters_exclude <- filters[filters[["type"]]=="exclude",]
 
-    if (length(filters_all) > 0) {  # if we have an include-all, all domains are included unless excluded in a filter or by name
+    if (nrow(filters_all) > 0) {  # if we have an include-all, all domains are included unless excluded in a filter or by name
       domains_include <- domain_table$name
     }
     else if (nrow(filters_include) > 0) {  # else get domains to include from filters by domain attrs
