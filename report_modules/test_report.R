@@ -2,7 +2,6 @@ library(ggplot2)
 library(gridExtra)
 library(RColorBrewer)
 library(scales)
-library(plyr)
 
 render <- function (con,domains_for_run,report_options,aggregate_tables_dir,tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
@@ -23,8 +22,11 @@ create_test_report <- function (domain_table, domains_for_run, report_options, a
   monthly_merged <- merged_monthly_table (domains_for_run, aggregate_tables_dir)
   report_data <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
   
-  overall <- ddply(report_data, .(split_by), summarise,
-                   sum_visits = sum(visits, na.rm=T))
+  require(dplyr)
+  overall <- report_data %.%
+    group_by(split_by) %.%
+    summarise(sum_visits = sum(visits, na.rm=T))
+  detach("package:dplyr")
   
   chart <- ggplot(data=overall, aes(x=split_by, y=sum_visits, fill=split_by)) +
     geom_bar(colour="black", stat="identity") +
