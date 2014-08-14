@@ -1,1 +1,0 @@
-config_run_path <- file.path("/home/mel/workspace/dimagi-data-platform-R/config_run.json")
