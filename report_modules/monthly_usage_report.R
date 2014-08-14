@@ -13,7 +13,6 @@ library(ggplot2) #graphing across multiple domains
 library(scales) #to customize ggplot axis labeling
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
-library(plyr) #for ddply
 library(knitr) #for appending pdfs
 
 #Need two different functions based on whether I am working with test data from the 
