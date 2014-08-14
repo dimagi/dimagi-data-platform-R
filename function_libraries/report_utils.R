@@ -22,10 +22,8 @@ merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
       message(cond)
     })
   }
-  require(plyr)
   all_monthly_tables <- lapply(domain_names, read_csv_add_domain)
   merged <- rbind.fill(all_monthly_tables)
-  detach("package:plyr")
   return(merged)
 }
 
