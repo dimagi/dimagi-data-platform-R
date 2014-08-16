@@ -10,7 +10,7 @@ write_tables <- function(file) {
 
     for (table.info in config) {
         df <- compute_indicators(table.info)
-        print(df)
+        print(names(df))
     }
 }
 
@@ -22,9 +22,8 @@ compute_indicators <- function(info) {
         df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
         return(df)
     })
-    if (length(dfs) == 1) {
-        return(dfs[[1]])
-    }
+    merged <- Reduce(function(...) merge(..., all.x=TRUE, all.y=TRUE, by=info$by), dfs)
+    return(merged)
 }
 
 aggregate <- function(data, columns) {
