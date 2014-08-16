@@ -3,16 +3,9 @@ library(DBI)
 library(rjson)
 
 source('s_dplyr.R')
+source('indicator_functions.R')
 
-## I've ported the first few indicators from lifetime_run.R. There are
-## a lot more indicators to port over...
-
-nvisits <- function(x) nrow(x)
-first_visit_date <- function(x) min(x$visit_date)
-last_visit_date <- function(x) max(x$visit_date)
-days_on_cc <- function(x) as.numeric(last_visit_date(x) - first_visit_date(x)) + 1
-
-Aggregate <- function(data, indicator.names) {
+aggregate_table <- function(data, indicator.names) {
     f <- function(block) {
         vector <- sapply(indicator.names, function(iname) get(iname)(block))
         df <- as.data.frame(t(vector))
@@ -22,27 +15,27 @@ Aggregate <- function(data, indicator.names) {
     return(data %.% do(f(.)))
 }
 
-## TODO: Move this to a utilities file.
-MyCopy <- function(db, df, name) {
-    dbRemoveTable(db$con, name=name)
-    copy_to(db, df=df, name=name, temporary=FALSE)
-}
-
-MakeIndicators <- function(dbname, indicator.type) {
-    db <- src_postgres(dbname=dbname)
-    visits <- tbl(db, 'visits')
-
+aggregate_tables <- function() {
     indicator.info <- fromJSON(file='indicators.json')[[indicator.type]]
     indicator.names <- indicator.info[['functions']]
     group.by.str <- paste(indicator.info[['by']], collapse=', ')
 
     indicators <- visits %.% s_group_by(group.by.str) %.%
-        Aggregate(indicator.names)
-    MyCopy(db, indicators, indicator.type)
+        aggregate_table(indicator.names)
 }
 
-args <- commandArgs(trailingOnly=TRUE)
-indicator.type <- args[1]
-dbname <- args[2]
+rewrite_tables <- function(dbname) {
+    db <- src_postgres(dbname=dbname)
+    visits <- tbl(db, 'visits')
 
-MakeIndicators(dbname, indicator.type)
+    dbRemoveTable(db$con, name=indicator.type)
+    copy_to(db, df=indicators, name=indicator.type, temporary=FALSE)
+}
+
+main <- function() {
+    args <- commandArgs(trailingOnly=TRUE)
+    indicator.type <- args[1]
+    dbname <- args[2]
+
+    # make_indicators(dbname, indicator.type)
+}

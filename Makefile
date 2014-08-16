@@ -35,6 +35,7 @@ LIFETIME_TABLE = .lifetime-table.stamp
 INDICATORS_R = indicators.R
 
 $(LIFETIME_TABLE): $(INDICATORS_R) $(VISITS_TABLE)
+	# Rscript -e "source('indicators.R')" -e "hi()"
 	Rscript $(INDICATORS_R) lifetime_indicators $(DBNAME)
 	touch $(LIFETIME_TABLE)
 
