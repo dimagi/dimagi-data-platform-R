@@ -25,30 +25,21 @@ $(DBSTAMP):
 # http://www.postgresql.org/message-id/5071.1074453027@sss.pgh.pa.us
 INTERACTIONS_CSV = $(RAW_DATA_DIR)/interactions.csv
 VISITS_R = aggregate_tables/visit_table_run.R
-VISITS_TABLE = .visits-table.stamp
+VISITS_TABLE = .visits_table.stamp
 
 $(VISITS_TABLE): $(VISITS_R) $(INTERACTIONS_CSV) $(DBSTAMP)
 	Rscript $(VISITS_R) $(INTERACTIONS_CSV) $(DBNAME)
 	touch $(VISITS_TABLE)
 
-LIFETIME_TABLE = .lifetime-table.stamp
+INDICATORS_TABLES = .indicators_tables.stamp
 INDICATORS_R = indicators.R
+INDICATORS_JSON = indicators.json
 
-$(LIFETIME_TABLE): $(INDICATORS_R) $(VISITS_TABLE)
-	# Rscript -e "source('indicators.R')" -e "hi()"
-	Rscript $(INDICATORS_R) lifetime_indicators $(DBNAME)
-	touch $(LIFETIME_TABLE)
+$(INDICATORS_TABLES): $(INDICATORS_R) $(VISITS_TABLE) $(INDICATORS_JSON)
+	Rscript -e "source('$(INDICATORS_R)')" -e "write_tables('$(INDICATORS_JSON)')"
+	touch $(INDICATORS_TABLES)
 
-# TODO: We've got a bit of copying and pasting going on with the
-# lifetime vs. monthly tables, we should think about DRY.
-MONTHLY_TABLE = .monthly-table.stamp
-INDICATORS_R = indicators.R
-
-$(MONTHLY_TABLE): $(INDICATORS_R) $(VISITS_TABLE) indicators.json
-	Rscript $(INDICATORS_R) monthly_indicators $(DBNAME)
-	touch $(MONTHLY_TABLE)
-
-tables: $(LIFETIME_TABLE) $(MONTHLY_TABLE)
+indicators: $(INDICATORS_TABLES)
 
 # TODO: It would be good to find a smooth way to run tests. Maybe make
 # this into an R package.

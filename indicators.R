@@ -5,37 +5,41 @@ library(rjson)
 source('s_dplyr.R')
 source('indicator_functions.R')
 
-aggregate <- function(data, indicator.names) {
+write_tables <- function(file) {
+    config <- fromJSON(file=file)
+
+    for (table.info in config) {
+        df <- compute_indicators(table.info)
+        print(df)
+    }
+}
+
+compute_indicators <- function(info) {
+    dfs <- lapply(info$components, function(component) {
+        db <- src_postgres(dbname=component['database'])
+        source.data <- tbl(db, component$table)
+        group.by.str <- paste(info$by, collapse=', ')
+        df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
+        return(df)
+    })
+    if (length(dfs) == 1) {
+        return(dfs[[1]])
+    }
+}
+
+aggregate <- function(data, columns) {
+    column.names <- names(columns)
+
     f <- function(block) {
-        vector <- sapply(indicator.names, function(iname) get(iname)(block))
+        vector <- sapply(column.names, function(cname) get(columns[[cname]])(block))
         df <- as.data.frame(t(vector))
-        names(df) <- indicator.names
+        names(df) <- column.names
         return(df)
     }
     return(data %.% do(f(.)))
 }
 
-aggregate_tables <- function() {
-    indicator.info <- fromJSON(file='indicators.json')[[indicator.type]]
-    indicator.names <- indicator.info[['functions']]
-    group.by.str <- paste(indicator.info[['by']], collapse=', ')
-
-    indicators <- visits %.% s_group_by(group.by.str) %.%
-        aggregate(indicator.names)
-}
-
-rewrite_tables <- function(dbname) {
-    db <- src_postgres(dbname=dbname)
-    visits <- tbl(db, 'visits')
-
+write_table <- function(table.name, table.info) {
     dbRemoveTable(db$con, name=indicator.type)
     copy_to(db, df=indicators, name=indicator.type, temporary=FALSE)
-}
-
-main <- function() {
-    args <- commandArgs(trailingOnly=TRUE)
-    indicator.type <- args[1]
-    dbname <- args[2]
-
-    # make_indicators(dbname, indicator.type)
 }

@@ -1,18 +1,46 @@
-{
-    "lifetime_indicators": {
-        "functions": [
-            "nvisits",
-            "first_visit_date",
-            "last_visit_date",
-            "days_on_cc"
-            ],
-        "by": ["user_id"]
+[
+    {
+        "database": "test",
+        "table": "lifetime",
+
+        "by": ["user_id"],
+
+        "components": [
+            {
+                "database": "test",
+                "table": "visits",
+                "columns": {
+                    "nvisits": "nrow",
+                    "first_visit_date": "first_visit_date",
+                    "last_visit_date": "last_visit_date",
+                    "days_on_cc": "days_on_cc"
+                }
+            },
+            {
+                "database": "test",
+                "table": "visits",
+                "columns": {
+                    "monthly_rows": "nrow"
+                }
+            }
+        ]
     },
-    "monthly_indicators": {
-        "functions": [
-            "nvisits",
-            "days_on_cc"
-            ],
-        "by": ["user_id", "month.index"]
+
+    {
+        "database": "test",
+        "table": "monthly",
+
+        "by": ["user_id", "month.index"],
+
+        "components": [
+            {
+                "database": "test",
+                "table": "visits",
+                "columns": {
+                    "nvisits": "nrow",
+                    "days_on_cc": "days_on_cc"
+                }
+            }
+        ]
     }
-}
+]
