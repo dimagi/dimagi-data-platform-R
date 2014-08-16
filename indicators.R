@@ -10,7 +10,10 @@ write_tables <- function(file) {
 
     for (table.info in config) {
         df <- compute_indicators(table.info)
-        print(names(df))
+
+        db <- src_postgres(dbname=table.info$database)
+        dbRemoveTable(db$con, name=table.info$table)
+        copy_to(db, df=df, name=table.info$table, temporary=FALSE)
     }
 }
 
@@ -36,9 +39,4 @@ aggregate <- function(data, columns) {
         return(df)
     }
     return(data %.% do(f(.)))
-}
-
-write_table <- function(table.name, table.info) {
-    dbRemoveTable(db$con, name=indicator.type)
-    copy_to(db, df=indicators, name=indicator.type, temporary=FALSE)
 }
