@@ -49,3 +49,8 @@ $(MONTHLY_TABLE): $(INDICATORS_R) $(VISITS_TABLE) indicators.json
 	touch $(MONTHLY_TABLE)
 
 tables: $(LIFETIME_TABLE) $(MONTHLY_TABLE)
+
+# TODO: It would be good to find a smooth way to run tests. Maybe make
+# this into an R package.
+test:
+	R -e "library(testthat)" -e "test_dir('tests')"

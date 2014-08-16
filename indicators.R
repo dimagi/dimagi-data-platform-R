@@ -5,7 +5,7 @@ library(rjson)
 source('s_dplyr.R')
 source('indicator_functions.R')
 
-aggregate_table <- function(data, indicator.names) {
+aggregate <- function(data, indicator.names) {
     f <- function(block) {
         vector <- sapply(indicator.names, function(iname) get(iname)(block))
         df <- as.data.frame(t(vector))
@@ -21,7 +21,7 @@ aggregate_tables <- function() {
     group.by.str <- paste(indicator.info[['by']], collapse=', ')
 
     indicators <- visits %.% s_group_by(group.by.str) %.%
-        aggregate_table(indicator.names)
+        aggregate(indicator.names)
 }
 
 rewrite_tables <- function(dbname) {
