@@ -10,17 +10,32 @@
                 "database": "test",
                 "table": "visits",
                 "columns": {
-                    "nvisits": "nrow",
-                    "first_visit_date": "date_first_visit",
-                    "last_visit_date": "date_last_visit",
-                    "days_on_cc": "days_on_cc"
-                }
-            },
-            {
-                "database": "test",
-                "table": "visits",
-                "columns": {
-                    "monthly_rows": "nrow"
+                    "date_first_visit": "date_first_visit",
+                    "date_last_visit": "date_last_visit",
+                    "nvisits": "nvisits",
+                    "days_on_cc": "days_on_cc",
+                    "days_visit_last": "days_visit_last",
+                    "active_user": "active_user",
+                    "calendar_month_on_cc": "calendar_month_on_cc",
+                    "active_months": "active_months",
+                    "active_month_percent": "active_month_percent",
+                    "active_days": "active_days",
+                    "active_day_percent": "active_day_percent",
+                    "nforms": "nforms",
+                    "median_visit_duration": "median_visit_duration",
+                    "median_visits_per_day": "median_visits_per_day",
+                    "median_visits_per_month": "median_visits_per_month",
+                    "median_time_elapsed_btw_visits": "median_time_elapsed_btw_visits",
+                    "batch_entry_visit": "batch_entry_visit",
+                    "batch_entry_percent": "batch_entry_percent",
+                    "ncases_registered": "ncases_registered",
+                    "register_followup": "register_followup",
+                    "case_register_followup_rate": "case_register_followup_rate",
+                    "morning": "morning",
+                    "afternoon": "afternoon",
+                    "evening": "evening",
+                    "after_midnight": "after_midnight",
+                    "ncases_opened": "ncases_opened"
                 }
             }
         ]
@@ -37,8 +52,26 @@
                 "database": "test",
                 "table": "visits",
                 "columns": {
-                    "nvisits": "nrow",
-                    "days_on_cc": "days_on_cc"
+                    "date_first_visit": "date_first_visit",
+                    "date_last_visit": "date_last_visit",
+                    "nvisits": "nvisits",
+                    "days_on_cc": "days_on_cc",
+                    "active_days": "active_days",
+                    "active_day_percent": "active_day_percent",
+                    "nforms": "nforms",
+                    "median_visit_duration": "median_visit_duration",
+                    "median_visits_per_day": "median_visits_per_day",
+                    "median_time_elapsed_btw_visits": "median_time_elapsed_btw_visits",
+                    "batch_entry_visit": "batch_entry_visit",
+                    "batch_entry_percent": "batch_entry_percent",
+                    "ncases_registered": "ncases_registered",
+                    "register_followup": "register_followup",
+                    "case_register_followup_rate": "case_register_followup_rate",
+                    "morning": "morning",
+                    "afternoon": "afternoon",
+                    "evening": "evening",
+                    "after_midnight": "after_midnight",
+                    "ncases_opened": "ncases_opened"
                 }
             }
         ]

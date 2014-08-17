@@ -19,4 +19,11 @@ test_that("date indicators return accurate results", {
     expect_that(active_days(data), equals(3))
     expect_that(active_day_percent(data), equals(3 / 5))
     expect_that(median_visits_per_day(data), equals(1))
+
+    data$visit_date[1] <- as.Date('1999-12-05')
+    expect_that(calendar_month_on_cc(data), equals(2))
+
+    data2 <- data.frame(time_start=c("2013-02-22 06:54:43", "2013-03-01 12:24:14", "2013-03-13 03:30:06", "2013-02-21 07:17:01"))
+    data2$case_id <- c(1, 1, 1, 2)
+    expect_that(median_time_btw_followup(data2), equals(10409.52, tolerance=0.01))
 })

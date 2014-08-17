@@ -36,7 +36,7 @@ inpath <- args[1]
 dbname <- args[2]
 
 cat(paste("Reading interactions from:", inpath, "\n"))
-interactions <- read.csv(inpath, header=TRUE, stringsAsFactors=FALSE, nrows=10000)
+interactions <- read.csv(inpath, header=TRUE, stringsAsFactors=FALSE, nrows=-1)
 interactions$user_id[is.na(interactions$user_id)] <- "NONE"
 
 cat(paste("Writing visits to database:", dbname, "\n"))
