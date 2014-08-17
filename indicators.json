@@ -11,8 +11,8 @@
                 "table": "visits",
                 "columns": {
                     "nvisits": "nrow",
-                    "first_visit_date": "first_visit_date",
-                    "last_visit_date": "last_visit_date",
+                    "first_visit_date": "date_first_visit",
+                    "last_visit_date": "date_last_visit",
                     "days_on_cc": "days_on_cc"
                 }
             },

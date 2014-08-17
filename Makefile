@@ -35,7 +35,7 @@ INDICATORS_TABLES = .indicators_tables.stamp
 INDICATORS_R = indicators.R
 INDICATORS_JSON = indicators.json
 
-$(INDICATORS_TABLES): $(INDICATORS_R) $(VISITS_TABLE) $(INDICATORS_JSON)
+$(INDICATORS_TABLES): $(INDICATORS_R) $(VISITS_TABLE) $(INDICATORS_JSON) indicator_functions.R
 	Rscript -e "source('$(INDICATORS_R)')" -e "write_tables('$(INDICATORS_JSON)')"
 	touch $(INDICATORS_TABLES)
 
