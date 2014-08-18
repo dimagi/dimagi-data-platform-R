@@ -8,7 +8,7 @@
         "components": [
             {
                 "database": "dimagi_data_platform",
-                "table": "my_visits",
+                "table": "interactions",
                 "columns": {
                     "date_first_visit": "date_first_visit",
                     "date_last_visit": "date_last_visit",
@@ -50,7 +50,7 @@
         "components": [
             {
                 "database": "dimagi_data_platform",
-                "table": "my_visits",
+                "table": "interactions",
                 "columns": {
                     "date_first_visit": "date_first_visit",
                     "date_last_visit": "date_last_visit",

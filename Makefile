@@ -1,11 +1,5 @@
-#	createuser -s -r importer
-#	createuser -s -r reader
-#	createuser -s -r postgres
-#	createdb dimagi_data_platform
-#	pg_restore -d dimagi_data_platform db.dump 
-
 # TODO: One thing I haven't figured out smoothly is how to model
-# dependencies between source files. Specifically, visit_table_run.R
+# dependencies between source files. Specifically, interaction_table_run.R
 # depends on life_time_func.R, it would be ideal to have this
 # explicitly stated in our Makefile. Here are some notes on how others
 # have solved this problem:
@@ -18,10 +12,14 @@
 # reference an environment variable such as PATH with the makefile
 # expression $(PATH).
 # http://www.opussoftware.com/tutorial/TutMakefile.htm
-RAW_DATA_DIR = ~/Dropbox/dimagi-data-platform-R/my_test_data
 DBNAME = dimagi_data_platform
 
 # The leading dash prevents make from exiting on an error.
+#	createuser -s -r importer
+#	createuser -s -r reader
+#	createuser -s -r postgres
+#	createdb dimagi_data_platform
+#	pg_restore -d dimagi_data_platform db.dump 
 DBSTAMP = .database.stamp
 $(DBSTAMP):
 	-createdb $(DBNAME)
@@ -29,26 +27,23 @@ $(DBSTAMP):
 
 # For each table in the database we have a timestamped file:
 # http://www.postgresql.org/message-id/5071.1074453027@sss.pgh.pa.us
-INTERACTIONS_CSV = $(RAW_DATA_DIR)/interactions.csv
-VISITS_R = aggregate_tables/visit_table_run.R
-VISITS_TABLE = .visits_table.stamp
-VISITS_TABLE_NAME = my_visits
+INTERACTIONS_R = aggregate_tables/interaction_table_run.R
+INTERACTIONS_TABLE = .interactions_table.stamp
+INTERACTIONS_TABLE_NAME = interactions
 
-$(VISITS_TABLE): $(VISITS_R) $(INTERACTIONS_CSV) $(DBSTAMP)
-	Rscript $(VISITS_R) $(DBNAME) $(VISITS_TABLE_NAME)
-	touch $(VISITS_TABLE)
+$(INTERACTIONS_TABLE): $(INTERACTIONS_R) function_libraries/db_queries.R $(DBSTAMP)
+	Rscript $(INTERACTIONS_R) $(DBNAME) $(INTERACTIONS_TABLE_NAME)
+	touch $(INTERACTIONS_TABLE)
 
 INDICATORS_TABLES = .indicators_tables.stamp
 INDICATORS_R = indicators.R
 INDICATORS_JSON = indicators.json
 
-$(INDICATORS_TABLES): $(INDICATORS_R) $(VISITS_TABLE) $(INDICATORS_JSON) indicator_functions.R
+$(INDICATORS_TABLES): $(INDICATORS_R) $(INTERACTIONS_TABLE) $(INDICATORS_JSON) indicator_functions.R
 	Rscript -e "source('$(INDICATORS_R)')" -e "write_tables('$(INDICATORS_JSON)')"
 	touch $(INDICATORS_TABLES)
 
 indicators: $(INDICATORS_TABLES)
 
-# TODO: It would be good to find a smooth way to run tests. Maybe make
-# this into an R package.
 test:
 	R -e "library(testthat)" -e "test_dir('tests')"
