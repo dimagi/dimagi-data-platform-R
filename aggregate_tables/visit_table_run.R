@@ -4,8 +4,9 @@ library(DBI)
 library(RPostgreSQL)
 
 source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
+source(file.path("function_libraries", "db_queries.R", fsep=.Platform$file.sep))
 
-makeVisit <- function(db, dat) {
+makeVisit <- function(db, dat, table.name) {
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.yearmon(dat$visit_date) # obtaining year and month from Date
@@ -27,20 +28,20 @@ makeVisit <- function(db, dat) {
                            ifelse(dat$time_ffs >= "12:00:00" & dat$time_ffs < "18:00:00", "afternoon",
                                   ifelse(dat$time_ffs >= "18:00:00" & dat$time_ffs < "24:00:00", "night", "after midnight")))
 
-  dbWriteTable(db$con, value=as.data.frame(dat), name="visits", append=TRUE)
+  dbWriteTable(db$con, value=as.data.frame(dat), name=table.name, append=TRUE)
   return(data.frame(written=TRUE))
 }
 
 args <- commandArgs(trailingOnly=TRUE)
-inpath <- args[1]
-dbname <- args[2]
+db.name <- args[1]
+table.name <- args[2]
 
-cat(paste("Reading interactions from:", inpath, "\n"))
-interactions <- read.csv(inpath, header=TRUE, stringsAsFactors=FALSE, nrows=-1)
+cat(paste("Reading interactions from:", db.name, "\n"))
+db <- src_postgres(dbname=db.name)
+interactions <- get_interaction_table(db$con)
 interactions$user_id[is.na(interactions$user_id)] <- "NONE"
 
-cat(paste("Writing visits to database:", dbname, "\n"))
-db <- src_postgres(dbname=dbname)
-dbRemoveTable(db$con, name='visits')
-makeVisit2 <- function(dat) makeVisit(db, dat)
+cat(paste("Writing visits to database:", db.name, "\n"))
+dbRemoveTable(db$con, name=table.name)
+makeVisit2 <- function(dat) makeVisit(db, dat, table.name)
 quiet <- interactions %.% group_by(domain) %.% do(makeVisit2(.))

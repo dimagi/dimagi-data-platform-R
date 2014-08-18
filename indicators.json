@@ -1,14 +1,14 @@
 [
     {
-        "database": "test",
+        "database": "dimagi_data_platform",
         "table": "lifetime",
 
         "by": ["user_id"],
 
         "components": [
             {
-                "database": "test",
-                "table": "visits",
+                "database": "dimagi_data_platform",
+                "table": "my_visits",
                 "columns": {
                     "date_first_visit": "date_first_visit",
                     "date_last_visit": "date_last_visit",
@@ -42,15 +42,15 @@
     },
 
     {
-        "database": "test",
+        "database": "dimagi_data_platform",
         "table": "monthly",
 
         "by": ["user_id", "month.index"],
 
         "components": [
             {
-                "database": "test",
-                "table": "visits",
+                "database": "dimagi_data_platform",
+                "table": "my_visits",
                 "columns": {
                     "date_first_visit": "date_first_visit",
                     "date_last_visit": "date_last_visit",

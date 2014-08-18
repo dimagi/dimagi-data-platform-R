@@ -1,3 +1,9 @@
+#	createuser -s -r importer
+#	createuser -s -r reader
+#	createuser -s -r postgres
+#	createdb dimagi_data_platform
+#	pg_restore -d dimagi_data_platform db.dump 
+
 # TODO: One thing I haven't figured out smoothly is how to model
 # dependencies between source files. Specifically, visit_table_run.R
 # depends on life_time_func.R, it would be ideal to have this
@@ -13,7 +19,7 @@
 # expression $(PATH).
 # http://www.opussoftware.com/tutorial/TutMakefile.htm
 RAW_DATA_DIR = ~/Dropbox/dimagi-data-platform-R/my_test_data
-DBNAME = test
+DBNAME = dimagi_data_platform
 
 # The leading dash prevents make from exiting on an error.
 DBSTAMP = .database.stamp
@@ -26,9 +32,10 @@ $(DBSTAMP):
 INTERACTIONS_CSV = $(RAW_DATA_DIR)/interactions.csv
 VISITS_R = aggregate_tables/visit_table_run.R
 VISITS_TABLE = .visits_table.stamp
+VISITS_TABLE_NAME = my_visits
 
 $(VISITS_TABLE): $(VISITS_R) $(INTERACTIONS_CSV) $(DBSTAMP)
-	Rscript $(VISITS_R) $(INTERACTIONS_CSV) $(DBNAME)
+	Rscript $(VISITS_R) $(DBNAME) $(VISITS_TABLE_NAME)
 	touch $(VISITS_TABLE)
 
 INDICATORS_TABLES = .indicators_tables.stamp

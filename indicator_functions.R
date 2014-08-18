@@ -39,6 +39,8 @@ median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.r
 ## I'm not sure how to interpret this indicator description: "median
 ## time (in mins) elapsed between two followup visits conducted by a
 ## mobile user"
+## I took these two indicators out of the config file because they
+## were running too slowly.
 median_time_btw_followup <- function(x) {
     f <- function(block) {
         sorted.times <- sort(ymd_hms(block$time_start))
