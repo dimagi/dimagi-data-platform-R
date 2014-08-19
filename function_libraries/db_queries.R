@@ -12,18 +12,21 @@ con <- dbConnect(drv, dbname=dbname,
 return(con)
 }
 
+do_query <-function (con, query) {
+  rs <- dbSendQuery(con,query)
+  v <- fetch(rs,n=-1)
+  dbClearResult(rs)
+  return (v)
+}
+
 # returns all attributes for domains in domain_list, sector and subsector names as lists
 get_domain_table <- function (con) {
   normal_cols_q <- "select * from domain order by name"
-  rs <- dbSendQuery(con,normal_cols_q)
-  normal_cols <- fetch(rs,n=-1)
-  dbClearResult(rs)
+  normal_cols <- do_query(con,normal_cols_q)
   retframe<-normal_cols[, !(colnames(normal_cols) %in% c("attributes"))]
   
   hstore_keyvalues_q <- "select name, (each(attributes)).* from domain order by name"
-  rs <- dbSendQuery(con,hstore_keyvalues_q)
-  hstore_keyvalues <- fetch(rs,n=-1)
-  dbClearResult(rs)
+  hstore_keyvalues <- do_query(con,hstore_keyvalues_q)
   hstore_wide<-dcast(hstore_keyvalues, name ~ key)
   retframe<-merge(retframe,hstore_wide,by="name",all=T)
   
@@ -34,9 +37,7 @@ get_domain_table <- function (con) {
               and domain_sector.sector_id=sector.id) as sector
               from domain
               order by domain.name"
-  rs <- dbSendQuery(con,sectors_q)
-  sectors <- fetch(rs,n=-1)
-  dbClearResult(rs)
+  sectors <- do_query(con,sectors_q)
   sectors<-transform(sectors, sector = strsplit(substr(sector,2,nchar(sector)-1),split=","))
   sectors$sector[sapply(sectors$sector,length)==0]<-NA
   retframe<-merge(retframe,sectors,by="name",all=T)
@@ -48,83 +49,80 @@ get_domain_table <- function (con) {
               and domain_subsector.subsector_id=subsector.id) as subsector
               from domain
               order by domain.name"
-  rs <- dbSendQuery(con,subsectors_q)
-  subsectors <- fetch(rs,n=-1)
-  dbClearResult(rs)
+  subsectors <- do_query(con,subsectors_q)
   subsectors<-transform(subsectors, subsector = strsplit(substr(subsector,2,nchar(subsector)-1),split=","))
   subsectors$subsector[sapply(subsectors$subsector,length)==0]<-NA
   retframe<-merge(retframe,subsectors,by="name",all=T)
+  
   retframe <- data.frame(retframe,check.names=T)
   return(retframe)
 }
 
 # interaction table (one row for each visit to a case, visit to two cases = two rows)
-get_interaction_table <- function (con) {
-  query <- "with total_forms as 
-                 (select visit_id as id, count (distinct id) as total_forms 
-                 from form 
-                 group by visit_id), 
-                 time_sinces as 
-                 (select visit.id,  date_part('epoch',time_start - lag(time_end, 1) 
-                 over (partition by visit.user_id order by time_start)) as time_since_previous 
-                 from visit 
-                 order by visit.user_id, time_start),
-                 total_form_durations as 
-                 (select visit.id, extract('epoch' from sum(form.time_end - form.time_start)) as form_duration
-                 from form, visit 
-                 where form.visit_id = visit.id
-                 group by visit.id),
-                 home_visits as
-                 (select form.visit_id, bool_or(CASE WHEN (attributes->'Travel visit' = 'No') THEN FALSE 
-                 WHEN (attributes->'Travel visit' = 'Yes') THEN TRUE ELSE null END) as home_visit
-                 from visit
-                 inner join form on (form.visit_id = visit.id)
-                 left join formdef
-                 on (formdef.xmlns = form.xmlns
-                 and formdef.app_id = form.app_id)
-                 group by form.visit_id),
-                 case_visits as (select visit.id as visit_id, cases.case_id from visit,form,case_event, cases
-                 where visit.id = form.visit_id
-                 and form.id = case_event.form_id
-                 and cases.id = case_event.case_id
-                 group by  visit.id, cases.case_id
-                  )
-                 select visit.id, users.user_id, case_visits.case_id, 
-                 visit.time_start, visit.time_end, total_form_durations.form_duration, 
-                 total_forms.total_forms, time_sinces.time_since_previous, home_visits.home_visit, 
-                 domain.name as domain
-                 from visit, users, domain,
-                 total_forms,time_sinces, total_form_durations, home_visits, case_visits
-                 where visit.user_id = users.id 
-                 and total_forms.id = visit.id 
-                 and time_sinces.id = visit.id
-                 and total_form_durations.id = visit.id 
-                 and home_visits.visit_id = visit.id
-                 and case_visits.visit_id = visit.id
-                 and users.domain_id = domain.id 
-                 order by visit.user_id, time_start"
+# limit param can be used to limit the number of results returned
+get_interaction_table <- function (con, limit=-1) {
+  with_limit <-(limit > 0) 
+  
+  if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
+  visit_q <- sprintf("select domain.name as domain, vis.id, users.user_id, vis.time_start, vis.time_end 
+              from %s, users, domain 
+              where vis.user_id = users.id and users.domain_id = domain.id", limit_clause)
+  visit_res <- do_query(con, visit_q)
+  visit_ids <- paste(visit_res$id,collapse=",")
+  
+  if (with_limit) { limit_clause <- sprintf(" and form.visit_id in (%s) ", visit_ids)} else {limit_clause <- ""}
+  interactions_q <- sprintf("select cases.case_id, form.visit_id from cases, case_event, form 
+                    where cases.id = case_event.case_id and form.id = case_event.form_id
+                    %s
+                    group by cases.case_id, form.visit_id",limit_clause)
+  interactions_res <- do_query(con, interactions_q)
+  v <- merge(visit_res,interactions_res,by.x="id",by.y="visit_id")
+  
+  if (with_limit) { limit_clause <- sprintf(" where visit_id in (%s) ", visit_ids)} else {limit_clause <- ""}
+  total_forms_q <- sprintf("select visit_id as id, count (distinct id) as total_forms from form %s 
+                           group by visit_id", limit_clause)
+  total_forms_res <- do_query(con, total_forms_q)
+  v <- merge(v,total_forms_res,by.x="id",by.y="id")
+  
+  # this one needs to do the lag over all visits unfortunately
+  time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) over (partition by visit.user_id order by time_start)) as time_since_previous from visit order by visit.user_id, time_start"
+  time_since_prev_res <- do_query(con, time_since_prev_q)
+  v <- merge(v,time_since_prev_res,by.x="id",by.y="id",all.x=T,all.y=F)
+  
+  if (with_limit) { limit_clause <- sprintf(" and visit.id in (%s) ", visit_ids)} else {limit_clause <- ""}
+  total_form_durations_q <- sprintf("select visit.id, extract('epoch' from sum(form.time_end - form.time_start)) as form_duration
+                            from form, visit where form.visit_id = visit.id %s
+                            group by visit.id",limit_clause)
+  total_form_durations_res <- do_query(con, total_form_durations_q)
+  v <- merge(v,total_form_durations_res,by.x="id",by.y="id")
+  
+  if (with_limit) { limit_clause <- sprintf(" where visit.id in (%s) ", visit_ids)} else {limit_clause <- ""}
+  home_visits_q <- sprintf("select form.visit_id, bool_or(CASE WHEN (attributes->'Travel visit' = 'No') THEN FALSE 
+                            WHEN (attributes->'Travel visit' = 'Yes') THEN TRUE ELSE null END) as home_visit
+                            from visit inner join form on (form.visit_id = visit.id)  left join formdef
+                            on (formdef.xmlns = form.xmlns and formdef.app_id = form.app_id) %s
+                            group by form.visit_id",limit_clause)
+  home_visits_res <- do_query(con, home_visits_q)
+  v <- merge(v,home_visits_res,by.x="id",by.y="visit_id")
 
-rs <- dbSendQuery(con,query)
-v <- fetch(rs,n=-1)
-dbClearResult(rs)
 return(v)
 }
 
 # domain, user, date and device type for every form
-get_device_type_table <- function (con) {
-query <- "select domain.name as domain_name, users.user_id, form.time_start, to_char(form.time_start, 'Mon YYYY') as month, 
+# limit param can be used to limit the number of results returned
+get_device_type_table <- function (con, limit=-1) {
+if (limit > 0) { limit_clause <- sprintf(" (select * from form limit %d) as frm ", limit)} else {limit_clause <- " form as frm "}
+query <- paste("select domain.name as domain_name, users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
                     CASE WHEN app_version LIKE '%Nokia%' THEN 'nokia'
                     WHEN app_version LIKE '%ODK%' THEN 'android'
                     WHEN app_version is null THEN 'none' 
                     ELSE 'other' END as device
-                    from form, users, domain
-                    where form.user_id = users.id
-                    and form.domain_id = domain. id"
+                    from ",limit_clause,", users, domain
+                    where frm.user_id = users.id
+                    and frm.domain_id = domain. id", collapse=" ")
 
-rs <- dbSendQuery(con,query)
-v <- fetch(rs,n=-1)
-dbClearResult(rs)
-return(v)
+res <- do_query(con,query)
+return(res)
 }
 
 close_con <- function (con) {
