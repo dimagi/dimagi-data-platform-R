@@ -15,8 +15,8 @@ render <- function (con, domains_for_run, report_options, aggregate_tables_dir, 
 }
 
 create_monthly_correlation_report <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  output_directory <- tmp_report_pdf_dir
-  read_directory <- file.path(output_directory,"aggregate_tables", fsep=.Platform$file.sep)
+  output_dir <- tmp_report_pdf_dir
+  read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
   source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
@@ -38,5 +38,3 @@ create_monthly_correlation_report <- function (domain_table, domains_for_run, re
   write.csv(Rnew, file.path(output_dir, "correlation table.csv", fsep = .Platform$file.sep))
 
 }
-
-
