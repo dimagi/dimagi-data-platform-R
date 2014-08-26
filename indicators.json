@@ -34,10 +34,11 @@
                     "case_register_followup_rate": "case_register_followup_rate",
                     "morning": "morning",
                     "afternoon": "afternoon",
-                    "evening": "evening",
+                    "night": "night",
                     "after_midnight": "after_midnight",
                     "ncases_opened": "ncases_opened",
-                    "ncases_touched": "ncases_touched"
+                    "ncases_touched": "ncases_touched",
+                    "nunique_followups": "nunique_followups"
                 }
             }
         ]
@@ -71,10 +72,11 @@
                     "case_register_followup_rate": "case_register_followup_rate",
                     "morning": "morning",
                     "afternoon": "afternoon",
-                    "evening": "evening",
+                    "night": "night",
                     "after_midnight": "after_midnight",
                     "ncases_opened": "ncases_opened",
-                    "ncases_touched": "ncases_touched"
+                    "ncases_touched": "ncases_touched",
+                    "nunique_followups": "nunique_followups"
                 }
             }
         ]

@@ -65,7 +65,7 @@ case_register_followup_rate <- function(x) mean(x$follow_up)
 
 morning <- function(x) mean(x$visit_time == 'morning')
 afternoon <- function(x) mean(x$visit_time == 'afternoon')
-evening <- function(x) mean(x$visit_time == 'evening')
+night <- function(x) mean(x$visit_time == 'night')
 after_midnight <- function(x) mean(x$visit_time == 'after midnight')
 
 ncases_opened <- function(x) sum(x$new_case)
@@ -77,3 +77,8 @@ ncases_opened <- function(x) sum(x$new_case)
 ## time point before this month and not closed yet until this month
 
 ncases_touched <- function(x) length(unique(x$case_id))
+nunique_followups <- function(x) {
+    stopifnot(!any(is.na(x$follow_up)))
+    stopifnot(all(x$follow_up == 0 | x$follow_up == 1))
+    return(length(x$case_id[x$follow_up == 1]))
+}
