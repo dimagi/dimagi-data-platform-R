@@ -47,3 +47,11 @@ indicators: $(INDICATORS_TABLES)
 
 test:
 	R -e "library(testthat)" -e "test_dir('tests')"
+
+lifetime.csv: indicators
+	sql2csv --db "postgresql://localhost/$(DBNAME)" --query "select * from lifetime" > lifetime.csv
+
+monthly.csv: indicators
+	sql2csv --db "postgresql://localhost/$(DBNAME)" --query "select * from monthly" > monthly.csv
+
+csvs: lifetime.csv monthly.csv
