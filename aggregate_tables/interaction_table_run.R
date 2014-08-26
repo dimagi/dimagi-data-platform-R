@@ -38,7 +38,7 @@ table.name <- args[2]
 
 cat(paste("Reading interactions from:", db.name, "\n"))
 db <- src_postgres(dbname=db.name)
-interactions <- get_interaction_table(db$con, -1)
+interactions <- get_interaction_table(db$con, 10000)
 interactions$user_id[is.na(interactions$user_id)] <- "NONE"
 
 cat(paste("Writing visits to database:", db.name, "\n"))

@@ -1,9 +1,10 @@
+
 [
     {
         "database": "dimagi_data_platform",
         "table": "lifetime",
 
-        "by": ["user_id"],
+        "by": ["domain", "user_id"],
 
         "components": [
             {
@@ -45,7 +46,7 @@
         "database": "dimagi_data_platform",
         "table": "monthly",
 
-        "by": ["user_id", "month.index"],
+        "by": ["domain", "user_id", "month.index"],
 
         "components": [
             {
