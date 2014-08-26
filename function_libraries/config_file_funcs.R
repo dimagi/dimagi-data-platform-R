@@ -164,10 +164,10 @@ get_domains_for_run <- function (domain_table,conf) {
     filters_include <- filters[filters[["type"]]=="include",]
     filters_exclude <- filters[filters[["type"]]=="exclude",]
 
-    if (length(filters_all) > 0) {  # if we have an include-all, all domains are included unless excluded in a filter or by name
+    if (nrow(filters_all) > 0) {  # if we have an include-all, all domains are included unless excluded in a filter or by name
       domains_include <- domain_table$name
     }
-    else if (length(filters_include) > 0) {  # else get domains to include from filters by domain attrs
+    else if (nrow(filters_include) > 0) {  # else get domains to include from filters by domain attrs
       domains_include <- domain_table$name
       for (i in 1:nrow(filters_include)) {
         inc <- filters_include[i,]
@@ -177,7 +177,7 @@ get_domains_for_run <- function (domain_table,conf) {
     }
     
     # get domains to exclude from filters
-    if (length(filters_exclude) > 0) {
+    if (nrow(filters_exclude) > 0) {
       for (j in 1:nrow(filters_exclude)) {
         exc <- filters_exclude[j,]
         matching_domains <- get_domains_for_filter(domain_table,filter_by=exc$filter_by,vals=exc$values)

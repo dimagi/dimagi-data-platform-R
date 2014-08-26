@@ -22,10 +22,8 @@ merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
       message(cond)
     })
   }
-  require(plyr)
   all_monthly_tables <- lapply(domain_names, read_csv_add_domain)
   merged <- rbind.fill(all_monthly_tables)
-  detach("package:plyr")
   return(merged)
 }
 
@@ -46,4 +44,30 @@ add_splitby_col <- function (data_table, domain_table, splitby_var) {
   names(df)[names(df) == splitby_var] <- 'split_by'
   df$split_by <- sapply(df$split_by, as.factor)
   return(df)
+}
+
+
+# FUNCTION corstarsl
+# creates correlation of continuous variables
+# returns a triangle correlation table with significance levels. p<0.001, ***; p<0.01, **; p<0.05, *
+# correlation coefficients are truncated to two decimal
+#
+# PARAMS
+# names of continuous variables in any aggregate table
+# source code: http://ohiodata.blogspot.com/2012/06/correlation-tables-in-r-flagged-with.html
+corstarsl <- function(x){ 
+  x <- as.matrix(x) 
+  R <- rcorr(x)$r 
+  p <- rcorr(x)$P 
+  mystars <- ifelse(p < .001, "***", ifelse(p < .01, "** ", ifelse(p < .05, "* ", " ")))
+  R <- format(round(cbind(rep(-1.11, ncol(x)), R), 2))[,-1] 
+  Rnew <- matrix(paste(R, mystars, sep=""), ncol=ncol(x))   ## build a new matrix that includes the correlations with their apropriate stars 
+  diag(Rnew) <- paste(diag(R), " ", sep="") 
+  rownames(Rnew) <- colnames(x) 
+  colnames(Rnew) <- paste(colnames(x), "", sep="") 
+  Rnew <- as.matrix(Rnew)      ## remove upper triangle
+  Rnew[upper.tri(Rnew, diag = TRUE)] <- ""
+  Rnew <- as.data.frame(Rnew) 
+  Rnew <- cbind(Rnew[1:length(Rnew)-1])    ## remove last column and return the matrix (which is now a data frame)
+  return(Rnew) 
 }

@@ -1,5 +1,7 @@
-source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+library(plyr)
+library(dplyr)
 
+source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 source(file.path("config_setup.R", fsep = .Platform$file.sep)) # sets the path to the run config to use
 run_conf <-get_run_config(config_run_path)
 system_conf <- get_system_config(file.path("config_system.json"))

@@ -15,7 +15,6 @@ library(zoo) #work with mm/yy calendar dates without day
 library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
-library(plyr) #for ddply
 
 #Need two different functions based on whether I am working with test data from the 
 #test directory (render_debug) or with live data from the database connection (render)
