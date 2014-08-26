@@ -75,3 +75,5 @@ ncases_opened <- function(x) sum(x$new_case)
 ## time point before this month and not closed yet until this month.
 ## cum_open_cases: total number of cases that are not opened at some
 ## time point before this month and not closed yet until this month
+
+ncases_touched <- function(x) length(unique(x$case_id))

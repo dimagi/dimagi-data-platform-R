@@ -36,7 +36,8 @@
                     "afternoon": "afternoon",
                     "evening": "evening",
                     "after_midnight": "after_midnight",
-                    "ncases_opened": "ncases_opened"
+                    "ncases_opened": "ncases_opened",
+                    "ncases_touched": "ncases_touched"
                 }
             }
         ]
@@ -72,7 +73,8 @@
                     "afternoon": "afternoon",
                     "evening": "evening",
                     "after_midnight": "after_midnight",
-                    "ncases_opened": "ncases_opened"
+                    "ncases_opened": "ncases_opened",
+                    "ncases_touched": "ncases_touched"
                 }
             }
         ]
