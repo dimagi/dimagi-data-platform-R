@@ -1,53 +1,127 @@
-#Usage indicator evaluation
+#The purpose of this code is to create quantitative tests to evaluate our
+#usage indicators. See the following document for more detail:
+#https://docs.google.com/a/dimagi.com/document/d/1hP-ewigPuUwuac8K9Tx-VC9Z8epC03lMrnwqzNWveY8/edit
 
-indicators_to_test = c("visits", "active_days_percent", "median_visits_per_active_day", 
-                       "case_registered", "follow_up_unique_case", "median_visit_duration")
+library(zoo) #work with mm/yy calendar dates without day
+library(lubridate)
+library(ggplot2)
 
+#------------------------------------------------------------------------#
+#DATA CREATION
+#------------------------------------------------------------------------#
+#Create all_monthly table
+output_directory <- tmp_report_pdf_dir
+read_directory <- aggregate_tables_dir
+source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
+all_monthly <- merged_monthly_table (domains_for_run, read_directory)
+all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
+#Remove demo users
+#We also need to find a way to exclude admin/unknown users
+all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+#Remove any dates before report start_date and after report end_date
+names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
+all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
+all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
+start_date = as.Date(report_options$start_date)
+end_date = as.Date(report_options$end_date)
+all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
+                     & all_monthly$last_visit_date <= end_date)
+#Convert calendar_month (character) to yearmon class since as.Date won't work 
+#without a day.
+all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
+#Change column names as needed
+names (all_monthly)[names(all_monthly) == "X"] = "row_num"
+names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
+names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
+names (all_monthly)[names(all_monthly) == "domain"] = "domain_char"
+names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
+#Convert median visit duration to minutes
+all_monthly$median_visit_duration = round(all_monthly$median_visit_duration/60,
+                                          digits=2) 
+# Convert relevant indicators to percentages
+all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
+#Convert user_id to numeric to create a "red herring" indicator
+#Note that nlevels of user_id higher than length(unique(user_id)) because we
+#deleted demo_user and some other users that were out of the
+#reporting range after importing all_monthly
+all_monthly$user_numeric = as.numeric(all_monthly$user_id)
 #Convert calendar month to character because dplyr doesn't like yearmon class
 all_monthly$calendar_month = as.character(all_monthly$calendar_month)
 
-test_1_score_vector = c()
+#------------------------------------------------------------------------#
+#Tests for usage indicator evaluation
+#------------------------------------------------------------------------#
 
+indicators_to_test = c("visits", "active_days_percent", "median_visits_per_active_day", 
+                       "case_registered", "follow_up_unique_case", "median_visit_duration", 
+                       "nforms_per_month", "user_numeric")
 
-test_1 <- function(x) {
+#------------------------------------------------------------------------#
 #TEST 1
 #Calculate CVs by project by calendar_month
+#First detach plyr because it's doing weird things with sd calculation in dplyr, then
+#check # of rows with sd = NA to make sure that there really is only one observation
+#for that domain for that month
+#nrow(all_monthly[all_monthly$calendar_month == "Feb 2011" & all_monthly$domain_name == "mvp-sauri",])
+#The rows with sd = NA (because of only one month worth of observation) 
+#will be excluded from all CV calculations, which is the correct thing to do.
+detach(package:plyr)
+
+test_1 <- function(x) {
 test_1_gp = group_by(all_monthly, domain_name, calendar_month)
 test_1_compute = summarise(test_1_gp,
-      mean_indicator = mean(x, na.rm = T),
-      sd_indicator = sd(x, na.rm=T))
+      mean_indicator = mean(user_numeric, na.rm = T),
+      sd_indicator = sd(user_numeric, na.rm=T))
 test_1_compute$cv = (test_1_compute$sd_indicator/test_1_compute$mean_indicator)*100
-#Calculate CV of CVs by project
-test_1_gp_CV = group_by(test_1_compute, domain_name)
-test_1_compute_CV = summarise(test_1_gp_CV,
+#Compute CV of CVs by project
+test_1_gp_cv = group_by(test_1_compute, domain_name)
+test_1_compute_cv = summarise(test_1_gp_cv,
                               mean_indicator = mean(cv, na.rm = T),
-                           sd_indicator = sd(cv, na.rm=T))
-test_1_compute_CV$cv = (test_1_compute_CV$sd_indicator/test_1_compute_CV$mean_indicator)*100
-test_1_score_vector = append(test_1_score_vector, median(test_1_compute_CV$cv))
-return(test_1_score_vector)
+                              sd_indicator = sd(cv, na.rm=T))
+test_1_compute_cv$cv = (test_1_compute_cv$sd_indicator/test_1_compute_cv$mean_indicator)*100
+test_1_score = median(test_1_compute_cv$cv)
+return(test_1_score)
 }
 
-
-#(TO DO)For some reason, SD is NA for some obsnum even though the aggregate table appears
-#to have multiple rows for that obsnum. Need to explore what's happening here.
-#With calendar_months with just one row, it seems to be okay: 
-#we are just excluding these months from the eventual mean calculation
+#Initialize test score vector
+test_1_score_vector = c()
+#Fill test score vector
+for (i in indicators_to_test){
+    test_1_score <- test_1(as.name(i))
+    test_1_score_vector <- append(test_1_score_vector, test_1_score)
+}
 #Can also calculate differences between months per project, but need to consider cases of 
 #skipped months - we are assuming no skipped months for now (too simplistic)
 #Also, might want count diff in variance between one month and all other months -
 #will this be a more robust measure rather than just diff between consecutive months?
 #list_diff = tapply(test_1_compute$cv, test_1_compute$domain_name, diff)
 #test_1_score = median(unlist(lapply(list_diff, median, na.rm=T)))
+#------------------------------------------------------------------------#
 
-
+#------------------------------------------------------------------------#
 #TEST 2
 #Group by project and then by obsnum
-#Similar to (2), users with just one month on CC will be excluded from this analysis 
+#Similar to (2), users with just one month on CC will be excluded from this analysis
+#Check sd = NA with the following code:
+#nrow(raw_percentile[raw_percentile$user_id == "c536bc72043e1c225ed9e30884c5641a",])
+detach(package:dplyr)
+require(plyr)
+require(dplyr)
+test_2 <- function(x,y) {
 raw_percentile = ddply(all_monthly, .(domain_name, calendar_month), 
-             function(x) transform(x, percentile=ecdf(x$visits)(x$visits)))
+             function(x,y) transform(x, percentile=ecdf(x$y)(x$y)))
 test_2_gp = group_by(raw_percentile, user_id)
 test_2_compute = summarise(test_2_gp,
                            mean_indicator = mean(percentile, na.rm = T),
                            sd_indicator = sd(percentile, na.rm=T))
 test_2_compute$cv = (test_2_compute$sd_indicator/test_2_compute$mean_indicator)*100
 test_2_score = median(test_2_compute$cv, na.rm=T)
+return(test_2_score)
+}
+#Initialize test score vectors
+test_2_score_vector = c()
+for (i in indicators_to_test){
+    test_2_score <- test_2(all_monthly, as.name(i))
+    test_2_score_vector <- append(test_2_score_vector, test_2_score)
+}
