@@ -71,8 +71,8 @@ detach(package:plyr)
 test_1 <- function(x) {
 test_1_gp = group_by(all_monthly, domain_name, calendar_month)
 test_1_compute = summarise(test_1_gp,
-      mean_indicator = mean(user_numeric, na.rm = T),
-      sd_indicator = sd(user_numeric, na.rm=T))
+      mean_indicator = mean(x, na.rm = T),
+      sd_indicator = sd(x, na.rm=T))
 test_1_compute$cv = (test_1_compute$sd_indicator/test_1_compute$mean_indicator)*100
 #Compute CV of CVs by project
 test_1_gp_cv = group_by(test_1_compute, domain_name)
@@ -125,3 +125,53 @@ for (i in indicators_to_test){
     test_2_score <- test_2(all_monthly, as.name(i))
     test_2_score_vector <- append(test_2_score_vector, test_2_score)
 }
+#------------------------------------------------------------------------#
+
+#------------------------------------------------------------------------#
+#TEST 3
+#Subset data frames for holiday months and active months
+#Then calculate median indicator values per user for each dataframe
+#For now, we will work with just India domains, counting November as the main
+#holiday month. Confirming with Devu and Mohini if we also need to include 
+#December as a holiday month. 
+detach(package:dplyr)
+detach(package:plyr)
+library(dplyr)
+
+#Calculate median indicator for holiday and active subsets based on 
+#holiday month = November
+#To select more than one month, use perl = T. For example:
+#all_monthly[grep("Nov|Dec", all_monthly$calendar_month, perl=T), ]
+
+holiday_subset <- all_monthly[grep("Nov", all_monthly$calendar_month, perl=T), ]
+active_subset <- all_monthly[grep("Nov", all_monthly$calendar_month, invert = T, perl = T), ]
+
+test_3 <- function(x) {
+test_3_compute_holiday <- holiday_subset %.%
+    group_by(domain_name, user_id) %.%
+    summarise(median_indicator_holiday=median(x, na.rm=TRUE))
+
+test_3_compute_active <- active_subset %.%
+    group_by(domain_name, user_id) %.%
+    summarise(median_indicator_active=median(x, na.rm=TRUE))
+
+#Merge the two data frames by domain and user_id and then compute % change
+test_3_compute <- merge(test_3_compute_holiday, test_3_compute_active, 
+                        by=c("domain_name", "user_id"))
+test_3_compute$per_change <- 
+    (test_3_compute$median_indicator_holiday-test_3_compute$median_indicator_active)/
+    test_3_compute$median_indicator_active *100
+test_3_score <- median(test_3_compute$per_change, na.rm = T)
+return(test_3_score)
+}
+
+test_3_score_vector <- sapply(indicators_to_test, test_3)
+print(test_3_score_vector)
+
+#------------------------------------------------------------------------#
+
+#------------------------------------------------------------------------#
+#TEST 4
+#Subset data frames for one month before attrition and active months
+#http://r.789695.n4.nabble.com/adding-in-missing-values-in-a-sequence-td839900.html
+
