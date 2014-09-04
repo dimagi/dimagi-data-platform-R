@@ -7,15 +7,18 @@ library(lubridate)
 library(ggplot2)
 
 #------------------------------------------------------------------------#
-#DATA CREATION
+#DATA IMPORT
 #------------------------------------------------------------------------#
-#Create all_monthly table
+
+#Create all_monthly dataset
 output_directory <- tmp_report_pdf_dir
 read_directory <- aggregate_tables_dir
 source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
 source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
 all_monthly <- merged_monthly_table (domains_for_run, read_directory)
 all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
+
+
 #Remove demo users
 #We also need to find a way to exclude admin/unknown users
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
@@ -174,4 +177,37 @@ print(test_3_score_vector)
 #TEST 4
 #Subset data frames for one month before attrition and active months
 #http://r.789695.n4.nabble.com/adding-in-missing-values-in-a-sequence-td839900.html
+
+library(reshape)
+
+#Create new all_monthly with missing obsnum filled in, by user_id, with a column for indicator
+#Max obsnum for each user_id
+all_monthly_max <- all_monthly %.%
+  group_by(domain_name, user_id) %.%
+  summarise(obsnum_max = max(obsnum))
+#List of full obsnum sequence based on max obsnum per user_id
+all_monthly_new <- lapply(split(all_monthly_max, list(all_monthly_max$domain_name, 
+                                                      all_monthly_max$user_id), drop = T),
+                          function(x) seq(x$obsnum_max))
+#One row per unique user with one column per obsnum
+column_per_obsnum <- do.call(rbind,lapply(all_monthly_new, 
+                             function(x) c(as.numeric(x),
+                                           rep(NA,max(sapply(all_monthly_new,length)-length(x)))))) 
+#Convert columns to rows - one row per obsnum per user
+mdata <- melt(column_per_obsnum, id=c("row.names"))
+#Sort by domain.user (X1) and then by obsnum
+mdata <- arrange(mdata, X1, value)
+#Pull apart domain_name and user_id from X1
+mat = as.matrix(mdata[,1])
+mat2 = apply(mat, 2, function(x) unlist(strsplit(x, ".", fixed = TRUE)))
+mat_user_id = mat2[c(F,T),]
+mat_domain_name = mat2[c(T,F),]
+#Column bind back to mdata and convert to dataframe
+mdata = cbind(mdata, mat_user_id)
+mdata = as.data.frame(cbind(mdata, mat_domain_name))
+mdata = select(mdata, -X2)
+names(mdata) = c("domain_user", "obsnum", "user_id", "domain_name")
+mdata = filter(mdata, obsnum_full != "NA")
+#Merge with all_monthly by domain_name, user_id, and obsnum, keeping all rows in mdata
+mdata <- merge(mdata, all_monthly, by=c("domain_name", "user_id", "obsnum"), all.x = TRUE)
 
