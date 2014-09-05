@@ -183,8 +183,11 @@ library(reshape)
 #Count NAs in indicators to test before running this test because we are later on 
 #adding NAs as indicator values whenever there is an inactive month. There should be
 #none/very few NA values in our indicators to test before we add in the inactive months
-
-sapply(all_monthly$visits)
+#for this test
+all_monthly_check <- select(all_monthly, domain_name, user_id, obsnum, visits, active_days_percent, median_visits_per_active_day, 
+                            case_registered, follow_up_unique_case, median_visit_duration, 
+                            nforms_per_month, user_numeric)
+sapply(all_monthly_check, summary)
 
 #Create new all_monthly with missing obsnum filled in, by user_id
 #First get max obsnum per user_id
@@ -214,8 +217,15 @@ mdata = cbind(mdata, mat_user_id)
 mdata = as.data.frame(cbind(mdata, mat_domain_name))
 mdata = select(mdata, -X2)
 names(mdata) = c("domain_user", "obsnum", "user_id", "domain_name")
-mdata = filter(mdata, obsnum_full != "NA")
-#Merge with all_monthly by domain_name, user_id, and obsnum: keeping all rows in mdata
-#
-mdata <- merge(mdata, all_monthly, by=c("domain_name", "user_id", "obsnum"), all.x = TRUE)
+mdata = filter(mdata, obsnum != "NA")
+#Merge with all_monthly_check by domain_name, user_id, and obsnum: keeping all rows in mdata
+mdata <- merge(mdata, all_monthly_check, by=c("domain_name", "user_id", "obsnum"), all.x = TRUE)
+#Check # inactive months by looking at # NA's for all indicators (they should be the same)
+sapply(mdata, summary)
+
+test_4 <- function(x) {
+#Create logic vector of inactive months
+1:10 %in% c(1,3,5,9)
+
+}
 
