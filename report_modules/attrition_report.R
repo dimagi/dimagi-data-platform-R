@@ -36,7 +36,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
   output_directory <- tmp_report_pdf_dir
   read_directory <- aggregate_tables_dir
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  
+  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
   all_monthly <- merged_monthly_table (domains_for_run, read_directory)
   all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
   #------------------------------------------------------------------------#
@@ -44,9 +44,9 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
-  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   
   #Remove any dates before report start_date and after report end_date
+  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
   all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
   all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
   start_date = as.Date(report_options$start_date)
@@ -58,7 +58,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
   #without a day.
   all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
   
-  #Change column names names as needed
+  #Change column names as needed
   names (all_monthly)[names(all_monthly) == "X"] = "row_num"
   names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
   names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
