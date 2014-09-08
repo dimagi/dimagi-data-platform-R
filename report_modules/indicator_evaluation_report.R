@@ -7,17 +7,15 @@ library(lubridate)
 library(ggplot2)
 
 #------------------------------------------------------------------------#
-#DATA IMPORT
+#DATA MANAGEMENT
 #------------------------------------------------------------------------#
-
-#Create all_monthly dataset
+#Import all_monthly
 output_directory <- tmp_report_pdf_dir
 read_directory <- aggregate_tables_dir
 source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
 source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
 all_monthly <- merged_monthly_table (domains_for_run, read_directory)
 all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
-
 
 #Remove demo users
 #We also need to find a way to exclude admin/unknown users

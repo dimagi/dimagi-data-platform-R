@@ -35,4 +35,4 @@ all_monthly <- merged_monthly_table (domains_for_run, aggregate_tables_dir)
 
 # write to csv
 output_directory <- system_conf$directories$output
-write.csv(all_monthly, file.path(output_directory, "all_monthly.csv", fsep = .Platform$file.sep))
+#write.csv(all_monthly, file.path(output_directory, "all_monthly.csv", fsep = .Platform$file.sep))
