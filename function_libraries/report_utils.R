@@ -1,5 +1,11 @@
 # Utility functions for report modules
 
+
+get_aggregate_table <- function (db,table_name, domain_names) {
+  agg_table <- tbl(db, table_name)
+  agg_table <- filter(agg_table, domain %in% domain_names)
+  return(collect(agg_table))
+}
 # FUNCTION merged_monthly_table
 # gets all monthly.csv and device_type_monthly files for domains specified in domain_names
 # returns one merged table with all columns present in any monthly aggregate table csv file
