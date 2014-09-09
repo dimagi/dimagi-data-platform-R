@@ -12,12 +12,12 @@ command:
 
     make indicators
 
-This calls [indicators.R](./blob/master/indicators.R), which creates
-tables described in [indicators.json](./blob/master/indicators.json)
-and [indicator_functions.R](./blob/master/indicator_functions.R).
+This calls [indicators.R](docs/indicators.R), which creates
+tables described in [indicators.json](docs/indicators.json)
+and [indicator_functions.R](docs/indicator_functions.R).
 
 How does one add an indicator?
-[indicators.json](./blob/master/indicators.json) contains a list of
+[indicators.json](docs/indicators.json) contains a list of
 tables to be created. Each element in the list is a dictionary with
 four pairs:
 
@@ -71,16 +71,16 @@ user. Notice that the key for each column is the name of the column
 where that indicator will be stored, the value for each column is the
 R function to be called on each block of data. To modularize the code
 a bit, we have moved custom indicator functions into
-[indicator_functions.R](./blob/master/indicator_functions.R). Here is
+[indicator_functions.R](docs/indicator_functions.R). Here is
 the definition of `date_first_visit`:
 
     date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 
 This function takes a data.frame `x` and returns the minimum value of
 the `visit_date` column of `x`. So, adding an indicator always
-requires modifying [indicators.json](./blob/master/indicators.json)
+requires modifying [indicators.json](docs/indicators.json)
 and if the necessary R function to calculate the indicator does not
 exist then it must be added to
-[indicator_functions.R](./blob/master/indicator_functions.R).
+[indicator_functions.R](docs/indicator_functions.R).
 
 ## Reporting framework
