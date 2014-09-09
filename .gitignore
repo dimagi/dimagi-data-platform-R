@@ -4,3 +4,4 @@
 config_run.json
 config_system.json
 config_setup.R
+*.stamp
