@@ -5,6 +5,7 @@ library(RPostgreSQL)
 
 source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
 source(file.path("function_libraries", "db_queries.R", fsep=.Platform$file.sep))
+source("indicators.R")
 
 makeVisit <- function(db, dat, table.name) {
   # Formatting
@@ -32,16 +33,14 @@ makeVisit <- function(db, dat, table.name) {
   return(data.frame(written=TRUE))
 }
 
-args <- commandArgs(trailingOnly=TRUE)
-db.name <- args[1]
-table.name <- args[2]
+write_visits <- function(table.name) {
+    cat(paste("Reading interactions from:\n"))
+    db <- get_db_connection()
+    interactions <- get_interaction_table(db$con, 10000)
+    interactions$user_id[is.na(interactions$user_id)] <- "NONE"
 
-cat(paste("Reading interactions from:", db.name, "\n"))
-db <- src_postgres(dbname=db.name)
-interactions <- get_interaction_table(db$con, 10000)
-interactions$user_id[is.na(interactions$user_id)] <- "NONE"
-
-cat(paste("Writing visits to database:", db.name, "\n"))
-dbRemoveTable(db$con, name=table.name)
-makeVisit2 <- function(dat) makeVisit(db, dat, table.name)
-quiet <- interactions %.% group_by(domain) %.% do(makeVisit2(.))
+    cat(paste("Writing visits to database:\n"))
+    dbRemoveTable(db$con, name=table.name)
+    makeVisit2 <- function(dat) makeVisit(db, dat, table.name)
+    quiet <- interactions %.% group_by(domain) %.% do(makeVisit2(.))
+}
