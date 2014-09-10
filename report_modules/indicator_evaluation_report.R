@@ -226,4 +226,10 @@ test_4 <- function(x) {
 1:10 %in% c(1,3,5,9)
 
 }
+#------------------------------------------------------------------------#
+#Check all health sector domains to remove any with median # cases f/u == 0
+#------------------------------------------------------------------------#
+overall_split = ddply(all_monthly, .(domain_name), summarise,
+                      cases_fu_med = median(follow_up_unique_case, na.rm=T))
+overall_split = arrange(overall_split, cases_fu_med)
 
