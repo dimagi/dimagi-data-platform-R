@@ -25,9 +25,9 @@ render_debug <- function (test_data_dir, domains_for_run, report_options, aggreg
   return(module_pdfs)
 }
 
-render <- function (con, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
+render <- function (db, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(con)
+  domain_table <- get_domain_table(db$con)
   module_pdfs <- create_attrition(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
   return(module_pdfs)
 }

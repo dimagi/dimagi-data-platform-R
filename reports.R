@@ -14,12 +14,12 @@ if (debug_mode == T) {
   domain_table <- get_domain_table_from_csv (test_data_dir)
 } else {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  con <- get_con(dbname=system_conf$database$dbname,
+  db <- src_postgres(dbname=system_conf$database$dbname,
                  user=system_conf$database$user,
                  pass=system_conf$database$pass,
                  host=system_conf$database$host, 
                  port=system_conf$database$port)
-  domain_table <- get_domain_table(con)
+  domain_table <- get_domain_table(db$con)
 }
 domains_for_run <- get_domains_for_run(domain_table,run_conf)
 
@@ -40,7 +40,7 @@ if (length(domains_for_run) == 0) {
     source(file.path("report_modules",report_file, fsep = .Platform$file.sep))
     
     if (debug_mode == F) {
-      module_pdfs <- render(con,domains_for_run,report_options,aggregate_tables_dir,tmp_report_pdf_dir)
+      module_pdfs <- render(db,domains_for_run,report_options,tmp_report_pdf_dir)
     } else {
       module_pdfs <- render_debug(test_data_dir,domains_for_run,report_options,aggregate_tables_dir,tmp_report_pdf_dir)
     }
@@ -50,9 +50,4 @@ if (length(domains_for_run) == 0) {
   report_file_name <- file.path(system_conf$directories$output,paste(run_conf$reports$report_file_name,"pdf",sep="."))
   system2(command = "pdftk",args = c(shQuote(report_pdfs), "cat output", shQuote(report_file_name)))
 }
-
-if (debug_mode == F) {
-  close_con(con)
-}
-
 

@@ -4,6 +4,7 @@ library(rjson)
 
 source('s_dplyr.R')
 source('indicator_functions.R')
+source('data_sources.R')
 
 get_db_connection <- function(system_config_path='config_system.json') {
     config <- fromJSON(file=system_config_path)
@@ -30,7 +31,7 @@ write_tables <- function(file) {
 compute_indicators <- function(info) {
     dfs <- lapply(info$components, function(component) {
         db <- get_db_connection()
-        source.data <- tbl(db, component$table)
+        source.data <- get_data_source(db, component$table)
         group.by.str <- paste(info$by, collapse=', ')
         df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
         return(df)

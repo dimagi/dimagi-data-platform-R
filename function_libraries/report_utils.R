@@ -1,11 +1,18 @@
 # Utility functions for report modules
 
-
+# FUNCTION get_aggregate_table
+# gets an aggregate table by name, then filters to match only domains in domain_names
+#
+# PARAMS 
+# db: the database to use (connection through dplyr src_postgres)
+# table_name: the name of the aggregate table to fetch
+# domain_names: a list of domain names to filter the aggregate table by
 get_aggregate_table <- function (db,table_name, domain_names) {
   agg_table <- tbl(db, table_name)
   agg_table <- filter(agg_table, domain %in% domain_names)
   return(collect(agg_table))
 }
+
 # FUNCTION merged_monthly_table
 # gets all monthly.csv and device_type_monthly files for domains specified in domain_names
 # returns one merged table with all columns present in any monthly aggregate table csv file
