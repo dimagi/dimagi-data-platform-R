@@ -83,9 +83,9 @@ nunique_followups <- function(x) {
     return(length(x$case_id[x$follow_up == 1]))
 }
 
-summary_device_type <- function (values) {
-  if (length(unique(values)) == 1) {
-    s <- paste(toupper(substring(values[1], 1,1)), substring(values[1], 2),
+summary_device_type <- function (x) {
+  if (length(unique(x$device)) == 1) {
+    s <- paste(toupper(substring(x$device[1], 1,1)), substring(x$device[1], 2),
                sep="", collapse=" ")
     return (s)
   } else {
