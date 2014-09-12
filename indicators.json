@@ -1,14 +1,12 @@
 
 [
     {
-        "database": "dimagi_data_platform",
         "table": "lifetime",
 
         "by": ["domain", "user_id"],
 
         "components": [
             {
-                "database": "dimagi_data_platform",
                 "table": "interactions",
                 "columns": {
                     "date_first_visit": "date_first_visit",
@@ -45,14 +43,12 @@
     },
 
     {
-        "database": "dimagi_data_platform",
         "table": "monthly",
 
         "by": ["domain", "user_id", "month.index"],
 
         "components": [
             {
-                "database": "dimagi_data_platform",
                 "table": "interactions",
                 "columns": {
                     "date_first_visit": "date_first_visit",
