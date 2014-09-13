@@ -1,17 +1,18 @@
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
 
-get_data_source <- function (db, table_name) {
+get_data_source <- function (db, table_name, limit) {
   tryCatch({
+    # TODO need to include limit here
     return(tbl(db, table_name))
   }, error = function(err) {
-    s <- do.call(sprintf("get_%s",table_name),args=list(db))
+    s <- do.call(sprintf("get_%s",table_name),args=list(db, limit))
     return(s)
   })
 }
 
-get_interactions <- function(db){
+get_interactions <- function(db, limit){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
-  dat <- get_interaction_table(db$con)
+  dat <- get_interaction_table(db$con, limit)
   dat$user_id[is.na(dat$user_id)] <- "NONE"
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
@@ -36,9 +37,9 @@ get_interactions <- function(db){
   return(dat)
 }
 
-get_device_type <- function(db){
+get_device_type <- function(db, limit){
   
-  device_type_table <- get_device_type_table(db$con)
+  device_type_table <- get_device_type_table(db$con, limit)
   device_type_table$month.index <-  as.character(as.yearmon(device_type_table$time_start))
   return(device_type_table)
 }

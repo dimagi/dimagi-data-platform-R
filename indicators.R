@@ -16,22 +16,24 @@ get_db_connection <- function(system_config_path='config_system.json') {
     return(db)
 }
 
-write_tables <- function(file) {
+write_tables <- function(file, debug) {
     config <- fromJSON(file=file)
 
     for (table.info in config) {
         print(paste('Writing', table.info$table, 'indicator table.'))
-        df <- compute_indicators(table.info)
+        df <- compute_indicators(table.info, debug)
         db <- get_db_connection()
         dbRemoveTable(db$con, name=table.info$table)
         copy_to(db, df=df, name=table.info$table, temporary=FALSE)
     }
 }
 
-compute_indicators <- function(info) {
+compute_indicators <- function(info, debug) {
+  debug <- as.logical(debug)
+  if (debug == T) {limit = 5000} else {limit = -1}
     dfs <- lapply(info$components, function(component) {
         db <- get_db_connection()
-        source.data <- get_data_source(db, component$table)
+        source.data <- get_data_source(db, component$table, limit)
         group.by.str <- paste(info$by, collapse=', ')
         df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
         return(df)
