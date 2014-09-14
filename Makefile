@@ -1,13 +1,19 @@
-INDICATORS_TABLES = .indicators_tables.stamp
-INDICATORS_R = indicators.R
-INDICATORS_JSON = indicators.json
-DEBUG = true
+AGGREGATE_TABLES = .aggregate_tables.stamp
+AGGREGATE_TABLES_R = aggregate_tables.R
+AGGREGATE_TABLES_JSON = aggregate_tables.json
+DEBUG_MODE = false
 
-$(INDICATORS_TABLES): $(INDICATORS_R) $(INDICATORS_JSON) indicator_functions.R
-	Rscript -e "source('$(INDICATORS_R)')" -e "write_tables('$(INDICATORS_JSON)','$(DEBUG)')"
-	touch $(INDICATORS_TABLES)
+debug: DEBUG_MODE = true
+debug: aggregate_tables
 
-indicators: $(INDICATORS_TABLES)
+$(AGGREGATE_TABLES):
+	Rscript -e "source('$(AGGREGATE_TABLES_R)')" -e "write_tables('$(AGGREGATE_TABLES_JSON)','$(DEBUG_MODE)')"
+	touch $(AGGREGATE_TABLES)
+
+aggregate_tables: $(AGGREGATE_TABLES)
 
 test:
 	R -e "library(testthat)" -e "test_dir('tests')"
+
+clean:
+	rm $(AGGREGATE_TABLES)
