@@ -82,3 +82,14 @@ nunique_followups <- function(x) {
     stopifnot(all(x$follow_up == 0 | x$follow_up == 1))
     return(length(x$case_id[x$follow_up == 1]))
 }
+
+summary_device_type <- function (x) {
+  if (length(unique(x$device)) == 1) {
+    s <- paste(toupper(substring(x$device[1], 1,1)), substring(x$device[1], 2),
+               sep="", collapse=" ")
+    return (s)
+  } else {
+    return ('Multi')
+  }
+}
+

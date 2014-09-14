@@ -112,7 +112,7 @@ return(v)
 # limit param can be used to limit the number of results returned
 get_device_type_table <- function (con, limit=-1) {
 if (limit > 0) { limit_clause <- sprintf(" (select * from form limit %d) as frm ", limit)} else {limit_clause <- " form as frm "}
-query <- paste("select domain.name as domain_name, users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
+query <- paste("select domain.name as domain, users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
                     CASE WHEN app_version LIKE '%Nokia%' THEN 'nokia'
                     WHEN app_version LIKE '%ODK%' THEN 'android'
                     WHEN app_version is null THEN 'none' 
