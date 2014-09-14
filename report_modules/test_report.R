@@ -5,10 +5,10 @@ library(scales)
 
 render <- function (db,domains_for_run,report_options,tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(db$con)
+  domain_table <- get_domain_table(db)
   
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  monthly_table <- get_aggregate_table (db, "aggregate_interactions_monthly", domains_for_run)
+  monthly_table <- get_aggregate_table (db, "aggregate_monthly_interactions", domains_for_run)
   
   module_pdfs <- create_test_report(domain_table, monthly_table, report_options,tmp_report_pdf_dir)
   return(module_pdfs)

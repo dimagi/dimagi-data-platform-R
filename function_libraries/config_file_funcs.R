@@ -1,6 +1,9 @@
 # FILE config_file_funcs.R
 # convenience functions to access configuration options from run_config.json and system_config.json
 
+library("jsonlite")
+library("dplyr")
+
 # FUNCTION get_run_config
 # reads the file config_run.json at the specified path
 # loads the json and returns the data_platform section
@@ -8,7 +11,6 @@
 # PARAMS 
 # config_path : path to config file config_run.json
 get_run_config <- function (path_to_run_config) {
-  library("jsonlite")
   conf<-fromJSON(path_to_run_config)$data_platform
   return(conf)
 }
@@ -20,14 +22,26 @@ get_run_config <- function (path_to_run_config) {
 # PARAMS 
 # config_path : path to config file config_run.json
 get_system_config <- function (path_to_system_config) {
-  library("jsonlite")
   conf<-fromJSON(path_to_system_config)$data_platform
   return(conf)
 }
 
+# FUNCTION get_db_connection
+# gets a dplyr database connection using the params in system_conf
+#
+# PARAMS 
+# config : content of config_system.json
+get_db_connection <- function(config) {
+  db_config <- config[['database']]
+  if ('pass' %in% names(db_config)) {
+    names(db_config)[names(db_config) == 'pass'] <- 'password'
+  }
+  db <- do.call(src_postgres, db_config)
+  return(db)
+}
+
 # FUNCTION get_file_paths
-# gets the file paths defined in the directories section of config_system.json.
-# returns 
+# gets the file paths defined in the directories section of config_system.json
 #
 # PARAMS 
 # conf : the system conf json object
