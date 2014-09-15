@@ -16,37 +16,16 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 
-#Need two different functions based on whether I am working with test data from the 
-#test directory (render_debug) or with live data from the database connection (render)
-#Debug mode is set in the config_run file.
-
-render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
-  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table_from_csv (test_data_dir)
-  
-  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  monthly_table <- merged_monthly_table (domains_for_run, aggregate_tables_dir)
-  
-  module_pdfs <- create_real_time(domain_table, monthly_table, report_options, tmp_report_pdf_dir)
-  return(module_pdfs)
-}
 
 render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
-  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(db$con)
-  
-  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  monthly_table <- get_aggregate_table (db, "monthly", domains_for_run)
-  
-  module_pdfs <- create_real_time(domain_table, monthly_table, report_options, tmp_report_pdf_dir)
-  return(module_pdfs)
-}
-
-create_real_time <- function (domain_table, monthly_table, report_options, tmp_report_pdf_dir) {
   output_directory <- tmp_report_pdf_dir
   
-  all_monthly <- add_splitby_col(monthly_table,domain_table,report_options$split_by)
+  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  domain_table <- get_domain_table(db)
   
+  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+  monthly_table <- get_aggregate_table (db, "aggregate_monthly_interactions", domains_for_run)
+  all_monthly <- add_splitby_col(monthly_table,domain_table,report_options$split_by)
   #------------------------------------------------------------------------#
   
   #Remove demo users
@@ -262,5 +241,6 @@ create_real_time <- function (domain_table, monthly_table, report_options, tmp_r
   dev.off() 
   module_pdfs <- c(module_pdfs,outfile)
   
-  return(module_pdfs)}
+  return(module_pdfs)
+}
 

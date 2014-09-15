@@ -13,32 +13,15 @@ library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 
-
-#Need two different functions based on whether I am working with test data from the 
-#test directory (render_debug) or with live data from the database connection (render)
-#Debug mode is set in the config_run file.
-
-render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table_from_csv (test_data_dir)
-  module_pdfs <- create_attrition(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
-  return(module_pdfs)
-}
-
-render <- function (db, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(db$con)
-  module_pdfs <- create_attrition(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
-  return(module_pdfs)
-}
-
-create_attrition <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
+render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   output_directory <- tmp_report_pdf_dir
-  read_directory <- aggregate_tables_dir
+  
+  source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
+  domain_table <- get_domain_table(db)
+  
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
-  all_monthly <- merged_monthly_table (domains_for_run, read_directory)
-  all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
+  monthly_table <- get_aggregate_table (db, "aggregate_monthly_interactions", domains_for_run)
+  all_monthly <- add_splitby_col(monthly_table,domain_table,report_options$split_by)
   #------------------------------------------------------------------------#
   
   #Remove demo users
@@ -101,11 +84,11 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
   #Numerator is # of flws that were added in for that obsnum  
   attrition_table = ddply(df2, .(obsnum), 
                           function(x) c(attrition=mean(!x$retained)*100, 
-                                                        additions=mean(x$addition)*100))
+                                        additions=mean(x$addition)*100))
   
   attrition_table_split = ddply(df2, .(obsnum, split_by), 
-                          function(x) c(attrition=mean(!x$retained)*100, 
-                                                        additions=mean(x$addition)*100))
+                                function(x) c(attrition=mean(!x$retained)*100, 
+                                              additions=mean(x$addition)*100))
   
   
   #-----------------------------------------------------------------------------#
@@ -188,9 +171,9 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
                                                                    face="bold"))
   
   #g_attrition_addition = 
-   # ggplot(data=attrition_table, aes(x=obsnum)) + 
-    #geom_line(aes(y = attrition, colour = "darkblue"), size = 1.25) + 
-    #geom_line(aes(y = additions, colour = "indianred1"), size = 1.25)
+  # ggplot(data=attrition_table, aes(x=obsnum)) + 
+  #geom_line(aes(y = attrition, colour = "darkblue"), size = 1.25) + 
+  #geom_line(aes(y = additions, colour = "indianred1"), size = 1.25)
   
   #-----------------------------------------------------------------------------#
   #PRINT PLOTS AND EXPORT TO PDF
@@ -201,7 +184,7 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
   grid.arrange(g_attrition, g_attrition_split, nrow=2)
   dev.off()
   module_pdfs <- c(module_pdfs,outfile)
-
+  
   outfile <- file.path(report_output_dir,"Addition.pdf")
   pdf(outfile)
   grid.arrange(g_addition, g_addition_split, nrow=2)
@@ -209,7 +192,5 @@ create_attrition <- function (domain_table, domains_for_run, report_options, agg
   module_pdfs <- c(module_pdfs,outfile)
   
   return(module_pdfs)
-  
 }
-
 

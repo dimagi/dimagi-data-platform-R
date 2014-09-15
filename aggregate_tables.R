@@ -17,6 +17,16 @@ get_db_connection <- function(system_config_path='config_system.json') {
     return(db)
 }
 
+drop_tables <- function(file) {
+  config <- fromJSON(file=file)
+  
+  for (table.info in config) {
+    print(paste('Dropping', table.info$table, 'indicator table.'))
+    db <- get_db_connection()
+    dbRemoveTable(db$con, name=table.info$table)
+  }
+}
+
 write_tables <- function(file, debug) {
     config <- fromJSON(file=file)
 
