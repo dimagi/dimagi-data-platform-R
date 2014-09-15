@@ -1,16 +1,7 @@
+library(dplyr)
+library(DBI)
 library(RPostgreSQL)
 library(reshape2)
-
-get_con <- function(user,pass,host,port, dbname) {
-drv <- dbDriver("PostgreSQL")
-
-con <- dbConnect(drv, dbname=dbname,
-                 user=user,
-                 pass=pass,
-                 host=host, 
-                 port=port)
-return(con)
-}
 
 do_query <-function (con, query) {
   rs <- dbSendQuery(con,query)
@@ -20,7 +11,8 @@ do_query <-function (con, query) {
 }
 
 # returns all attributes for domains in domain_list, sector and subsector names as lists
-get_domain_table <- function (con) {
+get_domain_table <- function (db) {
+  con <- db$con
   normal_cols_q <- "select * from domain order by name"
   normal_cols <- do_query(con,normal_cols_q)
   retframe<-normal_cols[, !(colnames(normal_cols) %in% c("attributes"))]
@@ -60,7 +52,9 @@ get_domain_table <- function (con) {
 
 # interaction table (one row for each visit to a case, visit to two cases = two rows)
 # limit param can be used to limit the number of results returned
-get_interaction_table <- function (con, limit=-1) {
+# todo convert to use dplyr? no good way to do the limit though.
+get_interaction_table <- function (db, limit=-1) {
+  con <- db$con
   with_limit <-(limit > 0) 
   
   if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
@@ -110,21 +104,18 @@ return(v)
 
 # domain, user, date and device type for every form
 # limit param can be used to limit the number of results returned
-get_device_type_table <- function (con, limit=-1) {
+get_device_type_table <- function (db, limit=-1) {
 if (limit > 0) { limit_clause <- sprintf(" (select * from form limit %d) as frm ", limit)} else {limit_clause <- " form as frm "}
 query <- paste("select domain.name as domain, users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
                     CASE WHEN app_version LIKE '%Nokia%' THEN 'nokia'
                     WHEN app_version LIKE '%ODK%' THEN 'android'
+                    WHEN app_version LIKE '2.0' THEN 'cloudcare'
                     WHEN app_version is null THEN 'none' 
                     ELSE 'other' END as device
                     from ",limit_clause,", users, domain
                     where frm.user_id = users.id
                     and frm.domain_id = domain. id", collapse=" ")
 
-res <- do_query(con,query)
+res <- tbl(db,sql(query))
 return(res)
-}
-
-close_con <- function (con) {
-dbDisconnect(con)
 }

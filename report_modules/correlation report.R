@@ -1,25 +1,12 @@
 library(Hmisc)
+
 # import and merge monthly usage data per domain (at this stage we are not doing domain specific correlations)
-render_debug <- function (test_data_dir, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table_from_csv (test_data_dir)
-  module_pdfs <- create_monthly_correlation_report(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
-  return(module_pdfs)
-}
-
-render <- function (con, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
+render <- function (db,domains_for_run,report_options,tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(con)
-  module_pdfs <- create_monthly_correlation_report(domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir)
-  return(module_pdfs)
-}
-
-create_monthly_correlation_report <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir, tmp_report_pdf_dir) {
-  output_dir <- tmp_report_pdf_dir
-  read_directory <- aggregate_tables_dir
+  domain_table <- get_domain_table(db)
+  
   source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
-  all_monthly <- merged_monthly_table (domains_for_run, read_directory)
+  all_monthly <- get_aggregate_table (db, "aggregate_monthly_interactions", domains_for_run)
   
   #Run beginning of monthly usage report
   all_monthly$batch_entry_percent= (all_monthly$batch_entry_percent)*100
@@ -35,6 +22,6 @@ create_monthly_correlation_report <- function (domain_table, domains_for_run, re
   # Correlation triangle for continuous variables (this function lives in report_utils.R)
   Rnew <- corstarsl(cont_vars) 
   print(Rnew)   
-  write.csv(Rnew, file.path(output_dir, "correlation table.csv", fsep = .Platform$file.sep))
+  write.csv(Rnew, file.path(tmp_report_pdf_dir, "correlation table.csv", fsep = .Platform$file.sep))
 
 }

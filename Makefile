@@ -16,4 +16,5 @@ test:
 	R -e "library(testthat)" -e "test_dir('tests')"
 
 clean:
+	Rscript -e "source('$(AGGREGATE_TABLES_R)')" -e "drop_tables('$(AGGREGATE_TABLES_JSON)')"
 	rm $(AGGREGATE_TABLES)

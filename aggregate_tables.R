@@ -6,6 +6,7 @@ source('s_dplyr.R')
 source('aggregate_tables/indicator_functions.R')
 source('data_sources.R')
 
+# TODO this shouldn't be both here and in config_file_funcs, but don't want to load jsonlite here
 get_db_connection <- function(system_config_path='config_system.json') {
     config <- fromJSON(file=system_config_path)
     db_config <- config[['data_platform']][['database']]
@@ -14,6 +15,16 @@ get_db_connection <- function(system_config_path='config_system.json') {
     }
     db <- do.call(src_postgres, db_config)
     return(db)
+}
+
+drop_tables <- function(file) {
+  config <- fromJSON(file=file)
+  
+  for (table.info in config) {
+    print(paste('Dropping', table.info$table, 'indicator table.'))
+    db <- get_db_connection()
+    dbRemoveTable(db$con, name=table.info$table)
+  }
 }
 
 write_tables <- function(file, debug) {

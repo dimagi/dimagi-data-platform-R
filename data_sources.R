@@ -12,11 +12,11 @@ get_data_source <- function (db, table_name, limit) {
 
 get_interactions <- function(db, limit){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
-  dat <- get_interaction_table(db$con, limit)
+  dat <- get_interaction_table(db, limit)
   dat$user_id[is.na(dat$user_id)] <- "NONE"
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
-  dat$month.index <- as.factor(as.character(dat$visit_date)) # dplyr doesn't handle yearmon data type
+  dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
   
   # Sorting
   dat <- dat[order(dat$user_id, dat$time_start), ]  # sort visits by user_id and first interaction time
@@ -39,7 +39,8 @@ get_interactions <- function(db, limit){
 
 get_device_type <- function(db, limit){
   
-  device_type_table <- get_device_type_table(db$con, limit)
+  device_type_table <- get_device_type_table(db, limit)
+  device_type_table <- collect (device_type_table)
   device_type_table$month.index <-  as.character(as.yearmon(device_type_table$time_start))
   return(device_type_table)
 }
