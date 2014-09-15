@@ -190,5 +190,5 @@ get_domains_for_run <- function (domain_table,conf) {
   domains_for_run <- setdiff(domains_include, union(domains_exclude, names_exclude))
   # named include domains are always included
   domains_for_run <- rbind(names_include,domains_for_run)
-  return (domains_for_run)
+  return (as.vector(domains_for_run))
 }

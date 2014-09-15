@@ -3,28 +3,22 @@ library(gridExtra)
 library(RColorBrewer)
 library(scales)
 
-render <- function (con,domains_for_run,report_options,aggregate_tables_dir,tmp_report_pdf_dir) {
+render <- function (db,domains_for_run,report_options,tmp_report_pdf_dir) {
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(con)
-  module_pdfs <- create_test_report(domain_table, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir)
-  return(module_pdfs)
-}
-
-render_debug <- function (test_data_dir,domains_for_run,report_options,aggregate_tables_dir,tmp_report_pdf_dir){
-  source(file.path("function_libraries","csv_sources.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table_from_csv (test_data_dir)
-  module_pdfs <- create_test_report(domain_table, domains_for_run, report_options, aggregate_tables_dir)
-  return(module_pdfs)
-}
-
-create_test_report <- function (domain_table, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
-  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-  monthly_merged <- merged_monthly_table (domains_for_run, aggregate_tables_dir)
-  report_data <- add_splitby_col(monthly_merged,domain_table,report_options$split_by)
+  domain_table <- get_domain_table(db$con)
   
-  overall <- report_data %.%
-    group_by(split_by) %.%
-    summarise(sum_visits = sum(visits, na.rm=T))
+  source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
+  monthly_table <- get_aggregate_table (db, "aggregate_interactions_monthly", domains_for_run)
+  
+  module_pdfs <- create_test_report(domain_table, monthly_table, report_options,tmp_report_pdf_dir)
+  return(module_pdfs)
+}
+
+create_test_report <- function (domain_table, monthly_table, report_options,tmp_report_pdf_dir) {
+
+  report_data <- add_splitby_col(monthly_table,domain_table,report_options$split_by)
+  grouped <- group_by(report_data, split_by)
+  overall <- summarise(grouped, count = n(), sum_visits = sum(nvisits, na.rm=T))
   
   chart <- ggplot(data=overall, aes(x=split_by, y=sum_visits, fill=split_by)) +
     geom_bar(colour="black", stat="identity") +

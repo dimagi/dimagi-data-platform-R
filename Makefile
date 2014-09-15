@@ -1,20 +1,19 @@
-INTERACTIONS_R = aggregate_tables/interaction_table_run.R
-INTERACTIONS_TABLE = .interactions_table.stamp
-INTERACTIONS_TABLE_NAME = interactions
+AGGREGATE_TABLES = .aggregate_tables.stamp
+AGGREGATE_TABLES_R = aggregate_tables.R
+AGGREGATE_TABLES_JSON = aggregate_tables.json
+DEBUG_MODE = false
 
-$(INTERACTIONS_TABLE): $(INTERACTIONS_R) function_libraries/db_queries.R
-	Rscript -e "source('$(INTERACTIONS_R)')" -e "write_visits('$(INTERACTIONS_TABLE_NAME)')"
-	touch $(INTERACTIONS_TABLE)
+debug: DEBUG_MODE = true
+debug: aggregate_tables
 
-INDICATORS_TABLES = .indicators_tables.stamp
-INDICATORS_R = indicators.R
-INDICATORS_JSON = indicators.json
+$(AGGREGATE_TABLES):
+	Rscript -e "source('$(AGGREGATE_TABLES_R)')" -e "write_tables('$(AGGREGATE_TABLES_JSON)','$(DEBUG_MODE)')"
+	touch $(AGGREGATE_TABLES)
 
-$(INDICATORS_TABLES): $(INDICATORS_R) $(INTERACTIONS_TABLE) $(INDICATORS_JSON) indicator_functions.R
-	Rscript -e "source('$(INDICATORS_R)')" -e "write_tables('$(INDICATORS_JSON)')"
-	touch $(INDICATORS_TABLES)
-
-indicators: $(INDICATORS_TABLES)
+aggregate_tables: $(AGGREGATE_TABLES)
 
 test:
 	R -e "library(testthat)" -e "test_dir('tests')"
+
+clean:
+	rm $(AGGREGATE_TABLES)
