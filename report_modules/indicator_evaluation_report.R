@@ -9,13 +9,10 @@ library(ggplot2)
 #------------------------------------------------------------------------#
 #DATA MANAGEMENT
 #------------------------------------------------------------------------#
-#Import all_monthly
-output_directory <- tmp_report_pdf_dir
-read_directory <- aggregate_tables_dir
-source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
-source(file.path("aggregate_tables","monthly_func.R", fsep = .Platform$file.sep))
-all_monthly <- merged_monthly_table (domains_for_run, read_directory)
-all_monthly <- add_splitby_col(all_monthly,domain_table,report_options$split_by)
+
+#Set report_options
+report = "monthly_usage_report"
+report_options <- get_report_options(run_conf,report)
 
 #Remove demo users
 #We also need to find a way to exclude admin/unknown users
@@ -49,6 +46,15 @@ all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
 all_monthly$user_numeric = as.numeric(all_monthly$user_id)
 #Convert calendar month to character because dplyr doesn't like yearmon class
 all_monthly$calendar_month = as.character(all_monthly$calendar_month)
+#Convert first visit date to first day of the month
+all_monthly$month_abbr <- as.Date(as.yearmon(all_monthly$first_visit_date, 
+                                             frac = 0))
+
+#Merge domain facets from domain table into all_monthly table
+facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
+                          business_unit)
+all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain_name", 
+                     by.y = "name", all.x = T)
 
 #------------------------------------------------------------------------#
 #Tests for usage indicator evaluation
@@ -58,6 +64,40 @@ indicators_to_test = c("visits", "active_days_percent", "median_visits_per_activ
                        "case_registered", "follow_up_unique_case", "median_visit_duration", 
                        "nforms_per_month", "user_numeric")
 
+#Health sector domains to exclude because median # cases followed-up per domain = 0
+#There are 22 of these domains of all health sector domains, giving us 73 domains
+domains_to_exclude <- c("a5288-study",
+                        "agada-tufts-nnos",
+                        "aphiaplusnc-2012",
+                        "bihar-project",
+                        "cmmhr",
+                        "ekam",
+                        "gsid",
+                        "ict-women-health",
+                        "iicp",
+                        "itech-etc",
+                        "jhccpmz",
+                        "mc-inscale",
+                        "mchip-haryana",
+                        "msf-demo",
+                        "operation-smile",
+                        "projectbom",
+                        "reach-india",
+                        "sneha-mnh",
+                        "stjohns-soukhya",
+                        "union-jharkhand",
+                        "wits-ca",
+                        "wvmozambique")
+
+all_monthly <- all_monthly[!(all_monthly$domain_name %in% domains_to_exclude),]
+
+#Pick random 10% of these 73 domains for our training dataset of 8 domains
+#sample_domains <- sample(unique(all_monthly$domain_name), 8)
+#This generated the following vector on first run
+sample_domains <- c("afguinea", "nsf-lifefirst", "yonsei-emco", "keiskamma",
+                    "image-sa", "ictwomenhealth", "fenway", "tulasalud") 
+training_set <- all_monthly[all_monthly$domain_name %in% sample_domains,]
+all_monthly <- training_set
 #------------------------------------------------------------------------#
 #TEST 1
 #Calculate CVs by project by calendar_month
@@ -67,31 +107,34 @@ indicators_to_test = c("visits", "active_days_percent", "median_visits_per_activ
 #nrow(all_monthly[all_monthly$calendar_month == "Feb 2011" & all_monthly$domain_name == "mvp-sauri",])
 #The rows with sd = NA (because of only one month worth of observation) 
 #will be excluded from all CV calculations, which is the correct thing to do.
+detach(package:dplyr)
 detach(package:plyr)
+library(dplyr)
+source('s_dplyr.R')
 
-test_1 <- function(x) {
-test_1_gp = group_by(all_monthly, domain_name, calendar_month)
-test_1_compute = summarise(test_1_gp,
-      mean_indicator = mean(x, na.rm = T),
-      sd_indicator = sd(x, na.rm=T))
-test_1_compute$cv = (test_1_compute$sd_indicator/test_1_compute$mean_indicator)*100
-#Compute CV of CVs by project
-test_1_gp_cv = group_by(test_1_compute, domain_name)
-test_1_compute_cv = summarise(test_1_gp_cv,
+test_1 <- function(indicator, data) {
+
+    test_1_compute <- data %.%
+    group_by(domain_name, calendar_month) %.%
+    s_summarise(paste0('mean_indicator=mean(', indicator, ', na.rm=TRUE)'), 
+                paste0('sd_indicator=sd(', indicator, ', na.rm=TRUE)'))
+
+    test_1_compute$cv = (test_1_compute$sd_indicator/test_1_compute$mean_indicator)*100
+
+    #Compute CV of CVs by project
+    test_1_gp_cv = group_by(test_1_compute, domain_name)
+    test_1_compute_cv = summarise(test_1_gp_cv,
                               mean_indicator = mean(cv, na.rm = T),
                               sd_indicator = sd(cv, na.rm=T))
-test_1_compute_cv$cv = (test_1_compute_cv$sd_indicator/test_1_compute_cv$mean_indicator)*100
-test_1_score = median(test_1_compute_cv$cv)
-return(test_1_score)
+    test_1_compute_cv$cv = (test_1_compute_cv$sd_indicator/test_1_compute_cv$mean_indicator)*100
+    test_1_score = median(test_1_compute_cv$cv)
+    return(test_1_score)
 }
 
-#Initialize test score vector
-test_1_score_vector = c()
-#Fill test score vector
-for (i in indicators_to_test){
-    test_1_score <- test_1(as.name(i))
-    test_1_score_vector <- append(test_1_score_vector, test_1_score)
-}
+#Create vector of test scores
+test_1_score_vector <- sapply(indicators_to_test, test_1, data=all_monthly)
+print(test_1_score_vector)
+
 #Can also calculate differences between months per project, but need to consider cases of 
 #skipped months - we are assuming no skipped months for now (too simplistic)
 #Also, might want count diff in variance between one month and all other months -
@@ -106,26 +149,31 @@ for (i in indicators_to_test){
 #Similar to (2), users with just one month on CC will be excluded from this analysis
 #Check sd = NA with the following code:
 #nrow(raw_percentile[raw_percentile$user_id == "c536bc72043e1c225ed9e30884c5641a",])
-detach(package:dplyr)
-require(plyr)
-require(dplyr)
-test_2 <- function(x,y) {
-raw_percentile = ddply(all_monthly, .(domain_name, calendar_month), 
-             function(x,y) transform(x, percentile=ecdf(x$y)(x$y)))
-test_2_gp = group_by(raw_percentile, user_id)
-test_2_compute = summarise(test_2_gp,
-                           mean_indicator = mean(percentile, na.rm = T),
-                           sd_indicator = sd(percentile, na.rm=T))
-test_2_compute$cv = (test_2_compute$sd_indicator/test_2_compute$mean_indicator)*100
-test_2_score = median(test_2_compute$cv, na.rm=T)
-return(test_2_score)
+
+percentile <- function(x) ecdf(x)(x)
+
+test_2 <- function(y) {
+    percentile_s <- paste0('percentile=percentile(', y, ')')
+    raw_percentile <- all_monthly %.%
+        group_by(domain_name, calendar_month) %.%
+        s_mutate(percentile_s)
+    
+    test_2_compute <- raw_percentile %.%
+        group_by(user_id) %.%
+        summarise(
+            mean_indicator=mean(percentile, na.rm=TRUE),
+            sd_indicator=sd(percentile, na.rm=TRUE)
+        )
+    
+    test_2_compute$cv <- (test_2_compute$sd_indicator / test_2_compute$mean_indicator) * 100
+    test_2_score <- median(test_2_compute$cv, na.rm=TRUE)
+    return(test_2_score)
 }
-#Initialize test score vectors
-test_2_score_vector = c()
-for (i in indicators_to_test){
-    test_2_score <- test_2(all_monthly, as.name(i))
-    test_2_score_vector <- append(test_2_score_vector, test_2_score)
-}
+
+#Create vector of test scores
+test_2_score_vector <- sapply(indicators_to_test, test_2)
+print(test_2_score_vector)
+
 #------------------------------------------------------------------------#
 
 #------------------------------------------------------------------------#
@@ -135,38 +183,35 @@ for (i in indicators_to_test){
 #For now, we will work with just India domains, counting November as the main
 #holiday month. Confirming with Devu and Mohini if we also need to include 
 #December as a holiday month. 
-detach(package:dplyr)
-detach(package:plyr)
-library(dplyr)
 
-#Calculate median indicator for holiday and active subsets based on 
-#holiday month = November
+#Calculate % change in median indicator values for holiday vs. active months
+#Based on India holiday month = November for now
 #To select more than one month, use perl = T. For example:
 #all_monthly[grep("Nov|Dec", all_monthly$calendar_month, perl=T), ]
 
-holiday_subset <- all_monthly[grep("Nov", all_monthly$calendar_month, perl=T), ]
-active_subset <- all_monthly[grep("Nov", all_monthly$calendar_month, invert = T, perl = T), ]
-
-test_3 <- function(x) {
-test_3_compute_holiday <- holiday_subset %.%
-    group_by(domain_name, user_id) %.%
-    summarise(median_indicator_holiday=median(x, na.rm=TRUE))
-
-test_3_compute_active <- active_subset %.%
-    group_by(domain_name, user_id) %.%
-    summarise(median_indicator_active=median(x, na.rm=TRUE))
-
-#Merge the two data frames by domain and user_id and then compute % change
-test_3_compute <- merge(test_3_compute_holiday, test_3_compute_active, 
-                        by=c("domain_name", "user_id"))
-test_3_compute$per_change <- 
-    (test_3_compute$median_indicator_holiday-test_3_compute$median_indicator_active)/
-    test_3_compute$median_indicator_active *100
-test_3_score <- median(test_3_compute$per_change, na.rm = T)
-return(test_3_score)
+test_3 <- function(indicator, data) {
+    holiday_subset <- data[grep("Oct|Nov", data$calendar_month, perl=T), ]
+    active_subset <- data[grep("Oct|Nov", data$calendar_month, invert = T, perl = T), ]
+    
+    test_3_compute_holiday <- holiday_subset %.%
+        group_by(domain_name, user_id) %.%
+        s_summarise(paste0('median_indicator_holiday=median(', indicator, ', na.rm=TRUE)'))
+    
+    test_3_compute_active <- active_subset %.%
+        group_by(domain_name, user_id) %.%
+        s_summarise(paste0('median_indicator_active=median(', indicator, ', na.rm=TRUE)'))
+    
+    #Merge the two data frames by domain and user_id and then compute % change
+    test_3_compute <- merge(test_3_compute_holiday, test_3_compute_active,
+                            by=c("domain_name", "user_id"))
+    test_3_compute$per_change <-
+        (test_3_compute$median_indicator_holiday-test_3_compute$median_indicator_active)/
+        test_3_compute$median_indicator_active *100
+    test_3_score <- median(test_3_compute$per_change, na.rm = T)
+    return(test_3_score)
 }
 
-test_3_score_vector <- sapply(indicators_to_test, test_3)
+test_3_score_vector <- sapply(indicators_to_test, test_3, data=all_monthly)
 print(test_3_score_vector)
 
 #------------------------------------------------------------------------#
@@ -191,11 +236,12 @@ sapply(all_monthly_check, summary)
 #First get max obsnum per user_id
 all_monthly_max <- all_monthly %.%
   group_by(domain_name, user_id) %.%
-  summarise(obsnum_max = max(obsnum))
+  summarise(obsnum_max = max(obsnum),
+            obsnum_max_plus = obsnum_max+1)
 #Create list of full obsnum sequence based on max obsnum per user_id
 all_monthly_new <- lapply(split(all_monthly_max, list(all_monthly_max$domain_name, 
                                                       all_monthly_max$user_id), drop = T),
-                          function(x) seq(x$obsnum_max))
+                          function(x) seq(x$obsnum_max_plus))
 #One row per user - with one column per obsnum
 column_per_obsnum <- do.call(rbind,lapply(all_monthly_new, 
                              function(x) c(as.numeric(x),
@@ -220,12 +266,50 @@ mdata = filter(mdata, obsnum != "NA")
 mdata <- merge(mdata, all_monthly_check, by=c("domain_name", "user_id", "obsnum"), all.x = TRUE)
 #Check # inactive months by looking at # NA's for all indicators (they should be the same)
 sapply(mdata, summary)
-
-test_4 <- function(x) {
+#Also check the last row of mdata to make sure it contains NAs
+mdata[6874,]
+#Sort by domain_name, user_id and obsnum
+mdata <- arrange(mdata, domain_name, user_id, obsnum)
 #Create logic vector of inactive months
-1:10 %in% c(1,3,5,9)
+mdata$inactive_month <- is.na(mdata$visits)
+#Create logic vector of months before all inactive months
+#Choose only the second element in inactive_month onwards and then append "F"
+mdata2 <- group_by(mdata, domain_name, user_id)
+mdata2 <- mutate(mdata2, 
+                before_inactive = append(c(inactive_month[2:length(inactive_month)]), F))
 
+test_4 <- function(indicator, data) {
+    active_subset <- mdata2[mdata2$before_inactive == F, ]
+    before_inactive_subset <- mdata2[mdata2$before_inactive == T, ]
+    
+    test_4_compute_active <- active_subset %.%
+        group_by(domain_name, user_id) %.%
+        s_summarise(paste0('median_indicator_active=median(', indicator, ', na.rm=TRUE)'))
+    
+    test_4_compute_before_active <- before_inactive_subset %.%
+        group_by(domain_name, user_id) %.%
+        s_summarise(paste0('median_indicator_before_inactive=median(', indicator, ', na.rm=TRUE)'))
+    
+    #Merge the two data frames by domain and user_id and then compute % change
+    test_4_compute <- merge(test_4_compute_active, test_4_compute_before_active,
+                            by=c("domain_name", "user_id"))
+    test_4_compute$per_change <-
+        (test_4_compute$median_indicator_before_inactive-test_4_compute$median_indicator_active)/
+        test_4_compute$median_indicator_active *100
+    test_4_score <- median(test_4_compute$per_change, na.rm = T)
+    return(test_4_score)
 }
+
+test_4_score_vector <- sapply(indicators_to_test, test_4, data=mdata2)
+print(test_4_score_vector)
+
+#Combine all test vectors into dataframe
+test_scores <- as.data.frame(cbind(test_1_score_vector, test_2_score_vector, 
+                     test_3_score_vector, test_4_score_vector))
+
+
+
+
 #------------------------------------------------------------------------#
 #Check all health sector domains to remove any with median # cases f/u == 0
 #------------------------------------------------------------------------#
