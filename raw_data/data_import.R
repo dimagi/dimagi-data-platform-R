@@ -1,7 +1,6 @@
 #The purpose of this code is import the all_monthly dataset as defined in 
 #the config_run file that is referenced by config_setup.R
 
-library(plyr)
 library(dplyr)
 
 #------------------------------------------------------------------------#
