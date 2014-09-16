@@ -10,6 +10,8 @@ library(ggplot2)
 #DATA MANAGEMENT
 #------------------------------------------------------------------------#
 
+all_monthly <- monthly_table
+
 #Set report_options
 report = "monthly_usage_report"
 report_options <- get_report_options(run_conf,report)
@@ -18,7 +20,8 @@ report_options <- get_report_options(run_conf,report)
 #We also need to find a way to exclude admin/unknown users
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
 #Remove any dates before report start_date and after report end_date
-names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
+names (all_monthly)[names(all_monthly) == "date_first_visit"] = "first_visit_date"
+names (all_monthly)[names(all_monthly) == "date_last_visit"] = "last_visit_date"
 all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
 all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
 start_date = as.Date(report_options$start_date)
@@ -32,18 +35,24 @@ all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
 names (all_monthly)[names(all_monthly) == "X"] = "row_num"
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
-names (all_monthly)[names(all_monthly) == "domain"] = "domain_char"
 names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
 #Convert median visit duration to minutes
 all_monthly$median_visit_duration = round(all_monthly$median_visit_duration/60,
                                           digits=2) 
 # Convert relevant indicators to percentages
 all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
-#Convert user_id to numeric to create a "red herring" indicator
-#Note that nlevels of user_id higher than length(unique(user_id)) because we
-#deleted demo_user and some other users that were out of the
-#reporting range after importing all_monthly
+#Create "red herring" indicators
+#user_id to numeric: First convert from character to factor
+all_monthly$user_id <- as.factor(all_monthly$user_id)
 all_monthly$user_numeric = as.numeric(all_monthly$user_id)
+#domain to numeric: First convert from character to factor
+all_monthly$domain <- as.factor(all_monthly$domain)
+all_monthly$domain_numeric = as.numeric(all_monthly$domain)
+#Random numbers per row, using wide range (5x nrow), not specifying distribution, mean or sd
+all_monthly$sample_undefined <- sample(1:(5*nrow(all_monthly)), nrow(all_monthly), replace=F)
+#Random numbers per row, normal distribution, defining mean and sd
+all_monthly$sample_normal <- rnorm(nrow(all_monthly), mean = 10, sd = 1)
+
 #Convert calendar month to character because dplyr doesn't like yearmon class
 all_monthly$calendar_month = as.character(all_monthly$calendar_month)
 #Convert first visit date to first day of the month
@@ -53,16 +62,17 @@ all_monthly$month_abbr <- as.Date(as.yearmon(all_monthly$first_visit_date,
 #Merge domain facets from domain table into all_monthly table
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
                           business_unit)
-all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain_name", 
+all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 
 #------------------------------------------------------------------------#
 #Tests for usage indicator evaluation
 #------------------------------------------------------------------------#
 
-indicators_to_test = c("visits", "active_days_percent", "median_visits_per_active_day", 
-                       "case_registered", "follow_up_unique_case", "median_visit_duration", 
-                       "nforms_per_month", "user_numeric")
+indicators_to_test = c("nvisits", "active_days_percent", "median_visits_per_day", 
+                       "ncases_registered", "nunique_followups", "median_visit_duration", 
+                       "nforms", "user_numeric", "domain_numeric", "sample_undefined",
+                       "sample_normal")
 
 #Health sector domains to exclude because median # cases followed-up per domain = 0
 #There are 22 of these domains of all health sector domains, giving us 73 domains
@@ -89,14 +99,14 @@ domains_to_exclude <- c("a5288-study",
                         "wits-ca",
                         "wvmozambique")
 
-all_monthly <- all_monthly[!(all_monthly$domain_name %in% domains_to_exclude),]
+all_monthly <- all_monthly[!(all_monthly$domain %in% domains_to_exclude),]
 
 #Pick random 10% of these 73 domains for our training dataset of 8 domains
 #sample_domains <- sample(unique(all_monthly$domain_name), 8)
 #This generated the following vector on first run
 sample_domains <- c("afguinea", "nsf-lifefirst", "yonsei-emco", "keiskamma",
                     "image-sa", "ictwomenhealth", "fenway", "tulasalud") 
-training_set <- all_monthly[all_monthly$domain_name %in% sample_domains,]
+training_set <- all_monthly[all_monthly$domain %in% sample_domains,]
 all_monthly <- training_set
 #------------------------------------------------------------------------#
 #TEST 1
@@ -107,22 +117,20 @@ all_monthly <- training_set
 #nrow(all_monthly[all_monthly$calendar_month == "Feb 2011" & all_monthly$domain_name == "mvp-sauri",])
 #The rows with sd = NA (because of only one month worth of observation) 
 #will be excluded from all CV calculations, which is the correct thing to do.
-detach(package:dplyr)
-detach(package:plyr)
-library(dplyr)
+
 source('s_dplyr.R')
 
 test_1 <- function(indicator, data) {
 
     test_1_compute <- data %.%
-    group_by(domain_name, calendar_month) %.%
+    group_by(domain, calendar_month) %.%
     s_summarise(paste0('mean_indicator=mean(', indicator, ', na.rm=TRUE)'), 
                 paste0('sd_indicator=sd(', indicator, ', na.rm=TRUE)'))
 
     test_1_compute$cv = (test_1_compute$sd_indicator/test_1_compute$mean_indicator)*100
 
     #Compute CV of CVs by project
-    test_1_gp_cv = group_by(test_1_compute, domain_name)
+    test_1_gp_cv = group_by(test_1_compute, domain)
     test_1_compute_cv = summarise(test_1_gp_cv,
                               mean_indicator = mean(cv, na.rm = T),
                               sd_indicator = sd(cv, na.rm=T))
