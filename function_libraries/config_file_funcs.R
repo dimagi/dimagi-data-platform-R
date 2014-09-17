@@ -123,17 +123,6 @@ get_domain_filters <- function (conf) {
     if ("values" %in% names(domain_filters)) { # an include-all filter doesn't have values
       
       domain_filters$values <- conf$domains$filters$values
-
-        single_vec_split <- function(s, split=","){
-          if (is.na(s)) { return (NA) }
-          
-          spl <- strsplit(s, split)
-          unlisted <- spl[[1]]
-          if ("NA" %in% unlisted)
-            unlisted <- c(unlisted,NA)
-          return(unlisted)
-        }
-        domain_filters$values <- lapply(domain_filters$values,single_vec_split,split=",")
     }
   }
   else
