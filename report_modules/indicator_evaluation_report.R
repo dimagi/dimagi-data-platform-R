@@ -108,6 +108,44 @@ sample_domains <- c("afguinea", "nsf-lifefirst", "yonsei-emco", "keiskamma",
                     "image-sa", "ictwomenhealth", "fenway", "tulasalud") 
 training_set <- all_monthly[all_monthly$domain %in% sample_domains,]
 all_monthly <- training_set
+all_monthly1 <- filter(all_monthly, domain == )
+#------------------------------------------------------------------------#
+#Descriptive stats for the dataset
+all_monthly %.% group_by(domain) %.% summarise(nusers = length(unique(user_id)))
+all_monthly %.% group_by(domain) %.% summarise(nobs = length(user_id))
+
+#Create dataset for smallest domain of training set - nsf-lifefirst
+all_monthly_nsf <- filter(all_monthly, domain == "nsf-lifefirst")
+
+myhist <- hist(all_monthly_nsf$sample_normal)
+multiplier <- myhist$counts / myhist$density
+mydensity <- density(all_monthly_nsf$sample_normal)
+mydensity$y <- mydensity$y * multiplier[1]
+plot(myhist)
+lines(mydensity)
+abline(v = mean(all_monthly_nsf$sample_normal), col = "blue", lwd = 2)
+text(11, 7, labels = paste0("sd=", sd(all_monthly_nsf$sample_normal)))
+
+myhist <- hist(all_monthly_nsf$sample_undefined)
+multiplier <- myhist$counts / myhist$density
+mydensity <- density(all_monthly_nsf$sample_undefined)
+mydensity$y <- mydensity$y * multiplier[1]
+plot(myhist)
+lines(mydensity)
+abline(v = mean(all_monthly_nsf$sample_undefined), col = "blue", lwd = 2)
+text(150000, 10, labels = paste0("sd=", sd(all_monthly_nsf$sample_undefined)))
+
+
+test_1_compute <- all_monthly_nsf %.%
+  group_by(month_abbr) %.%
+  summarise(mean_indicator=mean(sample_normal, na.rm=TRUE), 
+              sd_indicator=sd(sample_normal, na.rm=TRUE))
+
+test_1_compute$cv = (test_1_compute$sd_indicator/test_1_compute$mean_indicator)*100
+test_1_compute <- arrange(test_1_compute, month_abbr)
+cv_of_cvs <- (sd(test_1_compute$cv, na.rm = T)/mean(test_1_compute$cv, na.rm = T))*100
+
+
 #------------------------------------------------------------------------#
 #TEST 1
 #Calculate CVs by project by calendar_month

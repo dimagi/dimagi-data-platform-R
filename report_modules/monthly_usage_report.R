@@ -125,7 +125,7 @@ render <- function (db,domains_for_run,report_options,tmp_report_pdf_dir) {
   #Sum of visits by split-by by obsnum
   #First sum visits across each split-by for each obsnum
   overall = ddply(all_monthly, .(split_by, obsnum), summarise,
-                  sum_visits = sum(visits, na.rm=T))
+                  sum_visits = sum(nvisits, na.rm=T))
   
   #First set the correct number of colors in the color scale
   #color_values = nlevels(all_monthly$split_by)
@@ -136,7 +136,7 @@ render <- function (db,domains_for_run,report_options,tmp_report_pdf_dir) {
     geom_area() +
     scale_x_continuous(limits = c(0, max(all_monthly$obsnum))) +
     scale_y_continuous(labels = comma) + 
-    #scale_fill_brewer(getPalette(color_values)) +
+    scale_fill_manual(values = c(rep("red", length(unique(all_monthly$split_by))))) +
     xlab("Month index") +
     ylab("Total # of visits") +
     theme(axis.text=element_text(size=12), 
