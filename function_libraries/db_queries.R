@@ -23,26 +23,26 @@ get_domain_table <- function (db) {
   retframe<-merge(retframe,hstore_wide,by="name",all=T)
   
   sectors_q <- "select domain.name, 
-              array(select sector.name 
+              array_to_string(array(select sector.name 
               from sector, domain_sector 
               where domain_sector.domain_id = domain.id 
-              and domain_sector.sector_id=sector.id) as sector
+              and domain_sector.sector_id=sector.id),'\t') as sector
               from domain
               order by domain.name"
   sectors <- do_query(con,sectors_q)
-  sectors<-transform(sectors, sector = strsplit(substr(sector,2,nchar(sector)-1),split=","))
+  sectors<-transform(sectors, sector = strsplit(sector,split="\t"))
   sectors$sector[sapply(sectors$sector,length)==0]<-NA
   retframe<-merge(retframe,sectors,by="name",all=T)
   
   subsectors_q <- "select domain.name, 
-              array(select subsector.name 
+              array_to_string(array(select subsector.name 
               from subsector, domain_subsector 
               where domain_subsector.domain_id = domain.id 
-              and domain_subsector.subsector_id=subsector.id) as subsector
+              and domain_subsector.subsector_id=subsector.id),'\t') as subsector
               from domain
               order by domain.name"
   subsectors <- do_query(con,subsectors_q)
-  subsectors<-transform(subsectors, subsector = strsplit(substr(subsector,2,nchar(subsector)-1),split=","))
+  subsectors<-transform(subsectors, subsector = strsplit(subsector,split="\t"))
   subsectors$subsector[sapply(subsectors$subsector,length)==0]<-NA
   retframe<-merge(retframe,subsectors,by="name",all=T)
   
