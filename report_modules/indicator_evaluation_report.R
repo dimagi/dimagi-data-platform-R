@@ -2,9 +2,11 @@
 #usage indicators. See the following document for more detail:
 #https://docs.google.com/a/dimagi.com/document/d/1hP-ewigPuUwuac8K9Tx-VC9Z8epC03lMrnwqzNWveY8/edit
 
-library(zoo) #work with mm/yy calendar dates without day
 library(lubridate)
 library(ggplot2)
+library(scales) #to customize ggplot axis labeling
+library(gridExtra) #graphing plots in columns/rows for ggplot
+library(RColorBrewer) #Color palettes
 
 #------------------------------------------------------------------------#
 #DATA MANAGEMENT
@@ -28,14 +30,12 @@ start_date = as.Date(report_options$start_date)
 end_date = as.Date(report_options$end_date)
 all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
                      & all_monthly$last_visit_date <= end_date)
-#Convert calendar_month (character) to yearmon class since as.Date won't work 
-#without a day.
-all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
+
 #Change column names as needed
 names (all_monthly)[names(all_monthly) == "X"] = "row_num"
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
-names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
+
 #Convert median visit duration to minutes
 all_monthly$median_visit_duration = round(all_monthly$median_visit_duration/60,
                                           digits=2) 
@@ -53,17 +53,24 @@ all_monthly$sample_undefined <- sample(1:(5*nrow(all_monthly)), nrow(all_monthly
 #Random numbers per row, normal distribution, defining mean and sd
 all_monthly$sample_normal <- rnorm(nrow(all_monthly), mean = 10, sd = 1)
 
-#Convert calendar month to character because dplyr doesn't like yearmon class
-all_monthly$calendar_month = as.character(all_monthly$calendar_month)
-#Convert first visit date to first day of the month
-all_monthly$month_abbr <- as.Date(as.yearmon(all_monthly$first_visit_date, 
-                                             frac = 0))
-
 #Merge domain facets from domain table into all_monthly table
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit)
+                          business_unit, Test.Project., active)
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
+
+#Create obsnum here since we can't create this at the aggregate table stage 
+all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
+
+add_index <- function(x) {
+  start <- min(x$calendar_month, na.rm=TRUE)
+  x$numeric_index <- sapply(x$calendar_month, function(end) interval(start, end) %/% months(1))
+  return(x)
+}
+
+df2 <- all_monthly %.% group_by(domain, user_id) %.% do(add_index(.))
+df2$obsnum <- df2$numeric_index + 1
+all_monthly <- select(df2, -numeric_index)
 
 #------------------------------------------------------------------------#
 #Tests for usage indicator evaluation
