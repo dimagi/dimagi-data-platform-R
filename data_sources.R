@@ -12,6 +12,7 @@ get_data_source <- function (db, table_name, limit) {
 
 get_interactions <- function(db, limit){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
+  print(paste('Fetching interactions table, limit is ', limit))
   dat <- get_interaction_table(db, limit)
   dat$user_id[is.na(dat$user_id)] <- "NONE"
   # Formatting
@@ -38,7 +39,7 @@ get_interactions <- function(db, limit){
 }
 
 get_device_type <- function(db, limit){
-  
+  print(paste('Fetching device type table, limit is ', limit))
   device_type_table <- get_device_type_table(db, limit)
   device_type_table <- collect (device_type_table)
   device_type_table$month.index <-  as.character(as.yearmon(device_type_table$time_start))
