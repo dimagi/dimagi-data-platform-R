@@ -109,6 +109,17 @@ domains_to_exclude <- c("a5288-study",
                         "wits-ca",
                         "wvmozambique")
 
+#Updated list on 9/19/14:
+a5288-study         aed-togo            agada-tufts-nnos    aiha-ca            
+[5] aphiaplusnc-2012    bihar-project       cidrz               cmmhr              
+[9] deoghar             ekam                fh-mozambique       gsid               
+[13] ict-women-health    iicp                jhccpmz             kawok-vc-desarrollo
+[17] mc-inscale          mc-socialautopsy    mchip-haryana       mgh-india          
+[21] msf-demo            mtsinai             oneworld            operation-smile    
+[25] projectbom          promot              reach-india         sneha-mnh          
+[29] special-olympics    stjohns-soukhya     union-jharkhand     wits-ca            
+[33] wvmozambique 
+
 all_monthly <- all_monthly[!(all_monthly$domain %in% domains_to_exclude),]
 
 #Pick random 10% of these 73 domains for our training dataset of 8 domains
