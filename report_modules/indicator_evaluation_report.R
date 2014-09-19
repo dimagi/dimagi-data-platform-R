@@ -2,6 +2,7 @@
 #usage indicators. See the following document for more detail:
 #https://docs.google.com/a/dimagi.com/document/d/1hP-ewigPuUwuac8K9Tx-VC9Z8epC03lMrnwqzNWveY8/edit
 
+library(zoo)
 library(lubridate)
 library(ggplot2)
 library(scales) #to customize ggplot axis labeling
@@ -71,6 +72,8 @@ add_index <- function(x) {
 df2 <- all_monthly %.% group_by(domain, user_id) %.% do(add_index(.))
 df2$obsnum <- df2$numeric_index + 1
 all_monthly <- select(df2, -numeric_index)
+
+all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 
 #------------------------------------------------------------------------#
 #Tests for usage indicator evaluation
