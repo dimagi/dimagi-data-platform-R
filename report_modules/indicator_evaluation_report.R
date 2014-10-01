@@ -8,6 +8,7 @@ library(ggplot2)
 library(scales) #to customize ggplot axis labeling
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
+source('s_dplyr.R')
 
 #------------------------------------------------------------------------#
 #DATA MANAGEMENT
@@ -85,58 +86,77 @@ indicators_to_test = c("nvisits", "active_days_percent", "median_visits_per_day"
                        "sample_normal")
 
 #Health sector domains to exclude because median # cases followed-up per domain = 0
-#There are 22 of these domains of all health sector domains, giving us 73 domains
 domains_to_exclude <- c("a5288-study",
+                        "aed-togo",
                         "agada-tufts-nnos",
+                        "aiha-ca",
                         "aphiaplusnc-2012",
                         "bihar-project",
+                        "cidrz",
                         "cmmhr",
+                        "deoghar",
                         "ekam",
+                        "fh-mozambique",
                         "gsid",
                         "ict-women-health",
                         "iicp",
                         "itech-etc",
                         "jhccpmz",
+                        "kawok-vc-desarrollo",
                         "mc-inscale",
+                        "mc-socialautopsy",
                         "mchip-haryana",
+                        "mgh-india",
                         "msf-demo",
+                        "mtsinai",
+                        "oneworld",
                         "operation-smile",
                         "projectbom",
+                        "promot",
                         "reach-india",
                         "sneha-mnh",
+                        "special-olympics",
                         "stjohns-soukhya",
                         "union-jharkhand",
                         "wits-ca",
                         "wvmozambique")
 
-#Updated list on 9/19/14:
-a5288-study         aed-togo            agada-tufts-nnos    aiha-ca            
-[5] aphiaplusnc-2012    bihar-project       cidrz               cmmhr              
-[9] deoghar             ekam                fh-mozambique       gsid               
-[13] ict-women-health    iicp                jhccpmz             kawok-vc-desarrollo
-[17] mc-inscale          mc-socialautopsy    mchip-haryana       mgh-india          
-[21] msf-demo            mtsinai             oneworld            operation-smile    
-[25] projectbom          promot              reach-india         sneha-mnh          
-[29] special-olympics    stjohns-soukhya     union-jharkhand     wits-ca            
-[33] wvmozambique 
-
 all_monthly <- all_monthly[!(all_monthly$domain %in% domains_to_exclude),]
 
-#Pick random 10% of these 73 domains for our training dataset of 8 domains
+#Picked random 10% of these 73 domains for our training dataset of 8 domains
 #sample_domains <- sample(unique(all_monthly$domain_name), 8)
-#This generated the following vector on first run
+#This generated the following vector on first run, which we will use
+#Note that the list of health domains has increased, but we will stick with this
+#training dataset of 8 domains.
 sample_domains <- c("afguinea", "nsf-lifefirst", "yonsei-emco", "keiskamma",
                     "image-sa", "ictwomenhealth", "fenway", "tulasalud") 
 training_set <- all_monthly[all_monthly$domain %in% sample_domains,]
+master_set <- all_monthly
 all_monthly <- training_set
-all_monthly1 <- filter(all_monthly, domain == )
+
 #------------------------------------------------------------------------#
 #Descriptive stats for the dataset
 all_monthly %.% group_by(domain) %.% summarise(nusers = length(unique(user_id)))
 all_monthly %.% group_by(domain) %.% summarise(nobs = length(user_id))
 
+# Histogram overlaid with kernel density curve
+# Overlay with transparent density plot
+# Include all observations
+myhist <- ggplot(all_monthly, aes(x=nvisits)) + 
+    geom_histogram(binwidth=.5, colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")  
+
+# Exclude outliters
+no_outliers <- filter(all_monthly, nvisits <= 500)
+myhist <- ggplot(no_outliers, aes(x=nvisits)) + 
+    geom_histogram(binwidth=.5, colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")  
+
+
 #Create dataset for smallest domain of training set - nsf-lifefirst
-all_monthly_nsf <- filter(all_monthly, domain == "nsf-lifefirst")
+all_monthly_nsf <- subset(all_monthly[all_monthly$domain == "nsf-lifefirst",])
+#Create dataset for largest domain of training set - tulasalud
+all_monthly_tula <- subset(all_monthly[all_monthly$domain == "tulasalud",])
 
 myhist <- hist(all_monthly_nsf$sample_normal)
 multiplier <- myhist$counts / myhist$density
