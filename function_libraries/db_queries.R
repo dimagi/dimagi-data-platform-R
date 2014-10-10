@@ -119,3 +119,14 @@ query <- paste("select domain.name as domain, users.user_id, frm.time_start, to_
 res <- tbl(db,sql(query))
 return(res)
 }
+
+# domain, user_id, username, first_submission date for all users
+get_user_table <- function(db){
+  query <- "select domain.name as domain, users.user_id, users.username, min(form.time_start) as first_submission
+            from domain, users, form
+            where users.domain_id = domain.id
+            and form.user_id = users.id
+            group by domain.name, users.user_id, users.username"
+  res <- tbl(db,sql(query))
+  return(res)
+}

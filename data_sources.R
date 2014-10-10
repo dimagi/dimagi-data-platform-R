@@ -1,3 +1,5 @@
+library(lubridate)
+library(zoo)
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
 
 get_data_source <- function (db, table_name, limit) {
@@ -14,6 +16,9 @@ get_interactions <- function(db, limit){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
   print(paste('Fetching interactions table, limit is ', limit))
   dat <- get_interaction_table(db, limit)
+  user_start_dates <- dat %.% group_by (domain,user_id) %.% summarise(user_start_date = min(time_start) )
+  dat <- merge(dat,user_start_dates,by=c("domain","user_id"))
+  
   dat$user_id[is.na(dat$user_id)] <- "NONE"
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)

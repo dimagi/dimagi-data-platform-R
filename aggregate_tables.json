@@ -73,7 +73,8 @@
                "after_midnight":"after_midnight",
                "ncases_opened":"ncases_opened",
                "ncases_touched":"ncases_touched",
-               "nunique_followups":"nunique_followups"
+               "nunique_followups":"nunique_followups",
+               "numeric_index" : "numeric_index"
             }
          },
          {
