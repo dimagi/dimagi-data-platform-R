@@ -6,10 +6,16 @@ library(dplyr)
 
 # Load system config file
 source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+source(file.path("data_sources.R"))
 system_conf <- get_system_config(file.path("config_system.json"))
 
-# Get form table from db
+# Get db connection
 db <- get_db_connection(system_conf)
+
+#Get interactions table or device_type table (or other db table)
+interactions_table <- get_data_source(db, "interactions", 1000)
+
+#Get form table (or other straight dplyr table - listed when you print db)
 form_table <- tbl(db, "form")
 
 # Count forms per app_id

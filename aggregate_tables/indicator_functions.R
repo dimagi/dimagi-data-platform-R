@@ -4,12 +4,14 @@
 library(lubridate)
 library(zoo)
 
+# INTERACTION TABLE INDICATORS:
 date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
-nvisits <- function(x) nrow(x)
 days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
+active_days <- function(x) length(unique(x$visit_date))
+active_day_percent <- function(x) active_days(x) / days_in_month(date_first_visit(x))
 
-## The next five indicators only make sense for the lifetime table.
+## The next indicators are only applicable for the lifetime table.
 days_visit_last <- function(x) as.numeric(Sys.Date() - date_last_visit(x))
 active_user <- function(x) ifelse(days_visit_last(x) <= 30, 1, 0)
 calendar_month_on_cc <- function(x) {
@@ -21,17 +23,18 @@ calendar_month_on_cc <- function(x) {
 active_months <- function(x) length(unique(as.yearmon(x$visit_date)))
 active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
 
-active_days <- function(x) length(unique(x$visit_date))
-active_day_percent <- function(x) active_days(x) / days_on_cc(x)
-nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
-median_visit_duration <- function(x) median(x$form_duration / 60, na.rm=TRUE)
 
-## TODO: Right now this only considers days with at least on visit.
+# VISIT TABLE INDICATORS:
+nvisits <- function(x) row(x))
+nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
+median_visit_duration <- function(x) as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE))
+time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
 median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
 
-## This only makes sense in the lifetime table.
+## These next indicators are only applicable for the lifetime table.
 median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visit_date))), na.rm=TRUE)
 
+# (I am not sure what this next indicator is doing - RD)
 median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.rm=TRUE)
 
 ## To get reliable follow-up rates we'll need the full lifetime
@@ -41,6 +44,8 @@ median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.r
 ## mobile user"
 ## I took these two indicators out of the config file because they
 ## were running too slowly.
+
+#This should be calculated by case id, so calculated based on interaction table
 median_time_btw_followup <- function(x) {
     f <- function(block) {
         sorted.times <- sort(ymd_hms(block$time_start))
@@ -56,9 +61,11 @@ median_time_btw_followup <- function(x) {
 }
 median_days_btw_followup <- function(x) median_time_btw_followup(x) / 60 / 24
 
+#This should be calculated based on visit table
 batch_entry_visit <- function(x) sum(x$batch_entry, na.rm=TRUE)
 batch_entry_percent <- function(x) mean(x$batch_entry, na.rm=TRUE)
 
+#This should be calculated based on interaction table
 ncases_registered <- function(x) sum(x$new_case, na.rm=TRUE)
 register_followup <- function(x) sum(x$follow_up)
 case_register_followup_rate <- function(x) mean(x$follow_up)
