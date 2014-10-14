@@ -14,3 +14,5 @@ nvisits <- function(x) length(unique(x$id))
 median_visit_duration <- function(x) as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE))
 time_using_cc <- function(x) sum(x$form_duration, na.rm = T)  
 
+ninteractions
+
