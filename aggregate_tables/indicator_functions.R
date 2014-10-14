@@ -25,17 +25,25 @@ active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
 
 
 # VISIT TABLE INDICATORS:
-nvisits <- function(x) row(x))
-nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
-median_visit_duration <- function(x) as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE))
-time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
-median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
+
+# removes all case-specific columns from the interactions table, then returns one row per visit
+# TODO add in batch entry and date difference once these are correct i.e one value for every visit
+unique_visits <- function (x) {
+  df <- subset(x, select = -c(case_id,days_elapsed_case,new_case,follow_up,date_difference,batch_entry))
+  return (unique(df))
+}
+  
+nvisits <- function(x) NROW(unique_visits(x))
+nforms <- function(x) sum((unique_visits(x))$total_forms, na.rm=TRUE)
+median_visit_duration <- function(x) as.numeric(median(((unique_visits(x))$time_end - (unique_visits(x))$time_start)/ 60, na.rm=TRUE))
+time_using_cc <- function(x) sum((unique_visits(x))$form_duration, na.rm = T)
+median_visits_per_day <- function(x) median(as.numeric(table((unique_visits(x))$visit_date)), na.rm=TRUE)
 
 ## These next indicators are only applicable for the lifetime table.
-median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visit_date))), na.rm=TRUE)
+median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon((unique_visits(x))$visit_date))), na.rm=TRUE)
 
 # (I am not sure what this next indicator is doing - RD)
-median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.rm=TRUE)
+median_time_elapsed_btw_visits <- function(x) median((unique_visits(x))$time_since_previous, na.rm=TRUE)
 
 ## To get reliable follow-up rates we'll need the full lifetime
 ## data. Additionally, can the case be followed-up by a different FLW?
@@ -43,7 +51,7 @@ median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.r
 ## time (in mins) elapsed between two followup visits conducted by a
 ## mobile user"
 ## I took these two indicators out of the config file because they
-## were running too slowly.
+## were running too slowly. - Andrew?
 
 #This should be calculated by case id, so calculated based on interaction table
 median_time_btw_followup <- function(x) {
@@ -62,6 +70,7 @@ median_time_btw_followup <- function(x) {
 median_days_btw_followup <- function(x) median_time_btw_followup(x) / 60 / 24
 
 #This should be calculated based on visit table
+# TODO batch entry calc must be fixed first - ML
 batch_entry_visit <- function(x) sum(x$batch_entry, na.rm=TRUE)
 batch_entry_percent <- function(x) mean(x$batch_entry, na.rm=TRUE)
 
@@ -76,6 +85,15 @@ night <- function(x) mean(x$visit_time == 'night')
 after_midnight <- function(x) mean(x$visit_time == 'after midnight')
 
 ncases_opened <- function(x) sum(x$new_case)
+
+first_possible_visit_date <- as.POSIXct(strptime("2010-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))
+numeric_index <- function (x) {
+  start_month <- as.POSIXct(format(min(x$user_start_date),"%Y-%m-01"), tz = "UTC")
+  if (start_month < first_possible_visit_date) {start_month <- first_possible_visit_date}
+  this_month <- as.POSIXct(format(min(x$time_start),"%Y-%m-01"), tz = "UTC")
+  total_months <- length(seq(from=start_month, to=this_month, by='month'))
+  return (total_months)
+}
 
 ## TODO: Some indicators do not fit into our current framework. For
 ## instance, the total number of cases that are not opened at some
