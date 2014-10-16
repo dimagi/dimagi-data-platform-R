@@ -21,6 +21,7 @@ inter <- get_data_source(db, "interactions", -1)
 #Get form table (or another straight dplyr table - a list of these tables is available
 #when you print db)
 form_table <- tbl(db, "form")
+device_log <- tbl(db, "device_log")
 
 #------------------------------------------------------------------------#
 #Calculations on DB tables
