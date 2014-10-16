@@ -86,11 +86,15 @@ after_midnight <- function(x) mean(x$visit_time == 'after midnight')
 
 ncases_opened <- function(x) sum(x$new_case)
 
-first_possible_visit_date <- as.POSIXct(strptime("2010-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))
 numeric_index <- function (x) {
+  first_possible_visit_date <- as.POSIXct(strptime("2010-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))
+  
+  this_month <- as.POSIXct(format(min(x$time_start),"%Y-%m-01"), tz = "UTC")
+  if (this_month < first_possible_visit_date) { return (1) }
+    
   start_month <- as.POSIXct(format(min(x$user_start_date),"%Y-%m-01"), tz = "UTC")
   if (start_month < first_possible_visit_date) {start_month <- first_possible_visit_date}
-  this_month <- as.POSIXct(format(min(x$time_start),"%Y-%m-01"), tz = "UTC")
+  
   total_months <- length(seq(from=start_month, to=this_month, by='month'))
   return (total_months)
 }
