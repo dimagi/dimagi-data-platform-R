@@ -16,6 +16,7 @@ db <- get_db_connection(system_conf)
 
 #Get interactions table or device_type table (or other db table)
 inter <- get_data_source(db, "interactions", 1000)
+inter <- get_data_source(db, "interactions", -1)
 
 #Get form table (or another straight dplyr table - a list of these tables is available
 #when you print db)
