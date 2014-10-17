@@ -14,19 +14,23 @@ db <- get_db_connection(system_conf)
 
 #------------------------------------------------------------------------#
 
-#Get interactions table or device_type table (or other db table)
+#Get interactions table or device_type table (or other db source)
+#Limit interactions by specified number. If want entire interaction table, enter "-1".
+#device_type is also a data source
 inter <- get_data_source(db, "interactions", 1000)
 inter <- get_data_source(db, "interactions", -1)
 
-#Get form table (or another straight dplyr table - a list of these tables is available
+#Get form table (or another straight db dplyr table - a list of these tables is available
 #when you print db)
 form_table <- tbl(db, "form")
 device_log <- tbl(db, "device_log")
+domain_table <- tbl(db, "domain")
 
 #------------------------------------------------------------------------#
 #Calculations on DB tables
 #------------------------------------------------------------------------#
 
+#Use collect() to bring these results into a dataframe
 # Count forms per app_id
 sum_forms <- 
     form_table %.% 
