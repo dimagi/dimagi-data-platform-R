@@ -1,3 +1,6 @@
+# database queries using raw SQL
+# for aggregate table data sources, use data_sources.R
+
 library(dplyr)
 library(DBI)
 library(RPostgreSQL)
@@ -10,7 +13,7 @@ do_query <-function (con, query) {
   return (v)
 }
 
-# returns all attributes for domains in domain_list, sector and subsector names as lists
+# returns domain table including sector and subsector names as lists
 get_domain_table <- function (db) {
   con <- db$con
   normal_cols_q <- "select * from domain order by name"
@@ -50,9 +53,9 @@ get_domain_table <- function (db) {
   return(retframe)
 }
 
-# interaction table (one row for each visit to a case, visit to two cases = two rows)
+# interaction table query (one row for each visit to a case, visit to two cases = two rows)
+# post-processed into the interaction table data source in data_sources.R get_interactions
 # limit param can be used to limit the number of results returned
-# todo convert to use dplyr? no good way to do the limit though.
 get_interaction_table <- function (db, limit=-1) {
   con <- db$con
   with_limit <-(limit > 0) 
@@ -103,6 +106,7 @@ return(v)
 }
 
 # domain, user, date and device type for every form
+# post-processed to device type data source in data_sources.R get_device_type
 # limit param can be used to limit the number of results returned
 get_device_type_table <- function (db, limit=-1) {
 if (limit > 0) { limit_clause <- sprintf(" (select * from form limit %d) as frm ", limit)} else {limit_clause <- " form as frm "}

@@ -4,9 +4,10 @@ source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep)
 
 get_data_source <- function (db, table_name, limit) {
   tryCatch({
-    # TODO need to include limit here
-    return(tbl(db, table_name))
+    query<-build_sql('SELECT * FROM ', ident(table_name),' limit ', as.integer(limit))
+    return(tbl(db, sql(query)))
   }, error = function(err) {
+    print(err)
     s <- do.call(sprintf("get_%s",table_name),args=list(db, limit))
     return(s)
   })
