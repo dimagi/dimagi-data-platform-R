@@ -39,8 +39,12 @@ tula_typical <- filter(tula_typical, calendar_month >= "2012-09-01")
 tula_typical$sample_percentile <- 
   sample(1:100, nrow(tula_typical), replace=T)
 
-#Calculate differences between month_index to calculate next_month_active
-#previous_month_active
+#Add sample_per_diff variable
+tula_typical$sample_per_diff <- 
+  sample(-100:100, nrow(tula_typical), replace=T)
+
+#Calculate differences between month_index to calculate next_month_active and 
+#previous_month_active variables
 tula_typical <- arrange(tula_typical, domain_numeric, user_id, 
                           calendar_month)
 df <- data.table(tula_typical)
@@ -52,6 +56,7 @@ tula_data <- as.data.frame(df)
 tula_data$previous_month_active <- tula_data$diff_days <= 31
 
 users <- unique(tula_data$user_id)
+
 next_month_active <- c()
 for (i in users) {
   single_user <- tula_data[tula_data$user_id == i,]
@@ -65,7 +70,9 @@ tula_data$next_month_active <- next_month_active
 #because we don't know if the user will be active in the following month
 is.na(tula_data$next_month_active) <- tula_data$calendar_month == "2014-08-01"
 
-# % difference in nvisits for each user for truly consectutive months 
+# % difference in nvisits for each user for consectutive months
+# This isn't for truly consecutive months, so later on, 
+# we will only use rows with previous_month_active == T
 per_diff_nvisits <- c()
 for (i in users) {
   single_user <- tula_data[tula_data$user_id == i,]
@@ -77,10 +84,8 @@ for (i in users) {
   per_diff_nvisits <- append(per_diff_nvisits, per_diff)
 }
 tula_data$per_diff_nvisits <- per_diff_nvisits
-#------------------------------------------------------------------------#
-#Codes for tests
-#------------------------------------------------------------------------#
 
+#General plots
 #Number of users by calendar month
 n_user <- tula_data %.% 
   group_by(calendar_month) %.% 
@@ -103,9 +108,12 @@ pdf("plots.pdf")
 plot(g)
 dev.off()
 
+#------------------------------------------------------------------------#
+#Code for Test 1
+#------------------------------------------------------------------------#
+
 #Calculate median absolute deviation (MAD) per calendar month
 #Use this to calculate rCV for the domain per calendar month
-
 test_1 <- function(data) {
   
   test_1_compute <- data %.%
@@ -128,6 +136,7 @@ test_1 <- function(data) {
 
 test_1_compute <- data.frame(test_1(tula_data))
 
+#Plot rCV
 g <- ggplot(test_1_compute, aes(x=calendar_month, y=median_indicator, group = 1)) + 
   geom_line(colour="blue", size=1.0) + 
   geom_errorbar(aes(ymin=median_indicator-mad_indicator, ymax=median_indicator+mad_indicator), 
@@ -145,65 +154,126 @@ g <- ggplot(test_1_compute, aes(x=calendar_month, y=rcv)) +
                                                                  face="bold")) + 
   ggtitle("rCV(%) by calendar month") +
   theme(plot.title = element_text(size=14, face="bold"))
-  
-tula_median_per_change <- tula_data[tula_data$previous_month_active == T,] %.% 
-  group_by(calendar_month) %.%
-  summarise(med_domain_per_change = median(per_diff_nvisits, na.rm = T))
 
-#Merge med_domain_per_change to tula_data
+#Domain median absolute change per user per calendar month, excluding each user from the median
+#Must only include rows with previous_month_active == T in any median calculations
+#So we should have 2093 domain median values (91 users * (24-1) calendar months) 
+
+tula_consec <- tula_data[tula_data$previous_month_active == T,]
+
+#Initialize dataframe
 detach("package:data.table")
-tula_data <- merge(tula_data, tula_median_per_change, by = "calendar_month", 
-                   all.x = T)
+tula_median_abs_change <- data.frame(matrix(ncol = 3, nrow = 1)) 
+names(tula_median_abs_change) <- c("calendar_month", "med_domain_abs_change", "user_id")
+tula_median_abs_change$calendar_month <- as.Date(tula_median_abs_change$calendar_month)
+tula_median_abs_change$user_id <- as.factor(tula_median_abs_change$user_id)
+
+for (i in users) {
+  exclude_user <- tula_consec[tula_consec$user_id != i,]
+  exclude_user_median <- exclude_user %.% 
+    group_by(calendar_month) %.%
+    summarise(med_domain_abs_change = median(diff_nvisits, na.rm = T),
+              user_id = i)
+  exclude_user_median <- exclude_user_median[!(is.na(exclude_user_median$calendar_month)), ]
+  tula_median_abs_change <- rbind(tula_median_abs_change, exclude_user_median)
+}
+
+tula_median_abs_change <- tula_median_abs_change[!(is.na(tula_median_abs_change$calendar_month)), ]
+
+#Domain median % change per user per calendar month, excluding each user from the median
+#Must only include rows with previous_month_active == T in any median calculations
+#So we should have 2093 domain median values (91 users * (24-1) calendar months) 
+
+#Initialize dataframe
+tula_median_per_change <- data.frame(matrix(ncol = 3, nrow = 1)) 
+names(tula_median_per_change) <- c("calendar_month", "med_domain_per_change", "user_id")
+tula_median_per_change$calendar_month <- as.Date(tula_median_per_change$calendar_month)
+tula_median_per_change$user_id <- as.factor(tula_median_per_change$user_id)
+
+for (i in users) {
+  exclude_user <- tula_consec[tula_consec$user_id != i,]
+  exclude_user_median <- exclude_user %.% 
+    group_by(calendar_month) %.%
+    summarise(med_domain_per_change = median(per_diff_nvisits, na.rm = T),
+              user_id = i)
+  exclude_user_median <- exclude_user_median[!(is.na(exclude_user_median$calendar_month)), ]
+  tula_median_per_change <- rbind(tula_median_per_change, exclude_user_median)
+}
+
+tula_median_per_change <- tula_median_per_change[!(is.na(tula_median_per_change$calendar_month)), ]
+
+#Domain median sample_percentage change per user per calendar month, excluding each user from the median
+#Must only include rows with previous_month_active == T in any median calculations
+#So we should have 2093 domain median values (91 users * (24-1) calendar months) 
+
+#Initialize dataframe
+tula_median_sample_change <- data.frame(matrix(ncol = 3, nrow = 1)) 
+names(tula_median_sample_change) <- c("calendar_month", "med_domain_sample_change", "user_id")
+tula_median_sample_change$calendar_month <- as.Date(tula_median_sample_change$calendar_month)
+tula_median_sample_change$user_id <- as.factor(tula_median_sample_change$user_id)
+
+for (i in users) {
+  exclude_user <- tula_consec[tula_consec$user_id != i,]
+  exclude_user_median <- exclude_user %.% 
+    group_by(calendar_month) %.%
+    summarise(med_domain_sample_change = median(sample_per_diff, na.rm = T),
+              user_id = i)
+  exclude_user_median <- exclude_user_median[!(is.na(exclude_user_median$calendar_month)), ]
+  tula_median_sample_change <- rbind(tula_median_sample_change, exclude_user_median)
+}
+
+tula_median_sample_change <- tula_median_sample_change[!(is.na(tula_median_sample_change$calendar_month)), ]
+
+#Merge med_domain_abs_change and med_domain_per_change to tula_consec
+tula_consec <- merge(tula_consec, tula_median_abs_change, by = c("user_id", "calendar_month"), 
+                     all.x = T)
+tula_consec <- merge(tula_consec, tula_median_per_change, by = c("user_id", "calendar_month"), 
+                     all.x = T)
+tula_consec <- merge(tula_consec, tula_median_sample_change, by = c("user_id", "calendar_month"), 
+                     all.x = T)
+
+g <- ggplot(data=tula_median_abs_change, aes(x=calendar_month, y=med_domain_abs_change)) + 
+  geom_line(colour="black", size=1.0) + 
+  geom_point(colour="red", size=3, shape=21, fill="red")
 
 g <- ggplot(data=tula_median_per_change, aes(x=calendar_month, y=med_domain_per_change)) + 
   geom_line(colour="black", size=1.0) + 
   geom_point(colour="red", size=3, shape=21, fill="red")
 
-test = tula_data[tula_data$previous_month_active == T,]
-
-g <- ggplot(test, aes(x=med_domain_per_change, y=per_diff_nvisits)) +
-  geom_point(shape=1) +
-  scale_y_continuous(limits=c(-100,100)) +
-  geom_smooth(method=lm)
-cor(tula_data$med_domain_per_change, 
-    tula_data$per_diff_nvisits, use = "complete.obs")
-
-#Rehape all_monthly from long format to wide
-#This creates only one row per user with columns for each calendar month
-users_long <- select(tula_typical, domain, user_id, nvisits, calendar_month)
-users_wide <- reshape(users_long,
-                      timevar = "calendar_month",
-                      idvar = c("domain", "user_id"),
-                      direction = "wide")
-
-g <- ggplot(data=tula_typical, aes(x=calendar_month, y=nvisits, group = user_id)) + 
-  geom_line(colour="grey", size=1.0)
-
-users_long <- select(raw_percentile, domain, user_id, percentile, calendar_month)
-users_wide <- reshape(users_long,
-                      timevar = "calendar_month",
-                      idvar = c("domain", "user_id"),
-                      direction = "wide")
-
-# Number of users by calendar_month
-users_month_tula <- tula_typical %.% 
-  group_by(domain, calendar_month) %.% 
-  summarise(nusers = length(unique(user_id)))
-
-g <- ggplot(data=users_month_tula, aes(x=calendar_month, y=nusers)) + 
+g <- ggplot(data=tula_median_sample_change, aes(x=calendar_month, y=med_domain_sample_change)) + 
   geom_line(colour="black", size=1.0) + 
   geom_point(colour="red", size=3, shape=21, fill="red")
 
-users_wide <- reshape(users_month_tula,
-                      timevar = "calendar_month",
-                      idvar = c("domain"),
-                      direction = "wide")
+#Pairwise plots of absolute and % changes for individual FLWs by domain medians
+g <- ggplot(tula_consec, aes(x=med_domain_abs_change, y=diff_nvisits)) +
+  geom_point(shape=1) +
+  #scale_y_continuous(limits=c(-100,100)) +
+  geom_smooth(method=lm)
 
-users_wide <- users_wide[,order(names(users_wide))]
-write.csv(users_wide, file = "tula_nusers_wide.csv")
+cor(tula_consec$med_domain_abs_change, 
+    tula_consec$diff_nvisits, use = "complete.obs")
 
-#TEST 2
-#Manual
+g <- ggplot(tula_consec, aes(x=med_domain_per_change, y=per_diff_nvisits)) +
+  geom_point(shape=1) +
+  scale_y_continuous(limits=c(-100,100)) +
+  geom_smooth(method=lm)
+
+cor(tula_consec$med_domain_per_change, 
+    tula_consec$per_diff_nvisits, use = "complete.obs")
+
+g <- ggplot(tula_consec, aes(x=med_domain_sample_change, y=sample_per_diff)) +
+  geom_point(shape=1) +
+  #scale_y_continuous(limits=c(-100,100)) +
+  geom_smooth(method=lm)
+
+cor(tula_consec$med_domain_sample_change, 
+    tula_consec$sample_per_diff, use = "complete.obs")
+
+
+#------------------------------------------------------------------------#
+#Code for Test 2
+#------------------------------------------------------------------------#
+
 percentile <- function(x) rank(x, ties.method = "average")/length(x)*100
 percentile_s <- paste0('percentile=percentile(', 'nvisits', ')')
 
@@ -304,7 +374,9 @@ tula_typical %.%
 summary(tula_typical$user_id[tula_typical$calendar_month == "2012-09-01"] %in% 
           tula_typical$user_id[tula_typical$calendar_month == "2014-05-01"])
 
-#Test 3
+#------------------------------------------------------------------------#
+#Code for Test 3
+#------------------------------------------------------------------------#
 
 overall <- tula_data %.%
   group_by(month_abbr) %.%
@@ -317,7 +389,10 @@ g <- ggplot(overall, aes(x=month_abbr, y=visits_median, group = 1)) +
                 width=.3, colour = "black") +
   scale_y_continuous(limits=c(-5,100))
 
-#Test 4
+#------------------------------------------------------------------------#
+#Code for Test 4
+#------------------------------------------------------------------------#
+
 attrition <- tula_data %.% 
   group_by(user_id) %.% 
   summarise(attrition = sum(!next_month_active, na.rm = T))
@@ -339,3 +414,42 @@ g <- ggplot(test, aes(x=Var1, y=Freq, group = 1)) +
 
 #Calculate time to final attrition event for users who quit before 
 
+
+
+#------------------------------------------------------------------------#
+#Other random code
+#------------------------------------------------------------------------#
+
+#Rehape all_monthly from long format to wide
+#This creates only one row per user with columns for each calendar month
+users_long <- select(tula_typical, domain, user_id, nvisits, calendar_month)
+users_wide <- reshape(users_long,
+                      timevar = "calendar_month",
+                      idvar = c("domain", "user_id"),
+                      direction = "wide")
+
+g <- ggplot(data=tula_typical, aes(x=calendar_month, y=nvisits, group = user_id)) + 
+  geom_line(colour="grey", size=1.0)
+
+users_long <- select(raw_percentile, domain, user_id, percentile, calendar_month)
+users_wide <- reshape(users_long,
+                      timevar = "calendar_month",
+                      idvar = c("domain", "user_id"),
+                      direction = "wide")
+
+# Number of users by calendar_month
+users_month_tula <- tula_typical %.% 
+  group_by(domain, calendar_month) %.% 
+  summarise(nusers = length(unique(user_id)))
+
+g <- ggplot(data=users_month_tula, aes(x=calendar_month, y=nusers)) + 
+  geom_line(colour="black", size=1.0) + 
+  geom_point(colour="red", size=3, shape=21, fill="red")
+
+users_wide <- reshape(users_month_tula,
+                      timevar = "calendar_month",
+                      idvar = c("domain"),
+                      direction = "wide")
+
+users_wide <- users_wide[,order(names(users_wide))]
+write.csv(users_wide, file = "tula_nusers_wide.csv")
