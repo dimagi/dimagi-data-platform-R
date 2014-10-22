@@ -4,7 +4,7 @@
 library(lubridate)
 library(zoo)
 
-# INTERACTION TABLE INDICATORS:
+# VISIT TABLE INDICATORS:
 date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
 days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
@@ -23,14 +23,10 @@ calendar_month_on_cc <- function(x) {
 active_months <- function(x) length(unique(as.yearmon(x$visit_date)))
 active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
 
-
-# VISIT TABLE INDICATORS:
-
 # removes all case-specific columns from the interactions table, then returns one row per visit
 # TODO add in batch entry and date difference once these are correct i.e one value for every visit
 unique_visits <- function (x) {
-  df <- subset(x, select = -c(case_id,days_elapsed_case,new_case,follow_up,date_difference,batch_entry))
-  return (unique(df))
+  return(x)
 }
   
 nvisits <- function(x) NROW(unique_visits(x))
@@ -42,16 +38,8 @@ median_visits_per_day <- function(x) median(as.numeric(table((unique_visits(x))$
 ## These next indicators are only applicable for the lifetime table.
 median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon((unique_visits(x))$visit_date))), na.rm=TRUE)
 
-# (I am not sure what this next indicator is doing - RD)
+# median time since previous visit (to any case)
 median_time_elapsed_btw_visits <- function(x) median((unique_visits(x))$time_since_previous, na.rm=TRUE)
-
-## To get reliable follow-up rates we'll need the full lifetime
-## data. Additionally, can the case be followed-up by a different FLW?
-## I'm not sure how to interpret this indicator description: "median
-## time (in mins) elapsed between two followup visits conducted by a
-## mobile user"
-## I took these two indicators out of the config file because they
-## were running too slowly. - Andrew?
 
 #This should be calculated by case id, so calculated based on interaction table
 median_time_btw_followup <- function(x) {
@@ -69,29 +57,21 @@ median_time_btw_followup <- function(x) {
 }
 median_days_btw_followup <- function(x) median_time_btw_followup(x) / 60 / 24
 
-#This should be calculated based on visit table
-# TODO batch entry calc must be fixed first - ML
+# TODO batch entry calc must be fixed, should take into account home visit or no - ML
 batch_entry_visit <- function(x) sum(x$batch_entry, na.rm=TRUE)
 batch_entry_percent <- function(x) mean(x$batch_entry, na.rm=TRUE)
-
-#This should be calculated based on interaction table
-ncases_registered <- function(x) sum(x$new_case, na.rm=TRUE)
-register_followup <- function(x) sum(x$follow_up)
-case_register_followup_rate <- function(x) mean(x$follow_up)
 
 morning <- function(x) mean(x$visit_time == 'morning')
 afternoon <- function(x) mean(x$visit_time == 'afternoon')
 night <- function(x) mean(x$visit_time == 'night')
 after_midnight <- function(x) mean(x$visit_time == 'after midnight')
 
-ncases_opened <- function(x) sum(x$new_case)
-
 numeric_index <- function (x) {
   first_possible_visit_date <- as.POSIXct(strptime("2010-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))
   
   this_month <- as.POSIXct(format(min(x$time_start),"%Y-%m-01"), tz = "UTC")
   if (this_month < first_possible_visit_date) { return (1) }
-    
+  
   start_month <- as.POSIXct(format(min(x$user_start_date),"%Y-%m-01"), tz = "UTC")
   if (start_month < first_possible_visit_date) {start_month <- first_possible_visit_date}
   
@@ -99,19 +79,19 @@ numeric_index <- function (x) {
   return (total_months)
 }
 
-## TODO: Some indicators do not fit into our current framework. For
-## instance, the total number of cases that are not opened at some
-## time point before this month and not closed yet until this month.
-## cum_open_cases: total number of cases that are not opened at some
-## time point before this month and not closed yet until this month
-
+# INTERACTION TABLE INDICATORS:
+ncases_registered <- function(x) sum(x$new_case, na.rm=TRUE)
+register_followup <- function(x) sum(x$follow_up)
+case_register_followup_rate <- function(x) mean(x$follow_up)
+ncases_opened <- function(x) sum(x$new_case)
 ncases_touched <- function(x) length(unique(x$case_id))
 nunique_followups <- function(x) {
-    stopifnot(!any(is.na(x$follow_up)))
-    stopifnot(all(x$follow_up == 0 | x$follow_up == 1))
-    return(length(x$case_id[x$follow_up == 1]))
+  stopifnot(!any(is.na(x$follow_up)))
+  stopifnot(all(x$follow_up == 0 | x$follow_up == 1))
+  return(length(x$case_id[x$follow_up == 1]))
 }
 
+# DEVICE TYPE TABLE INDICATORS:
 summary_device_type <- function (x) {
   if (length(unique(x$device)) == 1) {
     s <- paste(toupper(substring(x$device[1], 1,1)), substring(x$device[1], 2),
