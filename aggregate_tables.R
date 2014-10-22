@@ -33,9 +33,9 @@ write_tables <- function(file, debug) {
     for (table.info in config) {
         print(paste('Writing', table.info$table, 'indicator table.'))
         df <- compute_indicators(table.info, debug)
-        #db <- get_db_connection()
-        #dbRemoveTable(db$con, name=table.info$table)
-        #copy_to(db, df=df, name=table.info$table, temporary=FALSE)
+        db <- get_db_connection()
+        dbRemoveTable(db$con, name=table.info$table)
+        copy_to(db, df=df, name=table.info$table, temporary=FALSE)
     }
 }
 

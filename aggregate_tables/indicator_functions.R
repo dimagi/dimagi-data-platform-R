@@ -7,7 +7,6 @@ library(zoo)
 # VISIT TABLE INDICATORS:
 date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
-#The next indicator (days_on_cc) only makes sense for the lifetime table. We don't need it here.
 days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
 active_days <- function(x) length(unique(x$visit_date))
 active_day_percent <- function(x) active_days(x) / days_in_month(date_first_visit(x))
@@ -23,27 +22,17 @@ calendar_month_on_cc <- function(x) {
 }
 active_months <- function(x) length(unique(as.yearmon(x$visit_date)))
 active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
-
-
-
-# VISIT TABLE INDICATORS:
-# removes all case-specific columns from the interactions table, then returns one row per visit
-# TODO add in batch entry and date difference once these are correct i.e one value for every visit
-unique_visits <- function (x) {
-  return(x)
-}
-  
-nvisits <- function(x) NROW(unique_visits(x))
-nforms <- function(x) sum((unique_visits(x))$total_forms, na.rm=TRUE)
-median_visit_duration <- function(x) as.numeric(median(((unique_visits(x))$time_end - (unique_visits(x))$time_start)/ 60, na.rm=TRUE))
-time_using_cc <- function(x) sum((unique_visits(x))$form_duration, na.rm = T)
-median_visits_per_day <- function(x) median(as.numeric(table((unique_visits(x))$visit_date)), na.rm=TRUE)
+nvisits <- function(x) NROW(x)
+nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
+median_visit_duration <- function(x) as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE))
+time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
+median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
 
 ## These next indicators are only applicable for the lifetime table.
-median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon((unique_visits(x))$visit_date))), na.rm=TRUE)
+median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visit_date))), na.rm=TRUE)
 
 # median time since previous visit (to any case)
-median_time_elapsed_btw_visits <- function(x) median((unique_visits(x))$time_since_previous, na.rm=TRUE)
+median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.rm=TRUE)
 
 #This should be calculated by case id, so calculated based on interaction table
 median_time_btw_followup <- function(x) {
