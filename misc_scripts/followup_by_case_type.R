@@ -10,7 +10,7 @@ db <- get_db_connection(system_conf)
 
 domain_name <- 'crs_remind'
 case_actions_query <- sprintf('select users.user_id, form.visit_id,
-cases.case_id, bool_or(form.created) as created, bool_or(form.updated) as updated, bool_or(form.closed) as closed 
+cases.case_id, case_event.created as created, case_event.updated as updated, case_event.closed as closed 
 from users, cases, case_event, form
                               where cases.domain_id = (select id from domain where name like \'%s\')
                               and users.id = cases.user_id

@@ -53,27 +53,20 @@ get_domain_table <- function (db) {
   return(retframe)
 }
 
-# interaction table query (one row for each visit to a case, visit to two cases = two rows)
-# post-processed into the interaction table data source in data_sources.R get_interactions
-# limit param can be used to limit the number of results returned
-get_interaction_table <- function (db, limit=-1) {
+get_visit_detail_table <- function (db, limit=-1) {
   con <- db$con
+  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.user_id, domain.name as domain
+            from form, visit, users, domain
+            where form.visit_id = visit.id and visit.user_id = users.id and form.domain_id = domain.id
+            group by visit.id, visit.time_start, visit.time_end, users.user_id, domain.name'
+  
   with_limit <-(limit > 0) 
+  if (with_limit) {
+    query <- paste0(query, ' limit ',limit )
+  }
   
-  if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
-  visit_q <- sprintf("select domain.name as domain, vis.id, users.user_id, vis.time_start, vis.time_end 
-              from %s, users, domain 
-              where vis.user_id = users.id and users.domain_id = domain.id", limit_clause)
-  visit_res <- do_query(con, visit_q)
-  visit_ids <- paste(visit_res$id,collapse=",")
-  
-  if (with_limit) { limit_clause <- sprintf(" and form.visit_id in (%s) ", visit_ids)} else {limit_clause <- ""}
-  interactions_q <- sprintf("select cases.case_id, form.visit_id from cases, case_event, form 
-                    where cases.id = case_event.case_id and form.id = case_event.form_id
-                    %s
-                    group by cases.case_id, form.visit_id",limit_clause)
-  interactions_res <- do_query(con, interactions_q)
-  v <- merge(visit_res,interactions_res,by.x="id",by.y="visit_id")
+  v <- do_query(con, query)
+  visit_ids <- paste(v$id,collapse=",")
   
   if (with_limit) { limit_clause <- sprintf(" where visit_id in (%s) ", visit_ids)} else {limit_clause <- ""}
   total_forms_q <- sprintf("select visit_id as id, count (distinct id) as total_forms from form %s 
@@ -81,7 +74,6 @@ get_interaction_table <- function (db, limit=-1) {
   total_forms_res <- do_query(con, total_forms_q)
   v <- merge(v,total_forms_res,by.x="id",by.y="id")
   
-  # this one needs to do the lag over all visits unfortunately
   time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) over (partition by visit.user_id order by time_start)) as time_since_previous from visit order by visit.user_id, time_start"
   time_since_prev_res <- do_query(con, time_since_prev_q)
   v <- merge(v,time_since_prev_res,by.x="id",by.y="id",all.x=T,all.y=F)
@@ -97,12 +89,53 @@ get_interaction_table <- function (db, limit=-1) {
   home_visits_q <- sprintf("select form.visit_id, bool_or(CASE WHEN (attributes->'Travel visit' = 'No') THEN FALSE 
                             WHEN (attributes->'Travel visit' = 'Yes') THEN TRUE ELSE null END) as home_visit
                             from visit inner join form on (form.visit_id = visit.id)  left join formdef
-                            on (formdef.xmlns = form.xmlns and formdef.app_id = form.app_id) %s
+                            on (formdef.id = form.formdef_id) %s
                             group by form.visit_id",limit_clause)
   home_visits_res <- do_query(con, home_visits_q)
   v <- merge(v,home_visits_res,by.x="id",by.y="visit_id")
+  
+  return(v)
+  
+}
 
-return(v)
+# interaction table query (one row for each visit to a case, visit to two cases = two rows)
+# post-processed into the interaction table data source in data_sources.R get_interactions
+# limit param can be used to limit the number of results returned
+get_interaction_table <- function (db, limit=-1) {
+  con <- db$con
+  with_limit <-(limit > 0) 
+  
+  if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
+  visit_q <- sprintf("select domain.name as domain, vis.id, users.user_id, vis.time_start, vis.time_end 
+              from %s, users, domain 
+              where vis.user_id = users.id and users.domain_id = domain.id", limit_clause)
+  visit_res <- do_query(con, visit_q)
+  visit_ids <- paste(visit_res$id,collapse=",")
+  
+  if (with_limit) { limit_clause <- sprintf(" and form.visit_id in (%s) ", visit_ids)} else {limit_clause <- ""}
+  interactions_q <- sprintf("select cases.case_id, form.visit_id, case_event.created, case_event.updated, case_event.closed
+                    from cases, case_event, form 
+                    where cases.id = case_event.case_id and form.id = case_event.form_id
+                    %s
+                    group by cases.case_id, form.visit_id, case_event.created, case_event.updated, case_event.closed",limit_clause)
+  interactions_res <- do_query(con, interactions_q)
+  inter <- merge(visit_res,interactions_res,by.x="id",by.y="visit_id")
+  
+  case_followup_query <- 'with case_visits as (select cases.case_id, cases.case_type,visit.id as visit_id, 
+                                visit.time_start
+                                from cases, form, case_event, visit
+                               where case_event.case_id = cases.id
+                               and case_event.form_id = form.id
+                               and form.visit_id = visit.id
+                               group by cases.case_id, cases.case_type, visit.id, visit.time_start)
+                               select case_visits.case_id, case_visits.case_type, case_visits.visit_id, 
+                               lag(case_visits.time_start,1) over (partition by case_visits.case_id order by case_visits.time_start) as prev_visit_start
+                               from case_visits'
+  
+  case_followup_res <- do_query(con, case_followup_query)
+  inter <- merge(inter,case_followup_res,by.x=c("id", "case_id"),by.y=c("visit_id","case_id"))
+  
+  return(inter)
 }
 
 # domain, user, date and device type for every form
