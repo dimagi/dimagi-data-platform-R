@@ -38,6 +38,7 @@ all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
 names (all_monthly)[names(all_monthly) == "X"] = "row_num"
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
+names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
 
 #Round median visit duration to one decimal place
 all_monthly$median_visit_duration <- round(all_monthly$median_visit_duration,
@@ -59,23 +60,12 @@ all_monthly$sample_normal <- rnorm(nrow(all_monthly), mean = 10, sd = 1)
 
 #Merge domain facets from domain table into all_monthly table
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit, Test.Project., active)
+                          business_unit, active)
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 
 #Create obsnum here since we can't create this at the aggregate table stage 
 all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
-
-add_index <- function(x) {
-  start <- min(x$calendar_month, na.rm=TRUE)
-  x$numeric_index <- sapply(x$calendar_month, function(end) interval(start, end) %/% months(1))
-  return(x)
-}
-
-df2 <- all_monthly %.% group_by(domain, user_id) %.% do(add_index(.))
-df2$obsnum <- df2$numeric_index + 1
-all_monthly <- select(df2, -numeric_index)
-
 all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 
@@ -534,5 +524,18 @@ test_3 <- function(indicator, data) {
     test_3_score <- median(test_3_compute$per_change, na.rm = T)
     return(test_3_score)
 }
+
+#Create obsnum here since we can't create this at the aggregate table stage 
+all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
+
+add_index <- function(x) {
+  start <- min(x$calendar_month, na.rm=TRUE)
+  x$numeric_index <- sapply(x$calendar_month, function(end) interval(start, end) %/% months(1))
+  return(x)
+}
+
+df2 <- all_monthly %.% group_by(domain, user_id) %.% do(add_index(.))
+df2$obsnum <- df2$numeric_index + 1
+all_monthly <- select(df2, -numeric_index)
 
 

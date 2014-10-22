@@ -30,7 +30,8 @@
                "morning":"morning",
                "afternoon":"afternoon",
                "night":"night",
-               "after_midnight":"after_midnight"
+               "after_midnight":"after_midnight",
+               "time_using_cc":"time_using_cc"
             }
          },
          {
@@ -79,7 +80,8 @@
                "afternoon":"afternoon",
                "night":"night",
                "after_midnight":"after_midnight",
-               "numeric_index":"numeric_index"
+               "numeric_index":"numeric_index",
+               "time_using_cc":"time_using_cc"
             }
          },
          {
