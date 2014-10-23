@@ -60,7 +60,7 @@ all_monthly$sample_normal <- rnorm(nrow(all_monthly), mean = 10, sd = 1)
 
 #Merge domain facets from domain table into all_monthly table
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit, active)
+                          business_unit, active, test, Test.Project.)
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 
