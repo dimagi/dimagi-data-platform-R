@@ -41,7 +41,7 @@ p1 <- tbl_df(p1)
 # only keep columns that are interesting
 p1 <- p1 %>% select(user_id, calendar_month, month_index, previous_month_active, next_month_active) 
   
-p1$calendar_month   <- as.Date(as.character(p1$calendar_month), format="%m/%d/%y")
+p1$calendar_month   <- as.Date(as.character(p1$calendar_month), format="%Y-%m-%d")
 
 df <- p1
 
