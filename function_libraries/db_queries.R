@@ -167,3 +167,12 @@ get_user_table <- function(db){
   res <- tbl(db,sql(query))
   return(res)
 }
+  
+get_device_log_table <- function(db, limit){
+  query <- 'select device_log.id, log_date, to_char(log_date, \'Mon YYYY\') as "month.index", log_type, msg, domain.name as domain, users.user_id
+                    from device_log left outer join users on device_log.user_id = users.id 
+                    inner join domain on device_log.domain_id = domain.id'
+  if (limit > 0) {query <- paste0(query,' limit ', limit)}
+  logs <- tbl(db, sql(query))
+  return(logs)
+}

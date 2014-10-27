@@ -2,7 +2,7 @@ library(lubridate)
 library(zoo)
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
 
-get_data_source <- function (db, table_name, limit) {
+get_data_source <- function (db, table_name, limit=-1) {
   tryCatch({
     query<-build_sql('SELECT * FROM ', ident(table_name),' limit ', as.integer(limit))
     return(tbl(db, sql(query)))
@@ -65,4 +65,11 @@ get_device_type <- function(db, limit){
   device_type_table <- collect (device_type_table)
   device_type_table$month.index <-  as.character(as.yearmon(device_type_table$time_start))
   return(device_type_table)
+}
+
+get_device_log_detail <- function(db, limit){
+  print(paste('Fetching device logs table, limit is ', limit))
+  device_log_table <- get_device_log_table(db, limit)
+  #device_log_table <- collect (device_log_table)
+  return(device_log_table)
 }
