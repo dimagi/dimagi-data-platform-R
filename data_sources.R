@@ -67,9 +67,11 @@ get_device_type <- function(db, limit){
   return(device_type_table)
 }
 
-get_device_log_detail <- function(db, limit){
-  print(paste('Fetching device logs table, limit is ', limit))
-  device_log_table <- get_device_log_table(db, limit)
-  device_log_table <- collect (device_log_table)
-  return(device_log_table)
+get_device_log_types_by_user <- function(db, limit){
+  print(paste('Fetching device log types table, limit is ', limit))
+  logs <- get_device_log_table(db, limit)
+  logs_by_type <- logs %.%
+    group_by (log_type,user_id, domain, month.index) %.% 
+    summarise (num_logs = count(id))
+  return(as.data.frame(collect(logs_by_type)))
 }

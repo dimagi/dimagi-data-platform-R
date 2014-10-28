@@ -9,7 +9,7 @@ system_conf <- get_system_config(file.path("config_system.json"))
 db <- get_db_connection(system_conf)
 
 
-logs <- get_data_source(db, 'device_log_detail', 1000)
+logs <- get_data_source(db, 'device_log_types_by_user', 1000)
 
 logs_by_type <- logs %.%
   group_by (log_type) %.% 
