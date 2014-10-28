@@ -95,3 +95,7 @@ summary_device_type <- function (x) {
   }
 }
 
+# DEVICE LOG TABLE INDICATORS:
+total_logs <-function(x) length(unique(x$id))
+audio_plays <-function(x) length(unique(x[x$log_type=='audio',]$id))
+

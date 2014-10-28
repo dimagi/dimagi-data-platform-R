@@ -70,6 +70,6 @@ get_device_type <- function(db, limit){
 get_device_log_detail <- function(db, limit){
   print(paste('Fetching device logs table, limit is ', limit))
   device_log_table <- get_device_log_table(db, limit)
-  #device_log_table <- collect (device_log_table)
+  device_log_table <- collect (device_log_table)
   return(device_log_table)
 }

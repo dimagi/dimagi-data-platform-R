@@ -100,6 +100,13 @@
             "columns":{
                "summary_device_type":"summary_device_type"
             }
+         },
+         {
+            "table":"device_log_detail",
+            "columns":{
+               "total_logs":"total_logs",
+               "audio_plays":"audio_plays"
+            }
          }
       ]
    }
