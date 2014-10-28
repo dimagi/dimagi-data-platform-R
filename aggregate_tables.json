@@ -50,6 +50,14 @@
             "columns":{
                "summary_device_type":"summary_device_type"
             }
+         },
+         {
+            "table":"device_log_types_by_user",
+            "columns":{
+               "total_logs":"total_logs",
+               "audio_plays":"audio_plays",
+               "network_warnings":"network_warnings"
+            }
          }
       ]
    },
@@ -102,10 +110,11 @@
             }
          },
          {
-            "table":"device_log_detail",
+            "table":"device_log_types_by_user",
             "columns":{
                "total_logs":"total_logs",
-               "audio_plays":"audio_plays"
+               "audio_plays":"audio_plays",
+               "network_warnings":"network_warnings"
             }
          }
       ]

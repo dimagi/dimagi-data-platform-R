@@ -97,5 +97,5 @@ summary_device_type <- function (x) {
 
 # DEVICE LOG TABLE INDICATORS:
 total_logs <-function(x) sum(x$num_logs)
-audio_plays <-function(x) if (NROW(x[x$log_type=='audio',]) > 0) x[x$log_type=='audio',c('num_logs')] else 0
-network_warnings <-function(x) if (NROW(x[x$log_type=='warning-network',]) > 0) x[x$log_type=='warning-network',c('num_logs')] else 0
+audio_plays <-function(x) if (NROW(x[x$log_type=='audio',]) > 0) sum(x[x$log_type=='audio',c('num_logs')]) else 0
+network_warnings <-function(x) if (NROW(x[x$log_type=='warning-network',]) > 0) sum(x[x$log_type=='warning-network',c('num_logs')]) else 0
