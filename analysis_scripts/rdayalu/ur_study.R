@@ -1,3 +1,6 @@
+#Data for attrition study for Nisha and Reem
+#Utilization Ratio study (UR)
+
 true_domains <- filter(domain_table, Test.Project. == "false")
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
                           business_unit, active, Test.Project.)
