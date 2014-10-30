@@ -53,12 +53,13 @@ get_domain_table <- function (db) {
   return(retframe)
 }
 
+# returns visit table for use in visit detail data source
 get_visit_detail_table <- function (db, limit=-1) {
   con <- db$con
-  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.user_id, domain.name as domain
+  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.id as user_pk,users.user_id, domain.name as domain
             from form, visit, users, domain
             where form.visit_id = visit.id and visit.user_id = users.id and form.domain_id = domain.id
-            group by visit.id, visit.time_start, visit.time_end, users.user_id, domain.name'
+            group by visit.id, visit.time_start, visit.time_end, users.id, users.user_id, domain.name'
   
   with_limit <-(limit > 0) 
   if (with_limit) {
@@ -106,7 +107,7 @@ get_interaction_table <- function (db, limit=-1) {
   with_limit <-(limit > 0) 
   
   if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
-  visit_q <- sprintf("select domain.name as domain, vis.id, users.user_id, vis.time_start, vis.time_end 
+  visit_q <- sprintf("select domain.name as domain, vis.id, users.id as user_pk,users.user_id, vis.time_start, vis.time_end 
               from %s, users, domain 
               where vis.user_id = users.id and users.domain_id = domain.id", limit_clause)
   visit_res <- do_query(con, visit_q)
@@ -143,7 +144,7 @@ get_interaction_table <- function (db, limit=-1) {
 # limit param can be used to limit the number of results returned
 get_device_type_table <- function (db, limit=-1) {
 if (limit > 0) { limit_clause <- sprintf(" (select * from form limit %d) as frm ", limit)} else {limit_clause <- " form as frm "}
-query <- paste("select domain.name as domain, users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
+query <- paste("select domain.name as domain, users.id as user_pk,users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
                     CASE WHEN app_version LIKE '%Nokia%' THEN 'nokia'
                     WHEN app_version LIKE '%ODK%' THEN 'android'
                     WHEN app_version LIKE '2.0' THEN 'cloudcare'
@@ -159,17 +160,18 @@ return(res)
 
 # domain, user_id, username, first_submission date for all users
 get_user_table <- function(db){
-  query <- "select domain.name as domain, users.user_id, users.username, min(form.time_start) as first_submission
+  query <- "select domain.name as domain, users.id as user_pk,users.user_id, users.username, min(form.time_start) as first_submission
             from domain, users, form
             where users.domain_id = domain.id
             and form.user_id = users.id
-            group by domain.name, users.user_id, users.username"
+            group by domain.name, users.id as user_pk,users.user_id, users.username"
   res <- tbl(db,sql(query))
   return(res)
 }
   
 get_device_log_table <- function(db, limit){
-  query <- 'select device_log.id, log_date, to_char(log_date, \'Mon YYYY\') as "month.index", log_type, msg, domain.name as domain, users.user_id
+  query <- 'select device_log.id, log_date, to_char(log_date, \'Mon YYYY\') as "month.index", log_type, 
+                    msg, domain.name as domain, users.id as user_pk,users.user_id
                     from device_log left outer join users on device_log.user_id = users.id 
                     inner join domain on device_log.domain_id = domain.id'
   if (limit > 0) {query <- paste0(query,' limit ', limit)}

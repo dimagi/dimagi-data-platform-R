@@ -3,7 +3,8 @@
       "table":"aggregate_lifetime_interactions",
       "by":[
          "domain",
-         "user_id"
+         "user_id",
+         "user_pk"
       ],
       "components":[
          {
@@ -66,6 +67,7 @@
       "by":[
          "domain",
          "user_id",
+         "user_pk",
          "month.index"
       ],
       "components":[
