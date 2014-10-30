@@ -412,8 +412,101 @@ g <- ggplot(test, aes(x=Var1, y=Freq, group = 1)) +
   ggtitle("Number of unique FLWs by number of attrition events") +
   theme(plot.title = element_text(size=14, face="bold"))
 
-#Calculate time to final attrition event for users who quit before 
+#Isolate all months to each attrition event for all users
+#Create empty list
+attrition_list <- list()
 
+#Create function to append attrition list
+lappend <- function (lst, ...){
+  lst <- c(lst, list(...))
+  return(lst)
+}
+
+#Extract users with at least one attrition event
+users <- unique((filter(tula_data, next_month_active == F))$user_id)
+
+for (i in users) {
+  single_user <- tula_data[tula_data$user_id == i,]
+#Create vector of all attrition positions for this user
+attrition_positions <- which(single_user$next_month_active == F)
+#Append "months to first attrition event" to the attrition list
+attrition_list <- lappend(attrition_list, rev(single_user$nvisits[1:attrition_positions[1]]))
+
+#Append "months to subsequent attrition events" to the attrition list
+if(length(attrition_positions)>1) {
+for(j in 2:length(attrition_positions)) {
+  attrition_list <- lappend(attrition_list, rev(single_user$nvisits[(attrition_positions[j-1]+1):attrition_positions[j]]))
+    }
+  }
+}
+
+
+## Compute maximum length
+max_length <- max(sapply(attrition_list, length))
+## Add NA values to list elements
+attrition_list <- lapply(attrition_list, function(v) { c(v, rep(NA, max_length-length(v)))})
+## Create dataframe
+attrition_data <- data.frame(do.call(rbind, attrition_list))
+names(attrition_data) <- paste0("month_", 1:ncol(attrition_data))
+attrition_data$user_id <- filter(tula_data, next_month_active == F)$user_id
+
+#Overall attrition_data: Median of each month column
+months_median <- apply(attrition_data[,1:23], 2, function(x) median(x, na.rm = T))
+months_median <- data.frame(months_median)
+months_median$month_before_attrition <- c(1:nrow(months_median))
+months_median$months_mad <- apply(attrition_data[,1:23], 2, function(x) mad(x, na.rm = T)) 
+
+#Plot
+g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group = 1)) + 
+  geom_line(colour="blue", size=1.0) + 
+  geom_errorbar(aes(ymin=months_median-months_mad, ymax=months_median+months_mad), 
+                width=.3, colour = "black")
+
+#Keep rows with at least "N" months before attrition
+#Then graph only those "N" months before attrition
+#Here, N = 5
+attrition_subset <- filter(attrition_data, !is.na(month_5))
+
+#Subset of attrition_data: Median of each month column
+months_median <- apply(attrition_subset[,1:5], 2, function(x) median(x, na.rm = T))
+months_median <- data.frame(months_median)
+months_median$month_before_attrition <- c(1:nrow(months_median))
+months_median$months_mad <- apply(attrition_subset[,1:5], 2, function(x) mad(x, na.rm = T)) 
+
+#Plot
+g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group = 1)) + 
+  geom_line(colour="blue", size=1.0) + 
+  geom_errorbar(aes(ymin=months_median-months_mad, ymax=months_median+months_mad), 
+                width=.3, colour = "black")
+
+#Calculate indicators per month relative to N = 5
+attrition_subset$rel_1 <- (attrition_subset$month_1/attrition_subset$month_5)*100
+attrition_subset$rel_2 <- (attrition_subset$month_2/attrition_subset$month_5)*100
+attrition_subset$rel_3 <- (attrition_subset$month_3/attrition_subset$month_5)*100
+attrition_subset$rel_4 <- (attrition_subset$month_4/attrition_subset$month_5)*100
+attrition_subset$rel_5 <- (attrition_subset$month_5/attrition_subset$month_5)*100
+
+#Relative attrition_data: Median of each relative month column
+months_median <- apply(attrition_subset[,25:29], 2, function(x) median(x, na.rm = T))
+months_median <- data.frame(months_median)
+months_median$month_before_attrition <- c(1:nrow(months_median))
+months_median$months_mad <- apply(attrition_subset[,25:29], 2, function(x) mad(x, na.rm = T)) 
+
+#Plot
+g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group = 1)) + 
+  geom_line(colour="blue", size=1.0) + 
+  geom_errorbar(aes(ymin=months_median-months_mad, ymax=months_median+months_mad), 
+                width=.3, colour = "black") +
+  xlab("month_before_attrition") +
+  ylab("nvisits relative to month 5 (%)")
+
+#Test 4A: slope of line (lm) for absolute months 1-4 for each row
+attrition_subset$slope_abs <- apply(attrition_subset[,1:4], 1, function(x) 
+  lm(x~c(1:4))$coefficients[[2]])
+
+#Test 4B: slope of line (lm) for realtive months 1-4 for each row
+attrition_subset$slope_rel <- apply(attrition_subset[,25:28], 1, function(x) 
+  lm(x~c(1:4))$coefficients[[2]])
 
 
 #------------------------------------------------------------------------#

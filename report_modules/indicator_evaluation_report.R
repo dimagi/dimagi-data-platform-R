@@ -64,7 +64,7 @@ facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 
-#Create obsnum here since we can't create this at the aggregate table stage 
+#Convert calendar month to actual date
 all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
 all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
