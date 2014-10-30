@@ -23,11 +23,13 @@ inter <- get_data_source(db, "interactions", -1)
 #Get form table (or another straight db dplyr table - a list of these tables is available
 #when you print db)
 form_table <- tbl(db, "form")
-form_table <- get_data_source(db, "form", 1000)
-collect(form_table)
+form_table <- get_data_source(db, "form", 1000) #limited number of forms
+form_table <- collect(form_table)
+
 app <- tbl(db, "application")
 device_log <- tbl(db, "device_log")
 domain_table <- tbl(db, "domain")
+users <- tbl(db, "users") 
 
 #------------------------------------------------------------------------#
 #Calculations on DB tables
