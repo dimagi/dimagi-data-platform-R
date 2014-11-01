@@ -23,8 +23,7 @@ get_visit_detail <- function(db, limit){
   dat <- get_visit_detail_table(db, limit)
   user_start_dates <- dat %.% group_by (domain,user_id) %.% summarise(user_start_date = min(time_start) )
   dat <- merge(dat,user_start_dates,by=c("domain","user_id"))
-  
-  dat$user_id[is.na(dat$user_id)] <- "NONE"
+
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
@@ -47,7 +46,6 @@ get_interactions <- function(db, limit){
   print(paste('Fetching interactions table, limit is ', limit))
   dat <- get_interaction_table(db, limit)
   
-  dat$user_id[is.na(dat$user_id)] <- "NONE"
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
