@@ -2,9 +2,14 @@ library(lubridate)
 library(zoo)
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep),chdir=T)
 
-get_data_source <- function (db, table_name, limit) {
+get_data_source <- function (db, table_name, limit=-1) {
   tryCatch({
-    query<-build_sql('SELECT * FROM ', ident(table_name),' limit ', as.integer(limit))
+    if (limit>0) {
+      query<-build_sql('SELECT * FROM ', ident(table_name),' limit ', as.integer(limit))
+    }
+    else {
+      query<-build_sql('SELECT * FROM ', ident(table_name))
+    }
     return(tbl(db, sql(query)))
   }, error = function(err) {
     s <- do.call(sprintf("get_%s",table_name),args=list(db, limit))
@@ -18,8 +23,7 @@ get_visit_detail <- function(db, limit){
   dat <- get_visit_detail_table(db, limit)
   user_start_dates <- dat %.% group_by (domain,user_id) %.% summarise(user_start_date = min(time_start) )
   dat <- merge(dat,user_start_dates,by=c("domain","user_id"))
-  
-  dat$user_id[is.na(dat$user_id)] <- "NONE"
+
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
@@ -42,7 +46,6 @@ get_interactions <- function(db, limit){
   print(paste('Fetching interactions table, limit is ', limit))
   dat <- get_interaction_table(db, limit)
   
-  dat$user_id[is.na(dat$user_id)] <- "NONE"
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
@@ -65,4 +68,13 @@ get_device_type <- function(db, limit){
   device_type_table <- collect (device_type_table)
   device_type_table$month.index <-  as.character(as.yearmon(device_type_table$time_start))
   return(device_type_table)
+}
+
+get_device_log_types_by_user <- function(db, limit){
+  print(paste('Fetching device log types table, limit is ', limit))
+  logs <- get_device_log_table(db, limit)
+  logs_by_type <- logs %.%
+    group_by (log_type,user_id, user_pk, domain, month.index) %.% 
+    summarise (num_logs = count(id))
+  return(as.data.frame(collect(logs_by_type)))
 }

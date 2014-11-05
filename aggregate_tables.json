@@ -3,7 +3,8 @@
       "table":"aggregate_lifetime_interactions",
       "by":[
          "domain",
-         "user_id"
+         "user_id",
+         "user_pk"
       ],
       "components":[
          {
@@ -50,6 +51,14 @@
             "columns":{
                "summary_device_type":"summary_device_type"
             }
+         },
+         {
+            "table":"device_log_types_by_user",
+            "columns":{
+               "total_logs":"total_logs",
+               "audio_plays":"audio_plays",
+               "network_warnings":"network_warnings"
+            }
          }
       ]
    },
@@ -58,6 +67,7 @@
       "by":[
          "domain",
          "user_id",
+         "user_pk",
          "month.index"
       ],
       "components":[
@@ -99,6 +109,14 @@
             "table":"device_type",
             "columns":{
                "summary_device_type":"summary_device_type"
+            }
+         },
+         {
+            "table":"device_log_types_by_user",
+            "columns":{
+               "total_logs":"total_logs",
+               "audio_plays":"audio_plays",
+               "network_warnings":"network_warnings"
             }
          }
       ]
