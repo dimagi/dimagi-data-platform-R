@@ -9,7 +9,7 @@ date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
 days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
 active_days <- function(x) length(unique(x$visit_date))
-active_day_percent <- function(x) active_days(x) / days_in_month(date_first_visit(x))
+active_day_percent <- function(x) (active_days(x) / days_in_month(date_first_visit(x)))*100
 
 ## The next indicators are only applicable for the lifetime table.
 days_visit_last <- function(x) as.numeric(Sys.Date() - date_last_visit(x))
