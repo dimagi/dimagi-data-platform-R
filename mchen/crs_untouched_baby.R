@@ -1,3 +1,5 @@
+# a bit deeper look into inactive baby cases in crs-remind domain
+
 # a breakdown of not-touched baby cases by the number of times they were ever touched
 x_untouched_60 <- x_last[which(x_last$touched_60 == "no"),]
 x_untouched_60$total_visits_breakdown <- ifelse(x_untouched_60$total_visits > median(x_untouched_60$total_visits), "1", "0")  
