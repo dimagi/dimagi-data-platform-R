@@ -1,3 +1,5 @@
+# case table breakdown by case type and metrics computation
+
 x_first <- get_first_visit(x)
 x_last <- get_last_visit(x)
 x_total_visits <- get_total_visits(x)
