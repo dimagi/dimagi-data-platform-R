@@ -17,7 +17,7 @@ get_data_source <- function (db, table_name, limit=-1) {
   })
 }
 
-get_visit_detail <- function(db, limit){
+get_visit_detail <- function(db, limit=-1){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
   print(paste('Fetching visit detail table, limit is ', limit))
   dat <- get_visit_detail_table(db, limit)
@@ -41,7 +41,7 @@ get_visit_detail <- function(db, limit){
   return(dat)
 }
 
-get_interactions <- function(db, limit){
+get_interactions <- function(db, limit=-1){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
   print(paste('Fetching interactions table, limit is ', limit))
   dat <- get_interaction_table(db, limit)
@@ -62,7 +62,7 @@ get_interactions <- function(db, limit){
   return(dat)
 }
 
-get_device_type <- function(db, limit){
+get_device_type <- function(db, limit=-1){
   print(paste('Fetching device type table, limit is ', limit))
   device_type_table <- get_device_type_table(db, limit)
   device_type_table <- collect (device_type_table)
@@ -70,7 +70,7 @@ get_device_type <- function(db, limit){
   return(device_type_table)
 }
 
-get_device_log_types_by_user <- function(db, limit){
+get_device_log_types_by_user <- function(db, limit=-1){
   print(paste('Fetching device log types table, limit is ', limit))
   logs <- get_device_log_table(db, limit)
   logs_by_type <- logs %.%

@@ -145,7 +145,8 @@ get_interaction_table <- function (db, limit=-1) {
 get_device_type_table <- function (db, limit=-1) {
 if (limit > 0) { limit_clause <- sprintf(" (select * from form limit %d) as frm ", limit)} else {limit_clause <- " form as frm "}
 query <- paste("select domain.name as domain, users.id as user_pk,users.user_id, frm.time_start, to_char(frm.time_start, 'Mon YYYY') as month, 
-                    CASE WHEN app_version LIKE '%Nokia%' THEN 'nokia'
+                    CASE WHEN device_id ilike 'commconnect' THEN 'sms'
+                    WHEN app_version LIKE '%Nokia%' THEN 'nokia'
                     WHEN app_version LIKE '%ODK%' THEN 'android'
                     WHEN app_version LIKE '2.0' THEN 'cloudcare'
                     WHEN app_version is null THEN 'none' 
