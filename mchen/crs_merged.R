@@ -1,3 +1,7 @@
+# case table computation with the same metrics as 
+# in Worker Activity Report and HQ Admin Report 
+# for the whole domain 
+
 # remove visits by demo_user
 merged <- merged[-which(merged$user_id == "demo_user"),]
 
@@ -67,21 +71,5 @@ length(unique(merged$case_id))
 
 # fu_rate
 fu_pmp <- cases_created_updated_60/(cases_inactive + cases_created_updated_120)
-
-
-
-
-
-
-# cases that are currently open but not touched in last 120
-cases_inactive_120 <- which(merged_last$touched_120 == "no" & merged_last$last_visit_closed == "FALSE")
-
-# visit table to open cases only
-merged_closed_case <- get_visits_closed_case(merged)
-merged_open <- merged[-which(merged$case_id %in% merged_closed_case),]
-
-# remove cases closed before the inactive line
-count_cases_open_120 <- length(which(merged_last$last_visit_closed == "FALSE"))
-cases_closed_old <- which(merged_last$touched_120 == "no" & merged_last$last_visit_closed == "TRUE")
 
 
