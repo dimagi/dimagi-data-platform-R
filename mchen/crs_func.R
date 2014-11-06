@@ -102,6 +102,8 @@ get_last_interaction <- function(dt) {
   return(dt5)  
 }
 
+
+# return active mobile users
 get_active_users <- function(dt) {
   user_interaction <- get_last_interaction(dt)
   inactive_line <- get_inactive_line(export_date, 30)
@@ -110,11 +112,28 @@ get_active_users <- function(dt) {
 }
 
 
+# get total days a case has been on CC: from deployment to the day of data export
+get_life_length <- function(dt, export_date) {
+  dt$life_length <- as.numeric(as.Date(export_date) - as.Date(dt$first_visit))
+  return(dt)
+}
 
 
+# convert numeric days on CC to age categories for cases
+get_age_range <- function(dt, x1, x2, x3){
+  dt$age_range <- ifelse(dt$life_length < x1, "1", 
+                         ifelse(dt$life_length >= x1 & dt$life_length < x2, "2",
+                                ifelse(dt$life_length >= x2 & dt$life_length < x3, "3", "4")))
+  return(dt)
+}
 
 
-
+# get inactive/active subset of case table
+get_subset_120 <- function(dt, boolean) {
+  dt_subset <- dt[which(dt$touched_120 == boolean),]
+  dt_subset$total_visits_breakdown <- ifelse(dt_subset$total_visits > median(dt_subset$total_visits), "1", "0")
+  return(dt_subset)
+}
 
 
 
