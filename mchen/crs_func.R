@@ -5,20 +5,19 @@ get_inactive_line <- function(d1, d2) {  # d1 format: YY-MM-DD
 }
 
 
-# data by case type
+# get data by case types
 get_case_data <- function(dt, case_type) {
   case_dt <- dt[which(dt$case_type == case_type), ]
   return(case_dt)
 }
 
 
-# total open/closed cases
+# total cases that are 'currently open' since deployment
 get_open_close <- function(dt) {
-  closed <- which(dt$closed == "TRUE")
+  closed <- which(dt$closed == "TRUE")  # total closed cases since deployment
   closed_case <- length(unique(dt[closed,]$case_id))
   open_case <- length(unique(dt$case_id)) - closed_case
-  to_return <- c(open_case, closed_case)
-  return(to_return)
+  return(open_case)
 }
 
 
@@ -66,6 +65,19 @@ get_total_visits <- function(dt) {
 }
 
 
+# get cases created after the beginning of the range 
+get_num_cases_created <-function(dt, d1, d2) {
+  cases_created <- which(as.Date(dt$time_start) > get_inactive_line(d1, d2) & is.na(dt$prev_visit_start))
+  return(length(cases_created))
+}
+
+# get cases closed before the beginning of the date range
+get_num_cases_closed_before_range <- function(dt, d1, d2) {
+  cases_closed_before_range <- which(as.Date(dt$time_start) < get_inactive_line(d1, d2) & dt$closed == "TRUE")
+  return(length(cases_closed_before_range))  
+}
+
+
 # avg. days between each visit 
 get_avg_days_elapsed <- function(dt) {
   library(plyr)
@@ -93,3 +105,21 @@ get_active_users <- function(dt) {
   user_interaction$active <- ifelse(as.Date(user_interaction$last_interaction) >= as.Date(inactive_interaction_line), "yes", "no")
   print(table(user_interaction$active))  
 }
+
+
+# get cases created in last 120 days 
+
+# get cases closed in last 120 days
+
+# get cases that are touched but are open by the date of data export
+
+
+
+
+
+
+
+
+
+
+
