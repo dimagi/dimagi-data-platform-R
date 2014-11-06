@@ -1,3 +1,6 @@
+# Utilify functions to generate case table and same metrics as in WAR and HQ Admin report
+
+
 # date of data export
 export_date <- c("2014-10-12")
 get_inactive_line <- function(d1, d2) {  # d1 format: YY-MM-DD
@@ -105,14 +108,6 @@ get_active_users <- function(dt) {
   user_interaction$active <- ifelse(as.Date(user_interaction$last_interaction) >= as.Date(inactive_interaction_line), "yes", "no")
   print(table(user_interaction$active))  
 }
-
-
-# get cases created in last 120 days 
-
-# get cases closed in last 120 days
-
-# get cases that are touched but are open by the date of data export
-
 
 
 
