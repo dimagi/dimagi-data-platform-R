@@ -131,7 +131,6 @@ get_age_range <- function(dt, x1, x2, x3){
 # get inactive/active subset of case table
 get_subset_120 <- function(dt, boolean) {
   dt_subset <- dt[which(dt$touched_120 == boolean),]
-  dt_subset$total_visits_breakdown <- ifelse(dt_subset$total_visits > median(dt_subset$total_visits), "1", "0")
   return(dt_subset)
 }
 
