@@ -114,11 +114,12 @@ get_interaction_table <- function (db, limit=-1) {
   visit_ids <- paste(visit_res$id,collapse=",")
   
   if (with_limit) { limit_clause <- sprintf(" and form.visit_id in (%s) ", visit_ids)} else {limit_clause <- ""}
-  interactions_q <- sprintf("select cases.case_id, form.visit_id, case_event.created, case_event.updated, case_event.closed
+  interactions_q <- sprintf("select cases.case_id, form.visit_id, bool_or(case_event.created) as created, 
+                    bool_or(case_event.updated) as updated, bool_or(case_event.closed) as closed
                     from cases, case_event, form 
                     where cases.id = case_event.case_id and form.id = case_event.form_id
                     %s
-                    group by cases.case_id, form.visit_id, case_event.created, case_event.updated, case_event.closed",limit_clause)
+                    group by cases.case_id, form.visit_id",limit_clause)
   interactions_res <- do_query(con, interactions_q)
   inter <- merge(visit_res,interactions_res,by.x="id",by.y="visit_id")
   

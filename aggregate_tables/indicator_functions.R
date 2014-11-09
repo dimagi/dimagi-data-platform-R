@@ -73,15 +73,20 @@ numeric_index <- function (x) {
 }
 
 # INTERACTION TABLE INDICATORS:
-ncases_registered <- function(x) sum(x$new_case, na.rm=TRUE)
-register_followup <- function(x) sum(x$follow_up)
-case_register_followup_rate <- function(x) mean(x$follow_up)
-ncases_opened <- function(x) sum(x$new_case)
+ncases_registered <- function(x) sum(x$created, na.rm=TRUE)
+register_followup <- function(x) sum(!x$created)
+case_register_followup_rate <- function(x) mean(!x$created)
+ncases_opened <- function(x) sum(x$created)
 ncases_touched <- function(x) length(unique(x$case_id))
+n_followups <- function(x) {
+  stopifnot(!any(is.na(x$created)))
+  stopifnot(all(x$created == 0 | x$created == 1))
+  return(length(x$case_id[x$created == 0]))
+}
 nunique_followups <- function(x) {
-  stopifnot(!any(is.na(x$follow_up)))
-  stopifnot(all(x$follow_up == 0 | x$follow_up == 1))
-  return(length(x$case_id[x$follow_up == 1]))
+  stopifnot(!any(is.na(x$created)))
+  stopifnot(all(x$created == 0 | x$created == 1))
+  return(length(unique(x$case_id[x$created == 0])))
 }
 
 # DEVICE TYPE TABLE INDICATORS:
