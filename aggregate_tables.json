@@ -30,8 +30,8 @@
                "batch_entry_percent":"batch_entry_percent",
                "morning":"morning",
                "afternoon":"afternoon",
+               "evening":"evening",
                "night":"night",
-               "after_midnight":"after_midnight",
                "time_using_cc":"time_using_cc"
             }
          },
@@ -88,8 +88,8 @@
                "batch_entry_percent":"batch_entry_percent",
                "morning":"morning",
                "afternoon":"afternoon",
+               "evening":"evening",
                "night":"night",
-               "after_midnight":"after_midnight",
                "numeric_index":"numeric_index",
                "time_using_cc":"time_using_cc"
             }

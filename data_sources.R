@@ -17,7 +17,7 @@ get_data_source <- function (db, table_name, limit=-1) {
   })
 }
 
-get_visit_detail <- function(db, limit){
+get_visit_detail <- function(db, limit=-1){
   source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
   print(paste('Fetching visit detail table, limit is ', limit))
   dat <- get_visit_detail_table(db, limit)
@@ -41,28 +41,22 @@ get_visit_detail <- function(db, limit){
   return(dat)
 }
 
-get_interactions <- function(db, limit){
-  source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
+get_interactions <- function(db, limit=-1){
   print(paste('Fetching interactions table, limit is ', limit))
   dat <- get_interaction_table(db, limit)
   
   # Formatting
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
-  
-  # Sorting
   dat <- dat[order(dat$user_id, dat$time_start), ]  # sort visits by user_id and first interaction time
   
-  # days since last visit to a same case by any mobile worker (allows case-sharing)
-  dat <- dat[order(dat$case_id, dat$time_start), ]
-  dat <- within(dat, days_elapsed_case <- daysElapsedCase(case_id, visit_date))
-  dat <- within(dat, new_case <- newCase(days_elapsed_case)) # registering new cases
-  dat <- within(dat, follow_up <- followUp(days_elapsed_case)) # follow up visits
+  # days since last visit to a same case by any mobile worker
+  dat$days_elapsed_case <- as.integer(difftime(dat$time_start, dat$prev_visit_start, units = "days"))
   
   return(dat)
 }
 
-get_device_type <- function(db, limit){
+get_device_type <- function(db, limit=-1){
   print(paste('Fetching device type table, limit is ', limit))
   device_type_table <- get_device_type_table(db, limit)
   device_type_table <- collect (device_type_table)
@@ -70,7 +64,7 @@ get_device_type <- function(db, limit){
   return(device_type_table)
 }
 
-get_device_log_types_by_user <- function(db, limit){
+get_device_log_types_by_user <- function(db, limit=-1){
   print(paste('Fetching device log types table, limit is ', limit))
   logs <- get_device_log_table(db, limit)
   logs_by_type <- logs %.%
