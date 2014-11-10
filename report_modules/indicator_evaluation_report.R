@@ -4,6 +4,7 @@
 
 library(data.table)
 library(zoo)
+detach("package:lubridate")
 library(lubridate)
 library(ggplot2)
 library(scales) #to customize ggplot axis labeling
@@ -18,12 +19,16 @@ source('s_dplyr.R')
 all_monthly <- monthly_table
 
 #Set report_options
-report = "monthly_usage_report"
+report = run_conf$reports$modules$name
 report_options <- get_report_options(run_conf,report)
 
-#Remove demo users
-#We also need to find a way to exclude admin/unknown users
+#Remove demo users and NA/NONE users
+#We also need to find a way to exclude admin/web users
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
+all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
+all_monthly = all_monthly[!is.na(all_monthly$user_id),]
+
 #Remove any dates before report start_date and after report end_date
 names (all_monthly)[names(all_monthly) == "date_first_visit"] = "first_visit_date"
 names (all_monthly)[names(all_monthly) == "date_last_visit"] = "last_visit_date"
