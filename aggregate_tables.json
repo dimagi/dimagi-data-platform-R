@@ -121,7 +121,7 @@
       ]
    },
   {
-    table":"aggregate_monthly_interactions_by_case_type",
+    "table":"aggregate_monthly_interactions_by_case_type",
       "by":[
          "domain",
          "user_id",
