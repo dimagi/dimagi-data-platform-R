@@ -120,5 +120,24 @@
             }
          }
       ]
-   }
+   },
+  {
+    table":"aggregate_monthly_interactions_by_case_type",
+      "by":[
+         "domain",
+         "user_id",
+         "user_pk",
+         "month.index",
+         "case_type"
+      ],
+      "components":[
+         {
+            "table":"interactions",
+            "columns":{
+               "median_days_btw_followup":"median_days_btw_followup"
+            }
+         }
+      ]
+
+  }
 ]

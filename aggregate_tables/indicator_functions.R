@@ -15,9 +15,6 @@ median_visit_duration <- function(x) round(as.numeric(median((x$time_end - x$tim
 time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
 median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
 
-# median time since previous visit (to any case)
-median_time_elapsed_btw_visits <- function(x) median(x$time_since_previous, na.rm=TRUE)
-
 # Proportion of visits by time of day
 morning <- function(x) mean(x$visit_time == 'morning')*100
 afternoon <- function(x) mean(x$visit_time == 'afternoon')*100
@@ -73,21 +70,7 @@ nunique_followups <- function(x) {
   stopifnot(all(x$created == 0 | x$created == 1))
   return(length(unique(x$case_id[x$created == 0])))
 }
-#This should be calculated by case id, so calculated based on interaction table
-median_time_btw_followup <- function(x) {
-  f <- function(block) {
-    sorted.times <- sort(ymd_hms(block$time_start))
-    value <- ifelse(
-      nrow(block) <= 1,
-      NA,
-      difftime(sorted.times[2], sorted.times[1], units='mins')
-    )
-    return(data.frame(followup_time=value))
-  }
-  times <- x %.% group_by(case_id) %.% do(f(.))
-  return(median(times$followup_time, na.rm=TRUE))
-}
-median_days_btw_followup <- function(x) median_time_btw_followup(x) / 60 / 24
+median_days_btw_followup <- function(x) median(x$days_elapsed_case)
 
 # DEVICE TYPE TABLE INDICATORS:
 summary_device_type <- function (x) {
