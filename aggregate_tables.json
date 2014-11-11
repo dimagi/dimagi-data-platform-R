@@ -77,7 +77,6 @@
                "date_first_visit":"date_first_visit",
                "date_last_visit":"date_last_visit",
                "nvisits":"nvisits",
-               "days_on_cc":"days_on_cc",
                "active_days":"active_days",
                "active_day_percent":"active_day_percent",
                "nforms":"nforms",
