@@ -57,7 +57,6 @@ median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visi
 ncases_registered <- function(x) sum(x$created, na.rm=TRUE)
 register_followup <- function(x) sum(!x$created)
 case_register_followup_rate <- function(x) mean(!x$created)*100
-ncases_opened <- function(x) sum(x$created)
 
 ncases_touched <- function(x) length(unique(x$case_id))
 n_followups <- function(x) {
