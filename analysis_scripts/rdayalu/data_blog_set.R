@@ -2,6 +2,9 @@
 #the "Under the Data Tree" data blog series
 
 #First import monthly_table for all test = F domains then run the following code
+#Be sure to set config_run first
+source(file.path("analysis_scripts","raw_data","data_import.R", fsep = .Platform$file.sep))
+
 
 library(data.table)
 library(zoo)
@@ -50,7 +53,6 @@ report = run_conf$reports$modules$name
 report_options <- get_report_options(run_conf,report)
 
 #Remove demo users and NA/NONE users
-#We also need to find a way to exclude admin/web users
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
@@ -66,12 +68,10 @@ all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
 
 #Change column names as needed
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
+names (all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
 
 #Modify relevant variables
-all_monthly$active_day_percent= (all_monthly$active_day_percent)*100
 all_monthly$domain_numeric = as.numeric(as.factor(all_monthly$domain))
-all_monthly$median_visit_duration <- round(all_monthly$median_visit_duration,
-                                           digits = 1)
 
 #Merge domain facets from domain table into all_monthly table
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
@@ -89,15 +89,26 @@ all_monthly <- merge(all_monthly, user_type, by = "user_id", all.x = T)
 all_monthly$user_type[is.na(all_monthly$user_type)] <- "unknown"
 all_monthly <- filter(all_monthly, user_type == "mobile" | user_type == "unknown")
 
+#Exclude any users who logged > 100 visits in any month
+#These are probably atypical users
+all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
+user_ge_100 <- all_monthly %.%
+  group_by(user_id) %.%
+  summarise(ge_100 = sum(visits_ge_100))
+user_le_100 <- filter(user_ge_100, ge_100 == 0)
+#696 users have only <= 100 visits per month
+all_monthly <- all_monthly[all_monthly$user_id %in% user_le_100$user_id, ]
+
 #Calculate differences between month_index to calculate next_month_active and 
 #previous_month_active variables
 all_monthly <- arrange(all_monthly, domain_numeric, user_pk, calendar_month)
 df <- data.table(all_monthly)
-#Can we setkey by domain and user_id since some user_ids might be the same?
 setkey(df,user_pk)
 df[,diff_days:=c(NA,diff(calendar_month)),by=user_pk]
 all_monthly <- as.data.frame(df)
 all_monthly$previous_month_active <- all_monthly$diff_days <= 31
+all_monthly$previous_two_months_active <- all_monthly$diff_days <= 62
+all_monthly$previous_three_months_active <- all_monthly$diff_days <= 93
 
 users <- unique(all_monthly$user_pk)
 
@@ -110,18 +121,50 @@ for (i in users) {
 }
 all_monthly$next_month_active <- next_month_active
 
+next_two_months_active <- c()
+for (i in users) {
+  single_user <- all_monthly[all_monthly$user_pk == i,]
+  next_active <- c()
+  next_active <- append(single_user$previous_two_months_active[-1], F)
+  next_two_months_active <- append(next_two_months_active, next_active)
+}
+all_monthly$next_two_months_active <- next_two_months_active
+
+next_three_months_active <- c()
+for (i in users) {
+  single_user <- all_monthly[all_monthly$user_pk == i,]
+  next_active <- c()
+  next_active <- append(single_user$previous_three_months_active[-1], F)
+  next_three_months_active <- append(next_three_months_active, next_active)
+}
+all_monthly$next_three_months_active <- next_three_months_active
+
 #If calendar_month = 10/1/14 then next_month_active = NA
 #because we don't know if the user will be active in the following month
 is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == "2014-10-01"
+is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= "2014-09-01"
+is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= "2014-08-01"
 
 #Get lifetime table for total nunique_followups, active_months per user
 lifetime_table <- get_aggregate_table(db, "aggregate_lifetime_interactions", domains_for_run)
 lifetime_table <- lifetime_table[lifetime_table$user_pk %in% all_monthly$user_pk,]
 
 #Merge nunique_followups, active_months to all_monthly
-lifetime_table <- select(lifetime_table, user_pk, nunique_followups, active_months)
+lifetime_table <- select(lifetime_table, user_pk, nunique_followups, active_months, calendar_month_on_cc)
 names(lifetime_table)[names(lifetime_table) == "nunique_followups"] = "lifetime_followup"
+names(lifetime_table)[names(lifetime_table) == "calendar_month_on_cc"] = "months_on_cc"
 all_monthly <- merge(all_monthly, lifetime_table, by = "user_pk", all.x = T)
+
+#Exclude a sample of 1241 users from pathfinder-moz-fp-test so that each domain contributes only 
+#< 5% of the total users
+exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pathfinder-moz-fp-test"]), 1241)
+all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude_users_pathfinder),]
+
+#Was the user ever active again after an attrition event (defined as next_month_active == F)?
+all_monthly$attrition_event <- !(all_monthly$next_month_active == T | is.na(all_monthly$next_month_active))
+all_monthly$continuing <- all_monthly$month_index < all_monthly$months_on_cc
+all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$continuing == T
+is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
 #----------------------------------------------------------------------#
 #Random analysis code
 #----------------------------------------------------------------------#
