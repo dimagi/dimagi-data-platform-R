@@ -35,6 +35,7 @@
          {
             "table":"interactions",
             "columns":{
+               "ninteractions":"ninteractions",
                "ncases_registered":"ncases_registered",
                "register_followup":"register_followup",
                "case_register_followup_rate":"case_register_followup_rate",
@@ -89,6 +90,7 @@
          {
             "table":"interactions",
             "columns":{
+               "ninteractions":"ninteractions",
                "ncases_registered":"ncases_registered",
                "register_followup":"register_followup",
                "case_register_followup_rate":"case_register_followup_rate",
@@ -125,7 +127,27 @@
          {
             "table":"interactions",
             "columns":{
-               "median_days_btw_followup":"median_days_btw_followup"
+               "median_days_btw_followup":"median_days_btw_followup",
+               "register_followup":"register_followup"
+            }
+         }
+      ]
+
+  },
+{
+    "table":"aggregate_lifetime_interactions_by_case_type",
+      "by":[
+         "domain",
+         "user_id",
+         "user_pk",
+         "case_type"
+      ],
+      "components":[
+         {
+            "table":"interactions",
+            "columns":{
+               "median_days_btw_followup":"median_days_btw_followup",
+               "register_followup":"register_followup"
             }
          }
       ]

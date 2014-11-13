@@ -50,6 +50,7 @@ active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
 median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visit_date))), na.rm=TRUE)
 
 # INTERACTION TABLE INDICATORS:
+ninteractions <- function(x) NROW(x)
 ncases_registered <- function(x) sum(x$created, na.rm=TRUE)
 register_followup <- function(x) sum(!x$created)
 case_register_followup_rate <- function(x) mean(!x$created)*100
