@@ -112,8 +112,8 @@ get_interaction_table <- function (db, limit=-1) {
   
   if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
   visit_q <- sprintf("select domain.name as domain, vis.id, users.id as user_pk,users.user_id, vis.time_start, vis.time_end 
-              from %s, users, domain 
-              where vis.user_id = users.id and visit.domain_id = domain.id", limit_clause)
+              from %s, users, domain
+              where vis.user_id = users.id and vis.domain_id = domain.id", limit_clause)
   visit_res <- do_query(con, visit_q)
   visit_ids <- paste(visit_res$id,collapse=",")
   
@@ -167,19 +167,20 @@ return(res)
 
 # user_id, username, user_type (web/mobile), is_superuser for all users
 get_user_table <- function(db){
-  mobile_users_q <- "select users.id as user_pk,users.user_id, users.username
-            from user, mobile_user
+  mobile_users_q <- "select users.id as user_pk, users.user_id, users.username
+            from users, mobile_user
             where users.id = mobile_user.user_pk"
-  mobile_users <- tbl(db,sql(mobile_users_q))
+  mobile_users <- collect(tbl(db,sql(mobile_users_q)))
   mobile_users$user_type <- 'mobile'
+  mobile_users$is_superuser <- NA
   
-  web_users_q <- "users.id as user_pk,users.user_id, users.username, web_user.is_superuser
+  web_users_q <- "select users.id as user_pk, users.user_id, users.username, web_user.is_superuser
             from users, web_user
             where users.id = web_user.user_pk"
-  web_users <- tbl(db,sql(web_users_q))
+  web_users <- collect(tbl(db,sql(web_users_q)))
   web_users$user_type <- 'web'
   
-  res <- rbind.fill(mobile_users, web_users)
+  res <- rbind(mobile_users, web_users)
   return(res)
 }
 
