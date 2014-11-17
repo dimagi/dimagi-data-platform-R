@@ -56,7 +56,8 @@ get_domain_table <- function (db) {
 # returns visit table for use in visit detail data source
 get_visit_detail_table <- function (db, limit=-1) {
   con <- db$con
-  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.id as user_pk,users.user_id, domain.name as domain
+  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.id as user_pk,
+            users.user_id, domain.name as domain
             from form, visit, users, domain
             where form.visit_id = visit.id and visit.user_id = users.id and form.domain_id = domain.id
             group by visit.id, visit.time_start, visit.time_end, users.id, users.user_id, domain.name'
@@ -75,12 +76,15 @@ get_visit_detail_table <- function (db, limit=-1) {
   total_forms_res <- do_query(con, total_forms_q)
   v <- merge(v,total_forms_res,by.x="id",by.y="id")
   
-  time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) over (partition by visit.user_id order by time_start)) as time_since_previous from visit order by visit.user_id, time_start"
+  time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) 
+                      over (partition by visit.user_id order by time_start)) as time_since_previous 
+                      from visit order by visit.user_id, time_start"
   time_since_prev_res <- do_query(con, time_since_prev_q)
   v <- merge(v,time_since_prev_res,by.x="id",by.y="id",all.x=T,all.y=F)
   
   if (with_limit) { limit_clause <- sprintf(" and visit.id in (%s) ", visit_ids)} else {limit_clause <- ""}
-  total_form_durations_q <- sprintf("select visit.id, extract('epoch' from sum(form.time_end - form.time_start)) as form_duration
+  total_form_durations_q <- sprintf("select visit.id, 
+                            extract('epoch' from sum(form.time_end - form.time_start)) as form_duration
                             from form, visit where form.visit_id = visit.id %s
                             group by visit.id",limit_clause)
   total_form_durations_res <- do_query(con, total_form_durations_q)
@@ -108,8 +112,8 @@ get_interaction_table <- function (db, limit=-1) {
   
   if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
   visit_q <- sprintf("select domain.name as domain, vis.id, users.id as user_pk,users.user_id, vis.time_start, vis.time_end 
-              from %s, users, domain 
-              where vis.user_id = users.id and users.domain_id = domain.id", limit_clause)
+              from %s, users, domain
+              where vis.user_id = users.id and vis.domain_id = domain.id", limit_clause)
   visit_res <- do_query(con, visit_q)
   visit_ids <- paste(visit_res$id,collapse=",")
   
@@ -131,7 +135,8 @@ get_interaction_table <- function (db, limit=-1) {
                                and form.visit_id = visit.id
                                group by cases.case_id, cases.case_type, visit.id, visit.time_start)
                                select case_visits.case_id, case_visits.case_type, case_visits.visit_id, 
-                               lag(case_visits.time_start,1) over (partition by case_visits.case_id order by case_visits.time_start) as prev_visit_start
+                               lag(case_visits.time_start,1) over (partition by case_visits.case_id 
+                               order by case_visits.time_start) as prev_visit_start
                                from case_visits'
   
   case_followup_res <- do_query(con, case_followup_query)
@@ -160,15 +165,33 @@ res <- tbl(db,sql(query))
 return(res)
 }
 
-# domain, user_id, username, first_submission date for all users
+# user_id, username, user_type (web/mobile), is_superuser for all users
 get_user_table <- function(db){
-  query <- "select domain.name as domain, users.id as user_pk,users.user_id, users.username, min(form.time_start) as first_submission
-            from domain, users, form
-            where users.domain_id = domain.id
-            and form.user_id = users.id
-            group by domain.name, users.id as user_pk,users.user_id, users.username"
-  res <- tbl(db,sql(query))
+  mobile_users_q <- "select users.id as user_pk, users.user_id, users.username
+            from users, mobile_user
+            where users.id = mobile_user.user_pk"
+  mobile_users <- collect(tbl(db,sql(mobile_users_q)))
+  mobile_users$user_type <- 'mobile'
+  mobile_users$is_superuser <- NA
+  
+  web_users_q <- "select users.id as user_pk, users.user_id, users.username, web_user.is_superuser
+            from users, web_user
+            where users.id = web_user.user_pk"
+  web_users <- collect(tbl(db,sql(web_users_q)))
+  web_users$user_type <- 'web'
+  
+  res <- rbind(mobile_users, web_users)
   return(res)
+}
+
+# domain, user_id, first submission in that domain for all users
+get_first_submission <- function(db){
+  q <- "select domain.name, users.user_id, min(time_start) from domain, form, users
+        where form.user_id = users.id
+        and form.domain_id = domain.id
+        group by users.user_id, domain.name"
+  res <- tbl(db,sql(q))
+  return (res)
 }
   
 get_device_log_table <- function(db, limit){
