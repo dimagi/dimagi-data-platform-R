@@ -51,30 +51,36 @@ names (all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
 #Create "red herring" indicators
 #domain to numeric: First convert from character to factor
 all_monthly$domain_numeric <- as.numeric(as.factor(all_monthly$domain))
+#User_pk as num_user_pk because we need user_pk as a grouping variable
+all_monthly$num_user_pk <- all_monthly$user_pk
 #Random numbers per row, using wide range (5x nrow), not specifying distribution, mean or sd
 all_monthly$sample_undefined <- sample(1:(5*nrow(all_monthly)), nrow(all_monthly), replace=F)
 #Random numbers per row, normal distribution, defining mean and sd
 all_monthly$sample_normal <- rnorm(nrow(all_monthly), mean = 10, sd = 1)
-
-#Merge domain facets from domain table into all_monthly table
-facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit, active, Test.Project.)
-all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
-                     by.y = "name", all.x = T)
+#Add sample_percentile variable
+all_monthly$sample_percentile <- sample(1:100, nrow(all_monthly), replace=T)
 
 #Convert calendar month to actual date
 all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
 all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 
+#Add sample_increase variable: increasing by steady increments of 1
+all_monthly <- arrange(all_monthly, user_pk, calendar_month)
+all_monthly$sample_increase <- c(1:nrow(all_monthly))
+#Add sample_decrease variable: decreasing by steady increments of 1
+all_monthly$sample_decrease <- rev(c(1:nrow(all_monthly)))
+
 #------------------------------------------------------------------------#
 #Tests for usage indicator evaluation
 #------------------------------------------------------------------------#
 
-indicators_to_test = c("nvisits", "active_day_percent", "median_visits_per_day", 
-                       "ncases_registered", "nunique_followups", "median_visit_duration", 
-                       "nforms", "user_numeric", "domain_numeric", "sample_undefined",
-                       "sample_normal")
+indicators = c("nvisits", "active_day_percent", "nforms", "median_visit_duration", 
+                       "median_visits_per_day", "time_using_cc", "ninteractions", 
+                       "ncases_registered", "register_followup", "case_register_followup_rate", 
+                       "ncases_touched", "nunique_followups", "audio_plays", "network_warnings", 
+                       "num_user_pk", "domain_numeric", "sample_undefined", "sample_normal", 
+                       "sample_percentile", "sample_increase", "sample_decrease")
 
 #Health sector domains to exclude because median 
 #cases followed-up per domain == 0

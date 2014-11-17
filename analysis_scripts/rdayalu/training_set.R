@@ -18,30 +18,42 @@ month_count <- filter(month_count, months_on_cc >= 4)
 training_typical <- 
   training_typical[training_typical$user_id %in% month_count$user_id, ]
 
-#Add sample_percentile variable
-training_typical$sample_percentile <- 
-  sample(1:100, nrow(training_typical), replace=T)
-
-#Add sample_per_diff variable
-training_typical$sample_per_diff <- 
-  sample(-100:100, nrow(training_typical), replace=T)
-
 #Calculate differences between month_index to calculate next_month_active and 
 #previous_month_active variables
-training_typical <- arrange(training_typical, domain_numeric, user_id, 
-                          calendar_month)
+#Also want differences between indicators for each user from one month to the next
+#Differences in indicators will be used for tests 1a/b
+training_typical <- arrange(training_typical, user_pk, calendar_month)
 df <- data.table(training_typical)
-setkey(df,user_id)
-df[,diff_days:=c(NA,diff(calendar_month)),by=user_id]
-df[,diff_nvisits:=c(NA,diff(nvisits)),by=user_id]
+setkey(df,user_pk)
+df[,diff_days:=c(NA,diff(calendar_month)),by=user_pk]
+df[,diff_nvisits:=c(NA,diff(nvisits)),by=user_pk]
+df[,diff_active_day_percent:=c(NA,diff(active_day_percent)),by=user_pk]
+df[,diff_nforms:=c(NA,diff(nforms)),by=user_pk]
+df[,diff_median_visit_duration:=c(NA,diff(median_visit_duration)),by=user_pk]
+df[,diff_median_visits_per_day:=c(NA,diff(median_visits_per_day)),by=user_pk]
+df[,diff_time_using_cc:=c(NA,diff(time_using_cc)),by=user_pk]
+df[,diff_ninteractions:=c(NA,diff(ninteractions)),by=user_pk]
+df[,diff_ncases_registered:=c(NA,diff(ncases_registered)),by=user_pk]
+df[,diff_register_followup:=c(NA,diff(register_followup)),by=user_pk]
+df[,diff_case_register_followup_rate:=c(NA,diff(case_register_followup_rate)),by=user_pk]
+df[,diff_ncases_touched:=c(NA,diff(ncases_touched)),by=user_pk]
+df[,diff_nunique_followups:=c(NA,diff(nunique_followups)),by=user_pk]
+df[,diff_audio_plays:=c(NA,diff(audio_plays)),by=user_pk]
+df[,diff_network_warnings:=c(NA,diff(network_warnings)),by=user_pk]
+df[,diff_num_user_pk:=c(NA,diff(num_user_pk)),by=user_pk]
+df[,diff_domain_numeric:=c(NA,diff(domain_numeric)),by=user_pk]
+df[,diff_sample_undefined:=c(NA,diff(sample_undefined)),by=user_pk]
+df[,diff_sample_normal:=c(NA,diff(sample_normal)),by=user_pk]
+df[,diff_sample_percentile:=c(NA,diff(sample_percentile)),by=user_pk]
+df[,diff_sample_increase:=c(NA,diff(sample_increase)),by=user_pk]
+df[,diff_sample_decrease:=c(NA,diff(sample_decrease)),by=user_pk]
 training_typical <- as.data.frame(df)
 training_typical$previous_month_active <- training_typical$diff_days <= 31
-
-users <- unique(training_typical$user_id)
+users <- unique(training_typical$user_pk)
 
 next_month_active <- c()
 for (i in users) {
-  single_user <- training_typical[training_typical$user_id == i,]
+  single_user <- training_typical[training_typical$user_pk == i,]
   next_active <- c()
   next_active <- append(single_user$previous_month_active[-1], F)
   next_month_active <- append(next_month_active, next_active)
@@ -51,22 +63,15 @@ training_typical$next_month_active <- next_month_active
 #because we don't know if the user will be active in the following month
 is.na(training_typical$next_month_active) <- training_typical$calendar_month == "2014-10-01"
 
-# % difference in nvisits for each user for consectutive months
-# This isn't for truly consecutive months, so later on, 
-# we will only use rows with previous_month_active == T
-per_diff_nvisits <- c()
-for (i in users) {
-  single_user <- training_typical[training_typical$user_id == i,]
-  prev_visits <- c()
-  prev_visits <- append(NA, single_user$nvisits)
-  prev_visits <- prev_visits[-length(prev_visits)]
-  per_diff <- c()
-  per_diff <- (single_user$diff_nvisits/prev_visits)*100
-  per_diff_nvisits <- append(per_diff_nvisits, per_diff)
-}
-training_typical$per_diff_nvisits <- per_diff_nvisits
+#Sample 43 users from largest domain (tulasalud)
+#Need to exclude 264 users
+nusers_domain <- training_typical %>% group_by(domain) %>% summarise(nusers = length(unique(user_pk)))
+exclude_users_tula <- sample(unique(training_typical$user_pk[training_typical$domain == "tulasalud"]), 264)
+training_typical <- training_typical[!(training_typical$user_pk %in% exclude_users_tula),]
 
+#------------------------------------------------------------------------#
 #General plots
+#------------------------------------------------------------------------#
 #Number of users by calendar month
 n_user <- training_typical %.% 
   group_by(calendar_month) %.% 
@@ -91,138 +96,93 @@ dev.off()
 #------------------------------------------------------------------------#
 #Code for Test 1
 #------------------------------------------------------------------------#
+# % difference in indicators for each user for consectutive months
+# This isn't for truly consecutive months, so later on, 
+# we will only use rows with previous_month_active == T
+#This will be used for test 1b
+source(file.path("analysis_scripts","rdayalu","test_1b.R", fsep = .Platform$file.sep))
 
-#Calculate median absolute deviation (MAD) per calendar month
-#Use this to calculate rCV for the domain per calendar month
-test_1 <- function(data) {
-  
-  test_1_compute <- data %.%
-    group_by(domain, calendar_month) %.%
-    summarise(median_indicator=median(nvisits, na.rm=TRUE), 
-              mad_indicator=mad(nvisits, na.rm=TRUE))
-  
-  test_1_compute$rcv = (test_1_compute$mad_indicator/test_1_compute$median_indicator)*100
-  
-  #Compute CV of CVs by project
-  test_1_gp_cv = group_by(test_1_compute, domain)
-  test_1_compute_cv = summarise(test_1_gp_cv,
-                                median_indicator = median(rcv, na.rm = T),
-                                mad_indicator = mad(rcv, na.rm=T))
-  test_1_compute_cv$rcv = (test_1_compute_cv$mad_indicator/test_1_compute_cv$median_indicator)*100
-  test_1_score = median(test_1_compute_cv$rcv)
-  #return(test_1_score)
-  return(test_1_compute)
-}
+#Must only include rows with previous_month_active == T/NA. 
+#We need to keep previous_month_active = NA because the indicator values for that 
+#month's row needs to contribute to the domain median.
+training_consec <- filter(training_typical, previous_month_active == T | 
+                            is.na(previous_month_active))
+training_consec$concat <- paste(training_consec$user_pk, training_consec$calendar_month, 
+                                sep = "_") 
 
-test_1_compute <- data.frame(test_1(tula_data))
 
-#Plot rCV
-g <- ggplot(test_1_compute, aes(x=calendar_month, y=median_indicator, group = 1)) + 
-  geom_line(colour="blue", size=1.0) + 
-  geom_errorbar(aes(ymin=median_indicator-mad_indicator, ymax=median_indicator+mad_indicator), 
-                width=.3, colour = "black")
+#Exclude domain calendar_months with nusers < 5 for that domain
+#Use this dataset only for test 1a/1b
+nusers <- training_consec %>% 
+  group_by(domain, calendar_month) %>% 
+  summarise(nusers = length(unique(user_pk)))
+nusers <- filter(nusers, nusers >= 5)
+nusers$concat <- paste(nusers$domain, nusers$calendar_month, sep = "_")
+training_consec <- 
+  training_consec[paste(training_consec$domain, training_consec$calendar_month, sep = "_") %in% 
+                     nusers$concat, ]
 
-g <- ggplot(test_1_compute, aes(x=calendar_month, y=rcv)) +
-  geom_point(size = 6, shape = 19, alpha = 0.5, colour = "red", 
-             fill = "pink") +
-  geom_line(colour = "red") + 
-  scale_size_area() + 
-  scale_y_continuous(limits=c(0,100)) +
-  xlab("Calendar month") +
-  ylab("rCV(%)") +
-  theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                 face="bold")) + 
-  ggtitle("rCV(%) by calendar month") +
-  theme(plot.title = element_text(size=14, face="bold"))
+#Domain median ABSOLUTE change per user per calendar month, 
+#excluding each user from the domain median for that user's row
+#This is used for test 1a
+source(file.path("analysis_scripts","rdayalu","test_1a.R", fsep = .Platform$file.sep))
 
-#Domain median absolute change per user per calendar month, excluding each user from the median
-#Must only include rows with previous_month_active == T in any median calculations
-#So we should have 2093 domain median values (91 users * (24-1) calendar months) 
+#Domain median PERCENTAGE change per user per calendar month, 
+#excluding each user from the domain median for that user's row
+source(file.path("analysis_scripts","rdayalu","test_1b_2.R", fsep = .Platform$file.sep))
 
-tula_consec <- tula_data[tula_data$previous_month_active == T,]
+names(training_consec)
+diff_indicator <- names(training_consec[41:61])
+per_diff_indicator <- names(training_consec[64:84])
 
-#Initialize dataframe
-detach("package:data.table")
-tula_median_abs_change <- data.frame(matrix(ncol = 3, nrow = 1)) 
-names(tula_median_abs_change) <- c("calendar_month", "med_domain_abs_change", "user_id")
-tula_median_abs_change$calendar_month <- as.Date(tula_median_abs_change$calendar_month)
-tula_median_abs_change$user_id <- as.factor(tula_median_abs_change$user_id)
+test_1a <- 
+  c(cor(training_consec$med_nvisits_1a, training_consec$diff_nvisits, use = "complete.obs"),
+    cor(training_consec$med_active_day_percent_1a, training_consec$diff_active_day_percent, use = "complete.obs"),
+    cor(training_consec$med_nforms_1a, training_consec$diff_nforms, use = "complete.obs"),
+    cor(training_consec$med_median_visit_duration_1a, training_consec$diff_median_visit_duration, use = "complete.obs"),
+    cor(training_consec$med_median_visits_per_day_1a, training_consec$diff_median_visits_per_day, use = "complete.obs"),
+    cor(training_consec$med_time_using_cc_1a, training_consec$diff_time_using_cc, use = "complete.obs"),
+    cor(training_consec$med_ninteractions_1a, training_consec$diff_ninteractions, use = "complete.obs"),
+    cor(training_consec$med_ncases_registered_1a, training_consec$diff_ncases_registered, use = "complete.obs"),
+    cor(training_consec$med_register_followup_1a, training_consec$diff_register_followup, use = "complete.obs"),
+    cor(training_consec$med_case_register_followup_rate_1a, training_consec$diff_case_register_followup_rate, use = "complete.obs"),
+    cor(training_consec$med_ncases_touched_1a, training_consec$diff_ncases_touched, use = "complete.obs"),
+    cor(training_consec$med_nunique_followups_1a, training_consec$diff_nunique_followups, use = "complete.obs"),
+    cor(training_consec$med_audio_plays_1a, training_consec$diff_audio_plays, use = "complete.obs"),
+    cor(training_consec$med_network_warnings_1a, training_consec$diff_network_warnings, use = "complete.obs"),
+    cor(training_consec$med_num_user_pk_1a, training_consec$diff_num_user_pk, use = "complete.obs"),
+    cor(training_consec$med_domain_numeric_1a, training_consec$diff_domain_numeric, use = "complete.obs"),
+    cor(training_consec$med_sample_undefined_1a, training_consec$diff_sample_undefined, use = "complete.obs"),
+    cor(training_consec$med_sample_normal_1a, training_consec$diff_sample_normal, use = "complete.obs"),
+    cor(training_consec$med_sample_percentile_1a, training_consec$diff_sample_percentile, use = "complete.obs"),
+    cor(training_consec$med_sample_increase_1a, training_consec$diff_sample_increase, use = "complete.obs"),
+    cor(training_consec$med_sample_decrease_1a, training_consec$diff_sample_decrease, use = "complete.obs"))
+names(test_1a) <- indicators
 
-for (i in users) {
-  exclude_user <- tula_consec[tula_consec$user_id != i,]
-  exclude_user_median <- exclude_user %.% 
-    group_by(calendar_month) %.%
-    summarise(med_domain_abs_change = median(diff_nvisits, na.rm = T),
-              user_id = i)
-  exclude_user_median <- exclude_user_median[!(is.na(exclude_user_median$calendar_month)), ]
-  tula_median_abs_change <- rbind(tula_median_abs_change, exclude_user_median)
-}
+test_1b <- 
+  c(cor(training_consec$med_nvisits_1b, training_consec$per_diff_nvisits, use = "complete.obs"),
+    cor(training_consec$med_active_day_percent_1b, training_consec$per_diff_active_day_percent, use = "complete.obs"),
+    cor(training_consec$med_nforms_1b, training_consec$per_diff_nforms, use = "complete.obs"),
+    cor(training_consec$med_median_visit_duration_1b, training_consec$per_diff_median_visit_duration, use = "complete.obs"),
+    cor(training_consec$med_median_visits_per_day_1b, training_consec$per_diff_median_visits_per_day, use = "complete.obs"),
+    cor(training_consec$med_time_using_cc_1b, training_consec$per_diff_time_using_cc, use = "complete.obs"),
+    cor(training_consec$med_ninteractions_1b, training_consec$per_diff_ninteractions, use = "complete.obs"),
+    cor(training_consec$med_ncases_registered_1b, training_consec$per_diff_ncases_registered, use = "complete.obs"),
+    cor(training_consec$med_register_followup_1b, training_consec$per_diff_register_followup, use = "complete.obs"),
+    cor(training_consec$med_case_register_followup_rate_1b, training_consec$per_diff_case_register_followup_rate, use = "complete.obs"),
+    cor(training_consec$med_ncases_touched_1b, training_consec$per_diff_ncases_touched, use = "complete.obs"),
+    cor(training_consec$med_nunique_followups_1b, training_consec$per_diff_nunique_followups, use = "complete.obs"),
+    cor(training_consec$med_audio_plays_1b, training_consec$per_diff_audio_plays, use = "complete.obs"),
+    cor(training_consec$med_network_warnings_1b, training_consec$per_diff_network_warnings, use = "complete.obs"),
+    cor(training_consec$med_num_user_pk_1b, training_consec$per_diff_num_user_pk, use = "complete.obs"),
+    cor(training_consec$med_domain_numeric_1b, training_consec$per_diff_domain_numeric, use = "complete.obs"),
+    cor(training_consec$med_sample_undefined_1b, training_consec$per_diff_sample_undefined, use = "complete.obs"),
+    cor(training_consec$med_sample_normal_1b, training_consec$per_diff_sample_normal, use = "complete.obs"),
+    cor(training_consec$med_sample_percentile_1b, training_consec$per_diff_sample_percentile, use = "complete.obs"),
+    cor(training_consec$med_sample_increase_1b, training_consec$per_diff_sample_increase, use = "complete.obs"),
+    cor(training_consec$med_sample_decrease_1b, training_consec$per_diff_sample_decrease, use = "complete.obs"))
+names(test_1b) <- indicators
 
-tula_median_abs_change <- tula_median_abs_change[!(is.na(tula_median_abs_change$calendar_month)), ]
-
-#Domain median % change per user per calendar month, excluding each user from the median
-#Must only include rows with previous_month_active == T in any median calculations
-#So we should have 2093 domain median values (91 users * (24-1) calendar months) 
-
-#Initialize dataframe
-tula_median_per_change <- data.frame(matrix(ncol = 3, nrow = 1)) 
-names(tula_median_per_change) <- c("calendar_month", "med_domain_per_change", "user_id")
-tula_median_per_change$calendar_month <- as.Date(tula_median_per_change$calendar_month)
-tula_median_per_change$user_id <- as.factor(tula_median_per_change$user_id)
-
-for (i in users) {
-  exclude_user <- tula_consec[tula_consec$user_id != i,]
-  exclude_user_median <- exclude_user %.% 
-    group_by(calendar_month) %.%
-    summarise(med_domain_per_change = median(per_diff_nvisits, na.rm = T),
-              user_id = i)
-  exclude_user_median <- exclude_user_median[!(is.na(exclude_user_median$calendar_month)), ]
-  tula_median_per_change <- rbind(tula_median_per_change, exclude_user_median)
-}
-
-tula_median_per_change <- tula_median_per_change[!(is.na(tula_median_per_change$calendar_month)), ]
-
-#Domain median sample_percentage change per user per calendar month, excluding each user from the median
-#Must only include rows with previous_month_active == T in any median calculations
-#So we should have 2093 domain median values (91 users * (24-1) calendar months) 
-
-#Initialize dataframe
-tula_median_sample_change <- data.frame(matrix(ncol = 3, nrow = 1)) 
-names(tula_median_sample_change) <- c("calendar_month", "med_domain_sample_change", "user_id")
-tula_median_sample_change$calendar_month <- as.Date(tula_median_sample_change$calendar_month)
-tula_median_sample_change$user_id <- as.factor(tula_median_sample_change$user_id)
-
-for (i in users) {
-  exclude_user <- tula_consec[tula_consec$user_id != i,]
-  exclude_user_median <- exclude_user %.% 
-    group_by(calendar_month) %.%
-    summarise(med_domain_sample_change = median(sample_per_diff, na.rm = T),
-              user_id = i)
-  exclude_user_median <- exclude_user_median[!(is.na(exclude_user_median$calendar_month)), ]
-  tula_median_sample_change <- rbind(tula_median_sample_change, exclude_user_median)
-}
-
-tula_median_sample_change <- tula_median_sample_change[!(is.na(tula_median_sample_change$calendar_month)), ]
-
-#Merge med_domain_abs_change and med_domain_per_change to tula_consec
-tula_consec <- merge(tula_consec, tula_median_abs_change, by = c("user_id", "calendar_month"), 
-                     all.x = T)
-tula_consec <- merge(tula_consec, tula_median_per_change, by = c("user_id", "calendar_month"), 
-                     all.x = T)
-tula_consec <- merge(tula_consec, tula_median_sample_change, by = c("user_id", "calendar_month"), 
-                     all.x = T)
-
-g <- ggplot(data=tula_median_abs_change, aes(x=calendar_month, y=med_domain_abs_change)) + 
-  geom_line(colour="black", size=1.0) + 
-  geom_point(colour="red", size=3, shape=21, fill="red")
-
-g <- ggplot(data=tula_median_per_change, aes(x=calendar_month, y=med_domain_per_change)) + 
-  geom_line(colour="black", size=1.0) + 
-  geom_point(colour="red", size=3, shape=21, fill="red")
-
-g <- ggplot(data=tula_median_sample_change, aes(x=calendar_month, y=med_domain_sample_change)) + 
-  geom_line(colour="black", size=1.0) + 
-  geom_point(colour="red", size=3, shape=21, fill="red")
 
 #Pairwise plots of absolute and % changes for individual FLWs by domain medians
 g <- ggplot(tula_consec, aes(x=med_domain_abs_change, y=diff_nvisits)) +
@@ -230,171 +190,67 @@ g <- ggplot(tula_consec, aes(x=med_domain_abs_change, y=diff_nvisits)) +
   #scale_y_continuous(limits=c(-100,100)) +
   geom_smooth(method=lm)
 
-cor(tula_consec$med_domain_abs_change, 
-    tula_consec$diff_nvisits, use = "complete.obs")
-
-g <- ggplot(tula_consec, aes(x=med_domain_per_change, y=per_diff_nvisits)) +
-  geom_point(shape=1) +
-  scale_y_continuous(limits=c(-100,100)) +
-  geom_smooth(method=lm)
-
-cor(tula_consec$med_domain_per_change, 
-    tula_consec$per_diff_nvisits, use = "complete.obs")
-
-g <- ggplot(tula_consec, aes(x=med_domain_sample_change, y=sample_per_diff)) +
-  geom_point(shape=1) +
-  #scale_y_continuous(limits=c(-100,100)) +
-  geom_smooth(method=lm)
-
-cor(tula_consec$med_domain_sample_change, 
-    tula_consec$sample_per_diff, use = "complete.obs")
-
 
 #------------------------------------------------------------------------#
 #Code for Test 2
 #------------------------------------------------------------------------#
 
-percentile <- function(x) rank(x, ties.method = "average")/length(x)*100
-percentile_s <- paste0('percentile=percentile(', 'nvisits', ')')
+#Previous month's indicator value
+training_typical$prev_nvisits <- training_typical$nvisits - training_typical$diff_nvisits
+training_typical$prev_active_day_percent <- training_typical$active_day_percent - training_typical$diff_active_day_percent
+training_typical$prev_nforms<- training_typical$nforms - training_typical$diff_nforms
+training_typical$prev_median_visit_duration <- training_typical$median_visit_duration - training_typical$diff_median_visit_duration
+training_typical$prev_median_visits_per_day <- training_typical$median_visits_per_day - training_typical$diff_median_visits_per_day
+training_typical$prev_time_using_cc <- training_typical$time_using_cc - training_typical$diff_time_using_cc
+training_typical$prev_ninteractions <- training_typical$ninteractions - training_typical$diff_ninteractions
+training_typical$prev_ncases_registered <- training_typical$ncases_registered - training_typical$diff_ncases_registered
+training_typical$prev_register_followup <- training_typical$register_followup - training_typical$diff_register_followup
+training_typical$prev_case_register_followup_rate <- training_typical$case_register_followup_rate - training_typical$diff_case_register_followup_rate
+training_typical$prev_ncases_touched <- training_typical$ncases_touched - training_typical$diff_ncases_touched
+training_typical$prev_nunique_followups <- training_typical$nunique_followups - training_typical$diff_nunique_followups
+training_typical$prev_audio_plays <- training_typical$audio_plays - training_typical$diff_audio_plays
+training_typical$prev_network_warnings <- training_typical$network_warnings- training_typical$diff_network_warnings
+training_typical$prev_num_user_pk <- training_typical$num_user_pk - training_typical$diff_num_user_pk
+training_typical$prev_domain_numeric <- training_typical$domain_numeric - training_typical$diff_domain_numeric
+training_typical$prev_sample_undefined <- training_typical$sample_undefined - training_typical$diff_sample_undefined
+training_typical$prev_sample_normal <- training_typical$sample_normal - training_typical$diff_sample_normal
+training_typical$prev_sample_percentile <- training_typical$sample_percentile - training_typical$diff_sample_percentile
+training_typical$prev_sample_increase <- training_typical$sample_increase - training_typical$diff_sample_increase
+training_typical$prev_sample_decrease <- training_typical$sample_decrease - training_typical$diff_sample_decrease
 
-raw_percentile <- tula_data %.%
-  group_by(domain, calendar_month) %.%
-  s_mutate(percentile_s)
+test2_data <- filter(training_typical, previous_month_active == T)
 
-test_2_compute <- raw_percentile %.%
-  group_by(domain, user_id) %.%
-  summarise(
-    median_indicator=median(percentile, na.rm=TRUE),
-    mad_indicator=mad(percentile, na.rm=TRUE)
-  )
-
-test_2_compute$rcv <- (test_2_compute$mad_indicator / test_2_compute$median_indicator) * 100
-
-
-g <- ggplot(data=tula_data, aes(x=calendar_month, y=nvisits, group = user_id)) + 
-  geom_line(colour="grey", size=1.0)
-
-g <- ggplot(data=raw_percentile, aes(x=calendar_month, y=percentile, group = user_id)) + 
-  geom_line(colour="grey", size=1.0)
-
-
-#Calculate differences between percentile values for each FLW
-raw_percentile <- arrange(raw_percentile, user_id, calendar_month)
-df <- data.table(raw_percentile)
-setkey(df,user_id)
-df[,diff:=c(NA,diff(percentile)),by=user_id]  
-diff_percentile <- as.data.frame(df)
-diff_percentile <- diff_percentile[diff_percentile$previous_month_active == T,]
-
-myhist <- ggplot(diff_percentile, aes(x=diff)) + 
-  geom_histogram(binwidth=5, colour="black", fill="lightblue")
-
-diff_percentile_sample <- df[,diff:=c(NA,diff(sample_percentile)),by=user_id]  
-diff_percentile_sample <- as.data.frame(diff_percentile_sample)
-diff_percentile_sample <- diff_percentile_sample[diff_percentile_sample$previous_month_active == T,]
-
-myhist <- ggplot(diff_percentile_sample, aes(x=diff)) + 
-  geom_histogram(binwidth=5, colour="black", fill="lightblue")
-
-myhist <- ggplot(diff_sample, aes(x=diff)) + 
-  geom_histogram(binwidth=1, colour="black", fill="lightblue")
-
-#Pairwise plots of true consecutive months pairs
-prev_nvisits <- c()
-prev_percentile <- c()
-prev_percentile_sample <- c()
-for (i in users) {
-  single_user <- raw_percentile[raw_percentile$user_id == i,]
-  
-  prev_vis <- c()
-  prev_vis <- append(NA, single_user$nvisits)
-  prev_vis <- prev_vis[-length(prev_vis)]
-  prev_nvisits <- append(prev_nvisits, prev_vis)
-  
-  prev <- c()
-  prev <- append(NA, single_user$percentile)
-  prev <- prev[-length(prev)]
-  prev_percentile <- append(prev_percentile, prev)
-  
-  prev_sample <- c()
-  prev_sample <- append(NA, single_user$sample_percentile)
-  prev_sample <- prev_sample[-length(prev_sample)]
-  prev_percentile_sample <- append(prev_percentile_sample, prev_sample)
-}
-raw_percentile$prev_percentile <- prev_percentile
-raw_percentile$prev_percentile_sample <- prev_percentile_sample
-raw_percentile$prev_nvisits <- prev_nvisits
-raw_percentile <- raw_percentile[raw_percentile$previous_month_active == T,]
+test_2a <- 
+  c(cor(training_typical$prev_nvisits, training_typical$nvisits, use = "complete.obs"),
+    cor(training_typical$prev_active_day_percent, training_typical$active_day_percent, use = "complete.obs"),
+    cor(training_typical$prev_nforms, training_typical$nforms, use = "complete.obs"),
+    cor(training_typical$prev_median_visit_duration, training_typical$median_visit_duration, use = "complete.obs"),
+    cor(training_typical$prev_median_visits_per_day, training_typical$median_visits_per_day, use = "complete.obs"),
+    cor(training_typical$prev_time_using_cc, training_typical$time_using_cc, use = "complete.obs"),
+    cor(training_typical$prev_ninteractions, training_typical$ninteractions, use = "complete.obs"),
+    cor(training_typical$prev_ncases_registered, training_typical$ncases_registered, use = "complete.obs"),
+    cor(training_typical$prev_register_followup, training_typical$register_followup, use = "complete.obs"),
+    cor(training_typical$prev_case_register_followup_rate, training_typical$case_register_followup_rate, use = "complete.obs"),
+    cor(training_typical$prev_ncases_touched, training_typical$ncases_touched, use = "complete.obs"),
+    cor(training_typical$prev_nunique_followups, training_typical$nunique_followups, use = "complete.obs"),
+    cor(training_typical$prev_audio_plays, training_typical$audio_plays, use = "complete.obs"),
+    cor(training_typical$prev_network_warnings, training_typical$network_warnings, use = "complete.obs"),
+    cor(training_typical$prev_num_user_pk, training_typical$num_user_pk, use = "complete.obs"),
+    cor(training_typical$prev_domain_numeric, training_typical$domain_numeric, use = "complete.obs"),
+    cor(training_typical$prev_sample_undefined, training_typical$sample_undefined, use = "complete.obs"),
+    cor(training_typical$prev_sample_normal, training_typical$sample_normal, use = "complete.obs"),
+    cor(training_typical$prev_sample_percentile, training_typical$sample_percentile, use = "complete.obs"),
+    cor(training_typical$prev_sample_increase, training_typical$sample_increase, use = "complete.obs"),
+    cor(training_typical$prev_sample_decrease, training_typical$sample_decrease, use = "complete.obs"))
+names(test_2a) <- indicators
 
 g <- ggplot(raw_percentile, aes(x=sample_percentile, y=prev_percentile_sample)) +
   geom_point(shape=1) +
   geom_smooth(method=lm)
-cor(raw_percentile$sample_percentile, raw_percentile$prev_percentile_sample, use = "complete.obs")
-
-#Older code not excluding skipped months
-v1 = NA
-v2 = NA
-user_id = NA
-grp <- unique(raw_percentile$user_id)
-raw_percentile <- arrange(raw_percentile, user_id, calendar_month)
-for(i in grp){
-  rownums = which(raw_percentile$user_id==i)
-  v1 = append(v1,raw_percentile$percentile[rownums[1:(length(rownums)-1)]])
-  v2 = append(v2,raw_percentile$percentile[rownums[2:(length(rownums))]])
-  user_id = append(user_id,rep(i,times=(length(rownums)-1)))
-}
-
-datset_pair_plot = data.frame(user_id,v1,v2)
-datset_pair_plot <- datset_pair_plot[-1,]
-
-tula_typical %.% 
-  group_by(calendar_month) %.% 
-  summarise(nusers = length(unique(user_id)))
-
-summary(tula_typical$user_id[tula_typical$calendar_month == "2012-09-01"] %in% 
-          tula_typical$user_id[tula_typical$calendar_month == "2014-05-01"])
-
-#------------------------------------------------------------------------#
-#Code for Test 3
-#------------------------------------------------------------------------#
-
-overall <- tula_data %.%
-  group_by(month_abbr) %.%
-  summarise(visits_median = median(nvisits, na.rm = T),
-            visits_mad = mad(nvisits, na.rm = T))
-
-g <- ggplot(overall, aes(x=month_abbr, y=visits_median, group = 1)) + 
-  geom_line(colour="blue", size=1.0) + 
-  geom_errorbar(aes(ymin=visits_median-visits_mad, ymax=visits_median+visits_mad), 
-                width=.3, colour = "black") +
-  scale_y_continuous(limits=c(-5,100))
 
 #------------------------------------------------------------------------#
 #Code for Test 4
 #------------------------------------------------------------------------#
-
-attrition <- tula_data %.% 
-  group_by(user_id) %.% 
-  summarise(attrition = sum(!next_month_active, na.rm = T))
-
-test <- data.frame(table(attrition$attrition))
-
-g <- ggplot(test, aes(x=Var1, y=Freq, group = 1)) +
-  geom_point(size = 6, shape = 19, alpha = 0.5, colour = "red", 
-             fill = "pink") +
-  geom_line(colour = "red") + 
-  scale_size_area() + 
-  scale_y_continuous(limits=c(0,50)) +
-  xlab("# attrition events") +
-  ylab("# of unique FLWs") +
-  theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
-                                                                 face="bold")) + 
-  ggtitle("Number of unique FLWs by number of attrition events") +
-  theme(plot.title = element_text(size=14, face="bold"))
-
-#Isolate all months to each attrition event for all users
-#Create empty list
-attrition_list <- list()
 
 #Create function to append attrition list
 lappend <- function (lst, ...){
@@ -403,32 +259,17 @@ lappend <- function (lst, ...){
 }
 
 #Extract users with at least one attrition event
-users <- unique((filter(tula_data, next_month_active == F))$user_id)
+users <- unique((filter(training_typical, next_month_active == F))$user_pk)
 
-for (i in users) {
-  single_user <- tula_data[tula_data$user_id == i,]
-#Create vector of all attrition positions for this user
-attrition_positions <- which(single_user$next_month_active == F)
-#Append "months to first attrition event" to the attrition list
-attrition_list <- lappend(attrition_list, rev(single_user$nvisits[1:attrition_positions[1]]))
+#This is the test_4b code
+source(file.path("analysis_scripts","rdayalu","test_4b_2.R", fsep = .Platform$file.sep))
+names(test_4b) <- indicators
 
-#Append "months to subsequent attrition events" to the attrition list
-if(length(attrition_positions)>1) {
-for(j in 2:length(attrition_positions)) {
-  attrition_list <- lappend(attrition_list, rev(single_user$nvisits[(attrition_positions[j-1]+1):attrition_positions[j]]))
-    }
-  }
-}
-
-
-## Compute maximum length
-max_length <- max(sapply(attrition_list, length))
-## Add NA values to list elements
-attrition_list <- lapply(attrition_list, function(v) { c(v, rep(NA, max_length-length(v)))})
-## Create dataframe
-attrition_data <- data.frame(do.call(rbind, attrition_list))
-names(attrition_data) <- paste0("month_", 1:ncol(attrition_data))
-attrition_data$user_id <- filter(tula_data, next_month_active == F)$user_id
+test <- data.frame(cbind(test_1a, test_1b, test_2a, test_4b))
+write.csv(test, file = "training_set_results.csv")
+#------------------------------------------------------------------------#
+#Other random code
+#------------------------------------------------------------------------#
 
 #Overall attrition_data: Median of each month column
 months_median <- apply(attrition_data[,1:23], 2, function(x) median(x, na.rm = T))
@@ -441,30 +282,6 @@ g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group 
   geom_line(colour="blue", size=1.0) + 
   geom_errorbar(aes(ymin=months_median-months_mad, ymax=months_median+months_mad), 
                 width=.3, colour = "black")
-
-#Keep rows with at least "N" months before attrition
-#Then graph only those "N" months before attrition
-#Here, N = 5
-attrition_subset <- filter(attrition_data, !is.na(month_5))
-
-#Subset of attrition_data: Median of each month column
-months_median <- apply(attrition_subset[,1:5], 2, function(x) median(x, na.rm = T))
-months_median <- data.frame(months_median)
-months_median$month_before_attrition <- c(1:nrow(months_median))
-months_median$months_mad <- apply(attrition_subset[,1:5], 2, function(x) mad(x, na.rm = T)) 
-
-#Plot
-g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group = 1)) + 
-  geom_line(colour="blue", size=1.0) + 
-  geom_errorbar(aes(ymin=months_median-months_mad, ymax=months_median+months_mad), 
-                width=.3, colour = "black")
-
-#Calculate indicators per month relative to N = 5
-attrition_subset$rel_1 <- (attrition_subset$month_1/attrition_subset$month_5)*100
-attrition_subset$rel_2 <- (attrition_subset$month_2/attrition_subset$month_5)*100
-attrition_subset$rel_3 <- (attrition_subset$month_3/attrition_subset$month_5)*100
-attrition_subset$rel_4 <- (attrition_subset$month_4/attrition_subset$month_5)*100
-attrition_subset$rel_5 <- (attrition_subset$month_5/attrition_subset$month_5)*100
 
 #Relative attrition_data: Median of each relative month column
 months_median <- apply(attrition_subset[,25:29], 2, function(x) median(x, na.rm = T))
@@ -480,18 +297,22 @@ g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group 
   xlab("month_before_attrition") +
   ylab("nvisits relative to month 5 (%)")
 
+#Subset of attrition_data: Median of each month column
+months_median <- apply(attrition_subset[,1:5], 2, function(x) median(x, na.rm = T))
+months_median <- data.frame(months_median)
+months_median$month_before_attrition <- c(1:nrow(months_median))
+months_median$months_mad <- apply(attrition_subset[,1:5], 2, function(x) mad(x, na.rm = T)) 
+
+#Plot
+g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group = 1)) + 
+  geom_line(colour="blue", size=1.0) + 
+  geom_errorbar(aes(ymin=months_median-months_mad, ymax=months_median+months_mad), 
+                width=.3, colour = "black")
+
+
 #Test 4A: slope of line (lm) for absolute months 1-4 for each row
-attrition_subset$slope_abs <- apply(attrition_subset[,1:4], 1, function(x) 
-  lm(x~c(1:4))$coefficients[[2]])
-
-#Test 4B: slope of line (lm) for realtive months 1-4 for each row
-attrition_subset$slope_rel <- apply(attrition_subset[,25:28], 1, function(x) 
-  lm(x~c(1:4))$coefficients[[2]])
-
-
-#------------------------------------------------------------------------#
-#Other random code
-#------------------------------------------------------------------------#
+#attrition_subset$slope_abs <- apply(attrition_subset[,1:4], 1, function(x) 
+#  lm(x~c(1:4))$coefficients[[2]])
 
 #Rehape all_monthly from long format to wide
 #This creates only one row per user with columns for each calendar month
