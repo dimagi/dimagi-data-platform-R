@@ -12,7 +12,7 @@ domain_name <- 'crs_remind'
 case_actions_query <- sprintf('select users.user_id, form.visit_id,
 cases.case_id, case_event.created as created, case_event.updated as updated, case_event.closed as closed 
 from users, cases, case_event, form
-                              where cases.domain_id = (select id from domain where name like \'%s\')
+                              where cases.domain_id = (select id from domain where name like 'crs-remind')
                               and users.id = cases.user_id
                               and case_event.case_id = cases.id
                               and case_event.form_id = form.id
@@ -21,7 +21,7 @@ from users, cases, case_event, form
 case_followup_query <- sprintf('with case_visits as (select cases.case_id, cases.case_type,visit.id as visit_id, 
                                 visit.time_start
                                 from cases, form, case_event, visit
-                               where cases.domain_id = (select id from domain where name like \'%s\')
+                               where cases.domain_id = (select id from domain where name like 'crs-remind')
                                and case_event.case_id = cases.id
                                and case_event.form_id = form.id
                                and form.visit_id = visit.id
