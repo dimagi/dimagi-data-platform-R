@@ -35,10 +35,6 @@ numeric_index <- function (x) {
   return (total_months)
 }
 
-# TODO batch entry calc must be fixed, should take into account home visit or no - ML
-batch_entry_visit <- function(x) sum(x$batch_entry, na.rm=TRUE)
-batch_entry_percent <- function(x) mean(x$batch_entry, na.rm=TRUE)
-
 ## The next indicators are only applicable for the lifetime table.
 days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
 days_visit_last <- function(x) as.numeric(Sys.Date() - date_last_visit(x))

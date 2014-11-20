@@ -72,3 +72,10 @@ get_device_log_types_by_user <- function(db, limit=-1){
     summarise (num_logs = count(id))
   return(as.data.frame(collect(logs_by_type)))
 }
+
+get_salesforce_contract_table <- function(db, limit=-1){
+  sf_tbl <- get_salesforce_contract_data(db)
+  sf_tbl <- collect (sf_tbl)
+  names(sf_tbl)[names(sf_tbl)=="dname"] <- "domain"
+  return(sf_tbl)
+}

@@ -154,6 +154,10 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
   return (matching_rows$name)
 }
 
+get_permitted_domains <- function (domain_table) {
+  permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=c('None','True',NA))
+}
+
 get_domains_for_run <- function (domain_table,conf) {
   names_include <- get_named_domains("include",conf)
   names_exclude <- get_named_domains("exclude",conf)
@@ -192,6 +196,17 @@ get_domains_for_run <- function (domain_table,conf) {
   # domains included by filter are included unless they match an exclude filter or are excluded by name
   domains_for_run <- setdiff(domains_include, union(domains_exclude, names_exclude))
   # named include domains are always included
-  domains_for_run <- rbind(names_include,domains_for_run)
-  return (as.vector(domains_for_run))
+  domains_for_run <- as.vector(rbind(names_include,domains_for_run))
+  
+  # finally, remove domains we don't have permission use data for
+  # TODO can't check if key exists in same condition as using it?
+  if (!('permitted_data_only' %in% names(conf))){
+    permitted_domains <- get_permitted_domains(domain_table)
+    domains_for_run = intersect(domains_for_run, permitted_domains)
+  } else if (conf$permitted_data_only == T) {
+    permitted_domains <- get_permitted_domains(domain_table)
+    domains_for_run = intersect(domains_for_run, permitted_domains)
+  }
+  
+  return (domains_for_run)
 }
