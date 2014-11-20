@@ -55,6 +55,18 @@ get_domain_table <- function (db) {
   return(retframe)
 }
 
+get_salesforce_contract_data <- function (db) {
+  q <- "select domain.name as dname, sf_dcontract__c.*
+          from domain, sf_dcontract__c
+          where attributes ? 'internal.sf_contract_id' 
+          and attributes->'internal.sf_contract_id'  <> ''
+          and attributes->'internal.sf_contract_id'  <> 'None'
+          and attributes->'internal.sf_contract_id'  like sf_dcontract__c.salesforce_contract_id__c"
+  
+  res <- tbl(db,sql(q))
+  return (res)
+}
+
 # returns visit table for use in visit detail data source
 get_visit_detail_table <- function (db, limit=-1) {
   con <- db$con
