@@ -154,6 +154,10 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
   return (matching_rows$name)
 }
 
+get_permitted_domains <- function (domain_table) {
+  permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=c('None','True',NA))
+}
+
 get_domains_for_run <- function (domain_table,conf) {
   names_include <- get_named_domains("include",conf)
   names_exclude <- get_named_domains("exclude",conf)
@@ -196,7 +200,7 @@ get_domains_for_run <- function (domain_table,conf) {
   
   # finally, remove domains we don't have permission use data for
   if (!('permitted_data_only' %in% names(conf)) | (conf$permitted_data_only == T)){
-    permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=c('None','True',NA))
+    permitted_domains <- get_permitted_domains(domain_table)
     domains_for_run = intersect(domains_for_run, permitted_domains)
   }
   
