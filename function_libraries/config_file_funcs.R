@@ -199,7 +199,11 @@ get_domains_for_run <- function (domain_table,conf) {
   domains_for_run <- as.vector(rbind(names_include,domains_for_run))
   
   # finally, remove domains we don't have permission use data for
-  if (!('permitted_data_only' %in% names(conf)) | (conf$permitted_data_only == T)){
+  # TODO can't check if key exists in same condition as using it?
+  if (!('permitted_data_only' %in% names(conf))){
+    permitted_domains <- get_permitted_domains(domain_table)
+    domains_for_run = intersect(domains_for_run, permitted_domains)
+  } else if (conf$permitted_data_only == T) {
     permitted_domains <- get_permitted_domains(domain_table)
     domains_for_run = intersect(domains_for_run, permitted_domains)
   }
