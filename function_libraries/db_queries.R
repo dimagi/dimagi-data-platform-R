@@ -22,7 +22,7 @@ get_domain_table <- function (db) {
   
   hstore_keyvalues_q <- "select name, (each(attributes)).* from domain order by name"
   hstore_keyvalues <- do_query(con,hstore_keyvalues_q)
-  hstore_keyvalues <- hstore_keyvalues[!(hstore_keyvalues$key %in% c('name','organization', 'is_active','is_test')),] # remove or we have duplicate colnames
+  hstore_keyvalues <- hstore_keyvalues[!(hstore_keyvalues$key %in% c('name','organization')),] # remove or we have duplicate colnames
   hstore_keyvalues <- hstore_keyvalues[!grepl("^_attachments",hstore_keyvalues$key),] # attachment properties are custom by domain
   hstore_wide<-dcast(hstore_keyvalues, name ~ key)
   retframe<-merge(retframe,hstore_wide,by="name",all=T)
