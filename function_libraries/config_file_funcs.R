@@ -139,7 +139,8 @@ get_domain_filters <- function (conf) {
 # PARAMS 
 # domain_table : the full domain table
 # filter_by : the name of the attribute (domain table column) to filter by
-# vals : domains with any of these values for the filter attribute should be returned - they match the filter
+# vals : list of vector of values (because jsonlite).
+# domains with any of these values for the filter attribute should be returned - they match the filter
 get_domains_for_filter <- function (domain_table, filter_by, vals) {
   if (!(filter_by %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", filter_by))
@@ -154,8 +155,9 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
   return (matching_rows$name)
 }
 
+# filter that returns names of domains for which can_use_data is not false
 get_permitted_domains <- function (domain_table) {
-  permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=c('None','True',NA))
+  permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=list(c('None','True',NA)))
 }
 
 get_domains_for_run <- function (domain_table,conf) {
