@@ -181,7 +181,8 @@ return(res)
 
 # user_id, username, user_type (web/mobile), is_superuser for all users
 get_user_table <- function(db){
-  mobile_users_q <- "select users.id as user_pk, users.user_id, users.username
+  mobile_users_q <- "select users.id as user_pk, users.user_id, users.username, 
+            mobile_user.deactivated, mobile_user.deleted
             from users, mobile_user
             where users.id = mobile_user.user_pk"
   mobile_users <- collect(tbl(db,sql(mobile_users_q)))
@@ -193,6 +194,8 @@ get_user_table <- function(db){
             where users.id = web_user.user_pk"
   web_users <- collect(tbl(db,sql(web_users_q)))
   web_users$user_type <- 'web'
+  web_users$deactivated <- NA
+  web_users$deleted <- NA
   
   res <- rbind(mobile_users, web_users)
   return(res)

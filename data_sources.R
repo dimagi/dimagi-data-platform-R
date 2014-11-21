@@ -73,6 +73,11 @@ get_device_log_types_by_user <- function(db, limit=-1){
   return(as.data.frame(collect(logs_by_type)))
 }
 
+get_user_type_table<- function(db, limit=-1) {
+  user_tbl <- get_user_table(db)
+  return(user_tbl)
+}
+
 get_salesforce_contract_table <- function(db, limit=-1){
   sf_tbl <- get_salesforce_contract_data(db)
   sf_tbl <- collect (sf_tbl)
