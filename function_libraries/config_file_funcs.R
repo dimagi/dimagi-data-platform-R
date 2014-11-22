@@ -155,9 +155,9 @@ get_domains_for_filter <- function (domain_table, filter_by, vals) {
   return (matching_rows$name)
 }
 
-# filter that returns names of domains for which can_use_data is not false
+# filter that returns names of domains for which can_use_data is not true
 get_permitted_domains <- function (domain_table) {
-  permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=list(c('None','True',NA)))
+  permitted_domains = get_domains_for_filter(domain_table,filter_by='internal.can_use_data',vals=list(c('None','False',NA)))
 }
 
 get_domains_for_run <- function (domain_table,conf) {
