@@ -84,3 +84,36 @@ corstarsl <- function(x){
   Rnew <- cbind(Rnew[1:length(Rnew)-1])    ## remove last column and return the matrix (which is now a data frame)
   return(Rnew) 
 }
+
+# FUNCTION replace.df
+# updates one data frame from another
+# usage: replace.df(original, replacement,by=c('Name','Id'))
+#
+# PARAMS 
+# original : the data frame to be updated
+# replacement: replace matching values in original with values from this data frame
+# by: vector of column names to match on
+# http://stackoverflow.com/a/7972038/3852950
+replace.df <- function(x,y,by,cols=NULL){
+  nx <- nrow(x)
+  ny <- nrow(y)
+  
+  bx <- x[,by,drop=FALSE]
+  by <- y[,by,drop=FALSE]
+  bz <- do.call("paste", c(rbind(bx, by), sep = "\r"))
+  
+  bx <- bz[seq_len(nx)]
+  by <- bz[nx + seq_len(ny)]
+  
+  idx <- match(by,bx)
+  idy <- match(bx,by)
+  idy <- idy[!is.na(idy)]
+  
+  if(is.null(cols)) {
+    cols <- intersect(names(x),names(y))
+    cols <- cols[!cols %in% by]
+  }
+  
+  x[idx,cols] <- y[idy,cols]
+  x
+}
