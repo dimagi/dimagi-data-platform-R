@@ -81,3 +81,36 @@ motion_chart <-gvisMotionChart(summary_by_domain, idvar = "domain", timevar = "c
 
 cat(motion_chart$html$chart, file="motion_chart.html")
 
+# % Android users by country
+monthly_country <- merge(monthly_table, domain_table[c('name','deployment.country')], by.x='domain', by.y='name')
+users_by_country_by_month <- monthly_country %>% 
+  group_by(calendar_month_start, month_start_numeric, deployment.country) %>% 
+  summarise(total_projects = length(unique(domain)),
+            total_forms = sum(nforms), total_visits=sum(nvisits), total_users=length(unique(user_id)), 
+            android_users =length(unique(user_id[summary_device_type=="Android"])))
+users_by_country_by_month$percent_android = 
+  users_by_country_by_month$android_users / (users_by_country_by_month$total_users) * 100
+
+cleaned <- users_by_country_by_month[!(users_by_country_by_month$deployment.country == 'None'),]
+cleaned$hovervar <- sprintf('%s: %d projects, %d users (%d Android)',cleaned$deployment.country,
+                            cleaned$total_projects, cleaned$total_users, cleaned$android_users)
+Oct_2012 <-  cleaned[cleaned$calendar_month_start==as.Date(as.POSIXct('2012-10-01')),]
+Oct_2013 <-  cleaned[cleaned$calendar_month_start==as.Date(as.POSIXct('2013-10-01')),]
+Oct_2014 <-  cleaned[cleaned$calendar_month_start==as.Date(as.POSIXct('2014-10-01')),]
+
+
+Oct_2012_chart <- gvisGeoChart(Oct_2012, 
+                               locationvar='deployment.country', 
+                               colorvar='percent_android', hovervar="hovervar",
+                               options=list(width=800, height=600,
+                                            colorAxis="{colors: ['#e7711c', '#4374e0']}"))
+plot(Oct_2012_chart)
+cat(Oct_2012_chart$html$chart, file="Oct_2012_chart.html")
+
+Oct_2014_chart <- gvisGeoChart(Oct_2014, 
+                               locationvar='deployment.country', 
+                               colorvar='percent_android', hovervar="hovervar",
+                               options=list(width=800, height=600,
+                                            colorAxis="{colors: ['#e7711c', '#4374e0']}"))
+plot(Oct_2014_chart)
+cat(Oct_2014_chart$html$chart, file="Oct_2014_chart.html")
