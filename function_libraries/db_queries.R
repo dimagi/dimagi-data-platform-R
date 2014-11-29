@@ -55,6 +55,22 @@ get_domain_table <- function (db) {
   return(retframe)
 }
 
+get_application_table <- function(db){
+  q <- 'select domain.name as domain_name, application.app_id, application.app_name 
+  from application, domain where application.domain_id = domain.id'
+  res <- collect(tbl(db,sql(q)))
+  
+  attrs_q <- "select app_id, (each(attributes)).* from application"
+  attrs <- collect(tbl(db,sql(attrs_q)))
+  attrs <- attrs[!(attrs$key %in% c('domain','app_id','app_name')),] # remove or we have duplicate colnames
+  attrs <- attrs[!grepl("^_attachments",attrs$key),] # attachment properties are custom
+  attrs <- attrs[!grepl("^multimedia_map",attrs$key),] # multimedia map items
+  attrs_wide<-dcast(unique(attrs), app_id ~ key, value.var="value")
+  res<-merge(res,attrs_wide,by="app_id",all=T)
+  
+  return (res)
+}
+
 get_salesforce_contract_data <- function (db) {
   q <- "select domain.name as dname, sf_dcontract__c.*
           from domain, sf_dcontract__c
@@ -64,6 +80,40 @@ get_salesforce_contract_data <- function (db) {
           and attributes->'internal.sf_contract_id'  like sf_dcontract__c.salesforce_contract_id__c"
   
   res <- tbl(db,sql(q))
+  return (res)
+}
+
+get_salesforce_reportouts <- function (db) {
+  q <- "select domain.name as dname, sf_dcontract__c.salesforce_contract_id__c, sf_project_report_out__c.*
+          from domain, sf_dcontract__c, sf_project_report_out__c
+          where attributes ? 'internal.sf_contract_id' 
+          and attributes->'internal.sf_contract_id'  <> ''
+          and attributes->'internal.sf_contract_id'  <> 'None'
+          and attributes->'internal.sf_contract_id'  like sf_dcontract__c.salesforce_contract_id__c
+          and sf_dcontract__c.id like sf_project_report_out__c.contract__c"
+  res <- tbl(db,sql(q))
+  return (res)
+  
+}
+
+get_impact123_case_properties <- function(db, domain_name){
+  q <- sprintf("select domain.name as domain_name, users.user_id, form.form_id, form.time_end, cases.case_id, cases.case_type, case_event.id
+          from case_event, form, users, cases, domain
+          where case_event.case_id = cases.id
+          and case_event.form_id = form.id
+          and form.domain_id = domain.id
+          and form.user_id = users.id and domain.name like '%s'", domain_name)
+  res <- tbl(db,sql(q))
+  
+  case_properties_q <- sprintf("select id, (each(case_properties)).* from case_event 
+  where form_id in (select id from form 
+                               where domain_id = (select id from domain where name like '%s'))",domain_name)
+  case_properties <- collect(tbl(db,sql(case_properties_q)))
+  if (NROW(case_properties) > 0) {
+    case_properties_wide<-dcast(unique(case_properties), id ~ key, value.var="value")
+    res<-merge(res,case_properties_wide,by="id",all=T)
+  }
+  
   return (res)
 }
 
