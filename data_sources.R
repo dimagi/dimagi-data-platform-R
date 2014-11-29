@@ -84,3 +84,10 @@ get_salesforce_contract_table <- function(db, limit=-1){
   names(sf_tbl)[names(sf_tbl)=="dname"] <- "domain"
   return(sf_tbl)
 }
+
+get_salesforce_reportout_table <- function (db, limit = -1){
+  sf_tbl <- get_salesforce_reportouts(db)
+  sf_tbl <- collect (sf_tbl)
+  names(sf_tbl)[names(sf_tbl)=="dname"] <- "domain"
+  return(sf_tbl)
+}
