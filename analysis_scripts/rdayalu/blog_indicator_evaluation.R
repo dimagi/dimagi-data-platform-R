@@ -1,4 +1,7 @@
 all_monthly <- read.csv(file = "blog_data.csv")
+all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
+#all_monthly <- filter(all_monthly, !(domain %in% exclude_domains))
+#write.csv(all_monthly, file = "blog_data_12_4_14.csv")
 library(dplyr)
 library(data.table)
 library(zoo)
@@ -15,20 +18,36 @@ source('s_dplyr.R')
 #Exclude any users who logged > 100 visits in any month 
 all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
 user_ge_100 <- all_monthly %.%
-  group_by(user_id) %.%
+  group_by(user_pk) %.%
   summarise(ge_100 = sum(visits_ge_100))
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
 #696 users have only <= 100 visits per month
 training_typical <- 
-  all_monthly[all_monthly$user_id %in% user_le_100$user_id, ]
+  all_monthly[all_monthly$user_pk %in% user_le_100$user_pk, ]
 
 #Exclude users with < 4 months on CC
 month_count <- training_typical %.%
-  group_by(domain, user_id) %.%
+  group_by(user_pk) %.%
   summarise(months_on_cc = length(unique(calendar_month)))
 month_count <- filter(month_count, months_on_cc >= 4)
 training_typical <- 
-  training_typical[training_typical$user_id %in% month_count$user_id, ]
+  training_typical[training_typical$user_pk %in% month_count$user_pk, ]
+
+#Add sample_increase variable: increasing by steady increments of 1
+#Add sample_decrease variable: decreasing by steady increments of 1
+training_typical <- arrange(training_typical, user_pk, calendar_month)
+users <- unique(training_typical$user_pk)
+sample_increase <- c()
+sample_decrease <- c()
+for (i in users) {
+  single_user <- training_typical[training_typical$user_pk == i,]
+  #sample_increase <- append(sample_increase, 100+(c(1:nrow(single_user))))
+  #sample_decrease <- append(sample_decrease, 100+(rev(c(1:nrow(single_user)))))
+  sample_increase <- append(sample_increase, cumsum(sample(1:5, nrow(single_user), replace=T)))
+  sample_decrease <- append(sample_decrease, rev(cumsum(sample(1:5, nrow(single_user), replace=T))))
+}
+training_typical$sample_increase <- sample_increase
+training_typical$sample_decrease <- sample_decrease
 
 #Calculate differences between month_index to calculate next_month_active and 
 #previous_month_active variables
@@ -60,9 +79,8 @@ df[,diff_sample_percentile:=c(NA,diff(sample_percentile)),by=user_pk]
 df[,diff_sample_increase:=c(NA,diff(sample_increase)),by=user_pk]
 df[,diff_sample_decrease:=c(NA,diff(sample_decrease)),by=user_pk]
 training_typical <- as.data.frame(df)
-#training_typical$previous_month_active <- training_typical$diff_days <= 31
-users <- unique(training_typical$user_pk)
 
+#training_typical$previous_month_active <- training_typical$diff_days <= 31
 #next_month_active <- c()
 #for (i in users) {
 #  single_user <- training_typical[training_typical$user_pk == i,]
@@ -196,10 +214,15 @@ names(test_1b) <- indicators
 
 
 #Pairwise plots of absolute and % changes for individual FLWs by domain medians
-g <- ggplot(tula_consec, aes(x=med_domain_abs_change, y=diff_nvisits)) +
-  geom_point(shape=1) +
+g <- ggplot(training_consec, aes(x=med_sample_increase_1a, y=diff_sample_increase)) +
   #scale_y_continuous(limits=c(-100,100)) +
-  geom_smooth(method=lm)
+  geom_smooth(method=lm) +
+  geom_point(shape=1, size = 1)
+
+g <- ggplot(training_consec, aes(x=med_sample_increase_1b, y=per_diff_sample_increase)) +
+  scale_y_continuous(limits=c(0,150)) +
+  geom_smooth(method=lm) +
+  geom_point(shape=1, size = 1)
 
 
 #------------------------------------------------------------------------#
@@ -276,8 +299,13 @@ lappend <- function (lst, ...){
   return(lst)
 }
 
-#Extract users with at least one attrition event
+#Extract users with at least one attrition event:
+#One-month attrition event
 users <- unique((filter(training_typical, next_month_active == F))$user_pk)
+#Two-month attrition event
+users <- unique((filter(training_typical, next_two_months_active == F))$user_pk)
+#Three-month attrition event
+users <- unique((filter(training_typical, next_three_months_active == F))$user_pk)
 
 #This is the test_4b code
 source(file.path("analysis_scripts","rdayalu","test_4b.R", fsep = .Platform$file.sep))
