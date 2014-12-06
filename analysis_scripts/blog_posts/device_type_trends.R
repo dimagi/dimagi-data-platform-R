@@ -21,7 +21,7 @@ domains_for_run <- get_domains_for_run(domain_table,run_conf)
 source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
 monthly_table <- get_aggregate_table (db, "aggregate_monthly_interactions", domains_for_run)
 
-monthly_table$month.index <- as.yearmon(monthly_table$month.index, "%b %Y")
+#monthly_table$month.index <- as.yearmon(monthly_table$month.index, "%b %Y")
 start_date <- as.Date(run_conf$reports$start_date)
 end_date <- as.Date(run_conf$reports$end_date)
 monthly_table <- subset(monthly_table, date_first_visit >= start_date & date_last_visit <= end_date)
@@ -55,11 +55,19 @@ chart$save('rickshaw_chart.html',  standalone = TRUE)
 
 
 monthly_table$calendar_month_start<-as.Date(paste0('1 ',monthly_table$month.index), '%d %b %Y')
-summary_by_domain <- monthly_table %>% 
+summary_by_domain <- as.data.frame (monthly_table %>% 
   group_by(domain, calendar_month_start) %>% 
   summarise(total_forms = sum(nforms), total_visits=sum(nvisits), total_users=length(unique(user_id)), 
             most_common_device=names(sort(table(summary_device_type),decreasing=TRUE)[1]), 
-            median_active_days = median(active_days), median_time_using_cc = median(time_using_cc))
+            median_active_days = median(active_days), median_time_using_cc = median(time_using_cc),
+            android_users = length(unique(user_id[summary_device_type=="Android"])), 
+            nokia_users = length(unique(user_id[summary_device_type=="Nokia"]))))
+summary_by_domain$percent_android = 
+  summary_by_domain$android_users / (summary_by_domain$total_users) * 100
+summary_by_domain$percent_nokia = 
+  summary_by_domain$nokia_users / (summary_by_domain$total_users) * 100
+
+mixed_domains <- subset(summary_by_domain, percent_android > 25 & percent_nokia > 25 & total_users > 5)
 
 # GoogleViz Motion Chart
 state_settings <-'
@@ -80,6 +88,7 @@ motion_chart <-gvisMotionChart(summary_by_domain, idvar = "domain", timevar = "c
                                showSelectListComponent = F, showChartButtons = F))
 
 cat(motion_chart$html$chart, file="motion_chart.html")
+plot(motion_chart)
 
 # % Android users by country
 monthly_country <- merge(monthly_table, domain_table[c('name','deployment.country')], by.x='domain', by.y='name')
