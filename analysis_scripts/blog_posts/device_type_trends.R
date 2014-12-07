@@ -72,7 +72,8 @@ six_month_summary <- six_month_comparison_data %>% group_by(summary_device_type)
             mean_forms = mean(nforms), 
             mean_visits = mean(nvisits), 
             mean_active_days = mean(active_days),
-            avg_time_using_cc = mean(time_using_cc), number_active_next_3 = sum(next_three_months_active))
+            avg_time_using_cc = mean(time_using_cc), 
+            number_active_next_3 = sum(next_three_months_active))
 
 # anova for users - not really valid though, observations are not independent within a project
 six_month_aov = aov(nforms~summary_device_type,data=six_month_comparison_data)
