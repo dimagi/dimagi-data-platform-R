@@ -1,6 +1,9 @@
 #User consistency blog
 #ID top/bottom 10% ncases_touched
 #Only keep domains with nusers >= 30
+
+#nusers <- test2_data %>% group_by(domain) %>% 
+#  summarise(nusers = length(unique(user_pk)))
 nusers <- test2_data %>% group_by(domain, calendar_month) %>% 
   summarise(nusers = length(unique(user_pk)))
 nusers <- filter(nusers, nusers >= 30)
@@ -8,6 +11,7 @@ nusers$concat <- paste(nusers$domain, nusers$calendar_month, sep = "_")
 
 test2_data$concat <- paste(test2_data$domain, test2_data$calendar_month, sep = "_")
 tb <- test2_data[test2_data$concat %in% nusers$concat,]
+#tb <- test2_data[test2_data$domain %in% nusers$domain,]
 
 #Percentile function
 percentile <- function(x) ecdf(x)(x)
@@ -34,6 +38,10 @@ cor(top$prev_ncases_touched, top$ncases_touched, use = "complete.obs")
 cor(bot$prev_ncases_touched, bot$ncases_touched, use = "complete.obs")
 #Correlation function
 correlation <- function(x, y) cor(x, y, use = "complete.obs")
+corr_domains <- tb %>%
+  group_by(domain) %>%
+  summarise(corr_ntouched = correlation(prev_ncases_touched, ncases_touched))
+corr_domains <- arrange(corr_domains, corr_ntouched)
 top_domains <- top %>%
   group_by(domain) %>%
   summarise(corr_top_ntouched = correlation(prev_ncases_touched, ncases_touched))
@@ -47,10 +55,26 @@ top_domains <- arrange(top_domains, corr_top_ntouched)
 
 #Scatterplots
 
-test <- filter(top, domain == "maternalznz")
+tb <- filter(tb, domain_numeric == 18 | domain_numeric == 264)
+tb <- select(test, domain_numeric, user_pk, calendar_month, prev_ncases_touched, ncases_touched)
+
+test <- filter(tb, domain_numeric == 18)
 g <- ggplot(test, aes(x=prev_ncases_touched, y=ncases_touched)) +
   geom_point(shape=1) +
-  geom_smooth(method=lm)
+  scale_x_continuous(limits=c(0,50)) +
+  scale_y_continuous(limits=c(0,50)) +
+  geom_smooth(method=lm) +
+  annotate("text", label="r^2 == 0.75", parse = T, x=38, y=3)
+
+test <- filter(tb, domain_numeric == 264)
+g <- ggplot(test, aes(x=prev_ncases_touched, y=ncases_touched)) +
+  geom_point(shape=1) +
+  scale_x_continuous(limits=c(0,50)) +
+  scale_y_continuous(limits=c(0,50)) +
+  geom_smooth(method=lm) + 
+  annotate("text", label="r^2 == 0.36", parse = T, x=38, y=3)
+
+write.csv(test, file = "domain_consistency_comparison.csv")
 
 test <- filter(bot, domain == "maternalznz")
 g <- ggplot(test, aes(x=prev_ncases_touched, y=ncases_touched)) +
