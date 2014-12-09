@@ -33,6 +33,10 @@ bot <- test2_data[test2_data$user_pk %in% true_bot,]
 #top <- test2_data[test2_data$user_pk %in% top_users,]
 #bot <- test2_data[test2_data$user_pk %in% bot_users,]
 
+#Create dataset for top/bottom observations
+top <- filter(raw_percentile, top_10p_ntouched == T)
+bot <- filter(raw_percentile, bot_10p_ntouched == T)
+
 #Calculate correlation
 cor(top$prev_ncases_touched, top$ncases_touched, use = "complete.obs")
 cor(bot$prev_ncases_touched, bot$ncases_touched, use = "complete.obs")
@@ -76,18 +80,18 @@ g <- ggplot(test, aes(x=prev_ncases_touched, y=ncases_touched)) +
 
 write.csv(test, file = "domain_consistency_comparison.csv")
 
-test <- filter(bot, domain == "maternalznz")
-g <- ggplot(test, aes(x=prev_ncases_touched, y=ncases_touched)) +
-  geom_point(shape=1) +
-  geom_smooth(method=lm)
-
+#Top 10% and bottom 10% scatterplots
 g <- ggplot(top, aes(x=prev_ncases_touched, y=ncases_touched)) +
   geom_point(shape=1) +
-  geom_smooth(method=lm)
+  geom_smooth(method=lm) + 
+  annotate("text", label="r^2 == 0.69", parse = T, x=6, y=98)
 
 g <- ggplot(bot, aes(x=prev_ncases_touched, y=ncases_touched)) +
   geom_point(shape=1) +
-  geom_smooth(method=lm)
+  geom_smooth(method=lm) +
+  scale_y_continuous(limits=c(0,50)) +
+  scale_x_continuous(limits=c(0,50)) +
+  annotate("text", label="r^2 == 0.34", parse = T, x=3, y=48)
 
 #Test statistic for correlations
 cor.test(top$prev_ncases_touched, top$ncases_touched, 
