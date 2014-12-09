@@ -1,4 +1,4 @@
-all_monthly <- read.csv(file = "blog_data.csv")
+all_monthly <- read.csv(file = "blog_data_12_4_14.csv")
 all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 #all_monthly <- filter(all_monthly, !(domain %in% exclude_domains))
 #write.csv(all_monthly, file = "blog_data_12_4_14.csv")
@@ -13,25 +13,27 @@ library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 source('s_dplyr.R')
 
-
-#Blog set has 12,554 unique users
 #Exclude any users who logged > 100 visits in any month 
 all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
 user_ge_100 <- all_monthly %.%
   group_by(user_pk) %.%
   summarise(ge_100 = sum(visits_ge_100))
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
-#696 users have only <= 100 visits per month
+#Keep only user with <= 100 visits per month
 training_typical <- 
   all_monthly[all_monthly$user_pk %in% user_le_100$user_pk, ]
 
-#Exclude users with < 4 months on CC
-month_count <- training_typical %.%
+#Exclude any users that don't have a month_index = 1
+#These users have months that started outside our data range for this dataset
+#so we shouldn't include them
+training_typical$has_index_1 <- training_typical$month_index == 1
+user_index_1 <- training_typical %.%
   group_by(user_pk) %.%
-  summarise(months_on_cc = length(unique(calendar_month)))
-month_count <- filter(month_count, months_on_cc >= 4)
+  summarise(keep_user = sum(has_index_1))
+user_index_1 <- filter(user_index_1, keep_user != 0)
+#Keep users that have a month_index = 1
 training_typical <- 
-  training_typical[training_typical$user_pk %in% month_count$user_pk, ]
+  training_typical[training_typical$user_pk %in% user_index_1$user_pk, ]
 
 #Add sample_increase variable: increasing by steady increments of 1
 #Add sample_decrease variable: decreasing by steady increments of 1
@@ -69,16 +71,33 @@ df[,diff_register_followup:=c(NA,diff(register_followup)),by=user_pk]
 df[,diff_case_register_followup_rate:=c(NA,diff(case_register_followup_rate)),by=user_pk]
 df[,diff_ncases_touched:=c(NA,diff(ncases_touched)),by=user_pk]
 df[,diff_nunique_followups:=c(NA,diff(nunique_followups)),by=user_pk]
-df[,diff_audio_plays:=c(NA,diff(audio_plays)),by=user_pk]
-df[,diff_network_warnings:=c(NA,diff(network_warnings)),by=user_pk]
-df[,diff_num_user_pk:=c(NA,diff(num_user_pk)),by=user_pk]
-df[,diff_domain_numeric:=c(NA,diff(domain_numeric)),by=user_pk]
-df[,diff_sample_undefined:=c(NA,diff(sample_undefined)),by=user_pk]
-df[,diff_sample_normal:=c(NA,diff(sample_normal)),by=user_pk]
-df[,diff_sample_percentile:=c(NA,diff(sample_percentile)),by=user_pk]
-df[,diff_sample_increase:=c(NA,diff(sample_increase)),by=user_pk]
-df[,diff_sample_decrease:=c(NA,diff(sample_decrease)),by=user_pk]
+#df[,diff_audio_plays:=c(NA,diff(audio_plays)),by=user_pk]
+#df[,diff_network_warnings:=c(NA,diff(network_warnings)),by=user_pk]
+#df[,diff_num_user_pk:=c(NA,diff(num_user_pk)),by=user_pk]
+#df[,diff_domain_numeric:=c(NA,diff(domain_numeric)),by=user_pk]
+#df[,diff_sample_undefined:=c(NA,diff(sample_undefined)),by=user_pk]
+#df[,diff_sample_normal:=c(NA,diff(sample_normal)),by=user_pk]
+#df[,diff_sample_percentile:=c(NA,diff(sample_percentile)),by=user_pk]
+#df[,diff_sample_increase:=c(NA,diff(sample_increase)),by=user_pk]
+#df[,diff_sample_decrease:=c(NA,diff(sample_decrease)),by=user_pk]
 training_typical <- as.data.frame(df)
+
+#Choose only ONE of the three options below:
+# 1. Exclude users with < 4 months on CC
+month_count <- training_typical %.%
+  group_by(user_pk) %.%
+  summarise(months_on_cc = length(unique(calendar_month)))
+month_count <- filter(month_count, months_on_cc >= 4)
+training_typical <- 
+  training_typical[training_typical$user_pk %in% month_count$user_pk, ]
+
+# 2. Exclude rows before the 6th month on CC
+training_typical <- filter(training_typical, month_index >= 6)
+
+# 3. Exclude rows before the 6th month on CC 
+# AND users with < 6 active months on CC
+training_typical <- filter(training_typical, month_index >= 6)
+training_typical <- filter(training_typical, active_months >= 6)
 
 #training_typical$previous_month_active <- training_typical$diff_days <= 31
 #next_month_active <- c()
@@ -252,7 +271,7 @@ training_typical$prev_sample_percentile <- training_typical$sample_percentile - 
 training_typical$prev_sample_increase <- training_typical$sample_increase - training_typical$diff_sample_increase
 training_typical$prev_sample_decrease <- training_typical$sample_decrease - training_typical$diff_sample_decrease
 
-test2_data <- filter(training_typical, previous_month_active == T)
+test2_data <- training_typical[training_typical$previous_month_active == T,]
 
 #Dataset for Mengji with test 2a x,y values for each user for each month
 #mengji2 <- select(test2_data, user_id, user_pk, domain, calendar_month, ncases_touched, 
@@ -260,6 +279,11 @@ test2_data <- filter(training_typical, previous_month_active == T)
 #names(mengji2)[names(mengji2) == "ncases_touched"] = "ntouched_test2a_x"
 #names(mengji2)[names(mengji2) == "prev_ncases_touched"] = "ntouched_test2a_y"
 
+indicators <- c("nvisits", "active_day_percent", "nforms", 
+                "median_visit_duration", "median_visits_per_day", 
+                "time_using_cc", "ncases_registered", "register_followup", 
+                "case_register_followup_rate", "ncases_touched", 
+                "nunique_followups")
 
 test_2a <- 
   c(cor(training_typical$prev_nvisits, training_typical$nvisits, use = "complete.obs"),
@@ -273,7 +297,8 @@ test_2a <-
     cor(training_typical$prev_register_followup, training_typical$register_followup, use = "complete.obs"),
     cor(training_typical$prev_case_register_followup_rate, training_typical$case_register_followup_rate, use = "complete.obs"),
     cor(training_typical$prev_ncases_touched, training_typical$ncases_touched, use = "complete.obs"),
-    cor(training_typical$prev_nunique_followups, training_typical$nunique_followups, use = "complete.obs"),
+    cor(training_typical$prev_nunique_followups, training_typical$nunique_followups, use = "complete.obs"))
+
     cor(training_typical$prev_audio_plays, training_typical$audio_plays, use = "complete.obs"),
     cor(training_typical$prev_network_warnings, training_typical$network_warnings, use = "complete.obs"),
     cor(training_typical$prev_num_user_pk, training_typical$num_user_pk, use = "complete.obs"),
@@ -285,8 +310,10 @@ test_2a <-
     cor(training_typical$prev_sample_decrease, training_typical$sample_decrease, use = "complete.obs"))
 names(test_2a) <- indicators
 
-g <- ggplot(raw_percentile, aes(x=sample_percentile, y=prev_percentile_sample)) +
+g <- ggplot(training_typical, aes(x=prev_time_using_cc, y=time_using_cc)) +
   geom_point(shape=1) +
+  scale_x_continuous(limits=c(0,100000)) +
+  scale_y_continuous(limits=c(0,100000)) +
   geom_smooth(method=lm)
 
 #------------------------------------------------------------------------#

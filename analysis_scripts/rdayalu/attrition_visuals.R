@@ -43,6 +43,43 @@ leadup_subset$before_two_month_attrition <- leadup_subset$next_two_months_active
   leadup_subset$next_three_months_active == T
 write.csv(leadup_subset, file = "attrition_leadup_ntouched.csv")
 
+#Graph leadups to attrition events 
+leadup <- read.csv(file = "attrition_leadup_ntouched.csv")
+leadup$calendar_month <- as.Date(leadup$calendar_month)
+leadup <- arrange(leadup, user_pk, calendar_month)
+
+leadup_att3 <- filter(leadup, next_three_months_active == F)
+leadup_3 <- c(median(leadup_att3$month_1), median(leadup_att3$month_2), 
+              median(leadup_att3$month_3), median(leadup_att3$month_4))
+
+leadup_att2 <- filter(leadup, before_two_month_attrition == T)
+leadup_2 <- c(median(leadup_att2$month_1), median(leadup_att2$month_2), 
+              median(leadup_att2$month_3), median(leadup_att2$month_4))
+
+leadup_att1 <- filter(leadup, before_one_month_attrition == T)
+leadup_1 <- c(median(leadup_att1$month_1), median(leadup_att1$month_2), 
+              median(leadup_att1$month_3), median(leadup_att1$month_4))
+
+leadup_active <- filter(leadup, next_month_active == T)
+leadup_comparison <- c(median(leadup_active$month_1), median(leadup_active$month_2), 
+                       median(leadup_active$month_3), median(leadup_active$month_4))
+
+leadup_data <- data.frame(cbind(rep(c(1:4), 2), c(leadup_3, leadup_comparison)))
+leadup_data$X1 <- as.factor(leadup_data$X1)
+month_levels <- rev(levels(leadup_data$X1))
+leadup_data$att_duration <- as.factor(c(rep(">= 3 months attrition",4), rep("No attrition",4)))
+
+g <- ggplot(leadup_data, aes(x = X1, y = X2, colour = att_duration, group = att_duration, linetype = att_duration)) +
+  geom_point(shape = 15, size = 4.0, colour="peachpuff4") +
+  geom_line(size = 1.5) + 
+  scale_colour_brewer(palette="Set2") +
+  scale_y_continuous(limits=c(0,13)) +
+  scale_x_discrete(limits = month_levels) +
+  xlab("Month 'X' before attrition event") +
+  ylab("# cases visited") +
+  theme(legend.title=element_blank())
+
+
 
 #ncases_registered
 leadup <- data.frame(matrix(ncol = 11, nrow = 1)) 
