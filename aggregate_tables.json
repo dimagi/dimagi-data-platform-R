@@ -25,9 +25,6 @@
                "median_visit_duration":"median_visit_duration",
                "median_visits_per_day":"median_visits_per_day",
                "median_visits_per_month":"median_visits_per_month",
-               "median_time_elapsed_btw_visits":"median_time_elapsed_btw_visits",
-               "batch_entry_visit":"batch_entry_visit",
-               "batch_entry_percent":"batch_entry_percent",
                "morning":"morning",
                "afternoon":"afternoon",
                "evening":"evening",
@@ -38,10 +35,10 @@
          {
             "table":"interactions",
             "columns":{
+               "ninteractions":"ninteractions",
                "ncases_registered":"ncases_registered",
                "register_followup":"register_followup",
                "case_register_followup_rate":"case_register_followup_rate",
-               "ncases_opened":"ncases_opened",
                "ncases_touched":"ncases_touched",
                "nunique_followups":"nunique_followups"
             }
@@ -82,9 +79,6 @@
                "nforms":"nforms",
                "median_visit_duration":"median_visit_duration",
                "median_visits_per_day":"median_visits_per_day",
-               "median_time_elapsed_btw_visits":"median_time_elapsed_btw_visits",
-               "batch_entry_visit":"batch_entry_visit",
-               "batch_entry_percent":"batch_entry_percent",
                "morning":"morning",
                "afternoon":"afternoon",
                "evening":"evening",
@@ -96,10 +90,10 @@
          {
             "table":"interactions",
             "columns":{
+               "ninteractions":"ninteractions",
                "ncases_registered":"ncases_registered",
                "register_followup":"register_followup",
                "case_register_followup_rate":"case_register_followup_rate",
-               "ncases_opened":"ncases_opened",
                "ncases_touched":"ncases_touched",
                "nunique_followups":"nunique_followups"
             }
@@ -133,7 +127,27 @@
          {
             "table":"interactions",
             "columns":{
-               "median_days_btw_followup":"median_days_btw_followup"
+               "median_days_btw_followup":"median_days_btw_followup",
+               "register_followup":"register_followup"
+            }
+         }
+      ]
+
+  },
+{
+    "table":"aggregate_lifetime_interactions_by_case_type",
+      "by":[
+         "domain",
+         "user_id",
+         "user_pk",
+         "case_type"
+      ],
+      "components":[
+         {
+            "table":"interactions",
+            "columns":{
+               "median_days_btw_followup":"median_days_btw_followup",
+               "register_followup":"register_followup"
             }
          }
       ]

@@ -35,10 +35,6 @@ numeric_index <- function (x) {
   return (total_months)
 }
 
-# TODO batch entry calc must be fixed, should take into account home visit or no - ML
-batch_entry_visit <- function(x) sum(x$batch_entry, na.rm=TRUE)
-batch_entry_percent <- function(x) mean(x$batch_entry, na.rm=TRUE)
-
 ## The next indicators are only applicable for the lifetime table.
 days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
 days_visit_last <- function(x) as.numeric(Sys.Date() - date_last_visit(x))
@@ -54,6 +50,7 @@ active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
 median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visit_date))), na.rm=TRUE)
 
 # INTERACTION TABLE INDICATORS:
+ninteractions <- function(x) NROW(x)
 ncases_registered <- function(x) sum(x$created, na.rm=TRUE)
 register_followup <- function(x) sum(!x$created)
 case_register_followup_rate <- function(x) mean(!x$created)*100

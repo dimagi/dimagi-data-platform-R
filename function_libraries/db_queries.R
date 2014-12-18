@@ -22,6 +22,8 @@ get_domain_table <- function (db) {
   
   hstore_keyvalues_q <- "select name, (each(attributes)).* from domain order by name"
   hstore_keyvalues <- do_query(con,hstore_keyvalues_q)
+  hstore_keyvalues <- hstore_keyvalues[!(hstore_keyvalues$key %in% c('name','organization')),] # remove or we have duplicate colnames
+  hstore_keyvalues <- hstore_keyvalues[!grepl("^_attachments",hstore_keyvalues$key),] # attachment properties are custom by domain
   hstore_wide<-dcast(hstore_keyvalues, name ~ key)
   retframe<-merge(retframe,hstore_wide,by="name",all=T)
   
@@ -53,10 +55,73 @@ get_domain_table <- function (db) {
   return(retframe)
 }
 
+get_application_table <- function(db){
+  q <- 'select domain.name as domain_name, application.app_id, application.app_name 
+  from application, domain where application.domain_id = domain.id'
+  res <- collect(tbl(db,sql(q)))
+  
+  attrs_q <- "select app_id, (each(attributes)).* from application"
+  attrs <- collect(tbl(db,sql(attrs_q)))
+  attrs <- attrs[!(attrs$key %in% c('domain','app_id','app_name')),] # remove or we have duplicate colnames
+  attrs <- attrs[!grepl("^_attachments",attrs$key),] # attachment properties are custom
+  attrs <- attrs[!grepl("^multimedia_map",attrs$key),] # multimedia map items
+  attrs_wide<-dcast(unique(attrs), app_id ~ key, value.var="value")
+  res<-merge(res,attrs_wide,by="app_id",all=T)
+  
+  return (res)
+}
+
+get_salesforce_contract_data <- function (db) {
+  q <- "select domain.name as dname, sf_dcontract__c.*
+          from domain, sf_dcontract__c
+          where attributes ? 'internal.sf_contract_id' 
+          and attributes->'internal.sf_contract_id'  <> ''
+          and attributes->'internal.sf_contract_id'  <> 'None'
+          and attributes->'internal.sf_contract_id'  like sf_dcontract__c.salesforce_contract_id__c"
+  
+  res <- tbl(db,sql(q))
+  return (res)
+}
+
+get_salesforce_reportouts <- function (db) {
+  q <- "select domain.name as dname, sf_dcontract__c.salesforce_contract_id__c, sf_project_report_out__c.*
+          from domain, sf_dcontract__c, sf_project_report_out__c
+          where attributes ? 'internal.sf_contract_id' 
+          and attributes->'internal.sf_contract_id'  <> ''
+          and attributes->'internal.sf_contract_id'  <> 'None'
+          and attributes->'internal.sf_contract_id'  like sf_dcontract__c.salesforce_contract_id__c
+          and sf_dcontract__c.id like sf_project_report_out__c.contract__c"
+  res <- tbl(db,sql(q))
+  return (res)
+  
+}
+
+get_impact123_case_properties <- function(db, domain_name){
+  q <- sprintf("select domain.name as domain_name, users.user_id, form.form_id, form.time_end, cases.case_id, cases.case_type, case_event.id
+          from case_event, form, users, cases, domain
+          where case_event.case_id = cases.id
+          and case_event.form_id = form.id
+          and form.domain_id = domain.id
+          and form.user_id = users.id and domain.name like '%s'", domain_name)
+  res <- tbl(db,sql(q))
+  
+  case_properties_q <- sprintf("select id, (each(case_properties)).* from case_event 
+  where form_id in (select id from form 
+                               where domain_id = (select id from domain where name like '%s'))",domain_name)
+  case_properties <- collect(tbl(db,sql(case_properties_q)))
+  if (NROW(case_properties) > 0) {
+    case_properties_wide<-dcast(unique(case_properties), id ~ key, value.var="value")
+    res<-merge(res,case_properties_wide,by="id",all=T)
+  }
+  
+  return (res)
+}
+
 # returns visit table for use in visit detail data source
 get_visit_detail_table <- function (db, limit=-1) {
   con <- db$con
-  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.id as user_pk,users.user_id, domain.name as domain
+  query <- 'select visit.id, count(form.id) as num_forms, visit.time_start, visit.time_end, users.id as user_pk,
+            users.user_id, domain.name as domain
             from form, visit, users, domain
             where form.visit_id = visit.id and visit.user_id = users.id and form.domain_id = domain.id
             group by visit.id, visit.time_start, visit.time_end, users.id, users.user_id, domain.name'
@@ -75,12 +140,15 @@ get_visit_detail_table <- function (db, limit=-1) {
   total_forms_res <- do_query(con, total_forms_q)
   v <- merge(v,total_forms_res,by.x="id",by.y="id")
   
-  time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) over (partition by visit.user_id order by time_start)) as time_since_previous from visit order by visit.user_id, time_start"
+  time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) 
+                      over (partition by visit.user_id order by time_start)) as time_since_previous 
+                      from visit order by visit.user_id, time_start"
   time_since_prev_res <- do_query(con, time_since_prev_q)
   v <- merge(v,time_since_prev_res,by.x="id",by.y="id",all.x=T,all.y=F)
   
   if (with_limit) { limit_clause <- sprintf(" and visit.id in (%s) ", visit_ids)} else {limit_clause <- ""}
-  total_form_durations_q <- sprintf("select visit.id, extract('epoch' from sum(form.time_end - form.time_start)) as form_duration
+  total_form_durations_q <- sprintf("select visit.id, 
+                            extract('epoch' from sum(form.time_end - form.time_start)) as form_duration
                             from form, visit where form.visit_id = visit.id %s
                             group by visit.id",limit_clause)
   total_form_durations_res <- do_query(con, total_form_durations_q)
@@ -108,8 +176,8 @@ get_interaction_table <- function (db, limit=-1) {
   
   if (with_limit) { limit_clause <- sprintf(" (select * from visit limit %d) as vis ", limit)} else {limit_clause <- "visit as vis"}
   visit_q <- sprintf("select domain.name as domain, vis.id, users.id as user_pk,users.user_id, vis.time_start, vis.time_end 
-              from %s, users, domain 
-              where vis.user_id = users.id and users.domain_id = domain.id", limit_clause)
+              from %s, users, domain
+              where vis.user_id = users.id and vis.domain_id = domain.id", limit_clause)
   visit_res <- do_query(con, visit_q)
   visit_ids <- paste(visit_res$id,collapse=",")
   
@@ -131,7 +199,8 @@ get_interaction_table <- function (db, limit=-1) {
                                and form.visit_id = visit.id
                                group by cases.case_id, cases.case_type, visit.id, visit.time_start)
                                select case_visits.case_id, case_visits.case_type, case_visits.visit_id, 
-                               lag(case_visits.time_start,1) over (partition by case_visits.case_id order by case_visits.time_start) as prev_visit_start
+                               lag(case_visits.time_start,1) over (partition by case_visits.case_id 
+                               order by case_visits.time_start) as prev_visit_start
                                from case_visits'
   
   case_followup_res <- do_query(con, case_followup_query)
@@ -160,15 +229,36 @@ res <- tbl(db,sql(query))
 return(res)
 }
 
-# domain, user_id, username, first_submission date for all users
+# user_id, username, user_type (web/mobile), is_superuser for all users
 get_user_table <- function(db){
-  query <- "select domain.name as domain, users.id as user_pk,users.user_id, users.username, min(form.time_start) as first_submission
-            from domain, users, form
-            where users.domain_id = domain.id
-            and form.user_id = users.id
-            group by domain.name, users.id as user_pk,users.user_id, users.username"
-  res <- tbl(db,sql(query))
+  mobile_users_q <- "select users.id as user_pk, users.user_id, users.username, 
+            mobile_user.deactivated, mobile_user.deleted
+            from users, mobile_user
+            where users.id = mobile_user.user_pk"
+  mobile_users <- collect(tbl(db,sql(mobile_users_q)))
+  mobile_users$user_type <- 'mobile'
+  mobile_users$is_superuser <- NA
+  
+  web_users_q <- "select users.id as user_pk, users.user_id, users.username, web_user.is_superuser
+            from users, web_user
+            where users.id = web_user.user_pk"
+  web_users <- collect(tbl(db,sql(web_users_q)))
+  web_users$user_type <- 'web'
+  web_users$deactivated <- NA
+  web_users$deleted <- NA
+  
+  res <- rbind(mobile_users, web_users)
   return(res)
+}
+
+# domain, user_id, first submission in that domain for all users
+get_first_submission <- function(db){
+  q <- "select domain.name, users.user_id, min(time_start) from domain, form, users
+        where form.user_id = users.id
+        and form.domain_id = domain.id
+        group by users.user_id, domain.name"
+  res <- tbl(db,sql(q))
+  return (res)
 }
   
 get_device_log_table <- function(db, limit){

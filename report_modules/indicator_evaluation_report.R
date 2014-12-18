@@ -2,6 +2,9 @@
 #usage indicators. See the following document for more detail:
 #https://docs.google.com/a/dimagi.com/document/d/1hP-ewigPuUwuac8K9Tx-VC9Z8epC03lMrnwqzNWveY8/edit
 
+#Be sure to set config_run first
+source(file.path("analysis_scripts","raw_data","data_import.R", fsep = .Platform$file.sep))
+
 library(data.table)
 library(zoo)
 detach("package:lubridate")
@@ -24,40 +27,30 @@ report_options <- get_report_options(run_conf,report)
 
 #Remove demo users and NA/NONE users
 #We also need to find a way to exclude admin/web users
+#Keep only confirmed mobile users for now
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
 all_monthly = all_monthly[!is.na(all_monthly$user_id),]
+mobile <- read.csv(file="mobile_users.csv")
+all_monthly$mobile <- all_monthly$user_id %in% mobile$user_id
+all_monthly = filter(all_monthly, mobile == T)
 
 #Remove any dates before report start_date and after report end_date
-names (all_monthly)[names(all_monthly) == "date_first_visit"] = "first_visit_date"
-names (all_monthly)[names(all_monthly) == "date_last_visit"] = "last_visit_date"
-all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
-all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
+all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
+all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
 start_date = as.Date(report_options$start_date)
 end_date = as.Date(report_options$end_date)
-all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
-                     & all_monthly$last_visit_date <= end_date)
+all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
+                     & all_monthly$date_last_visit <= end_date)
 
 #Change column names as needed
-names (all_monthly)[names(all_monthly) == "X"] = "row_num"
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
-names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
-names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
-
-#Round median visit duration to one decimal place
-all_monthly$median_visit_duration <- round(all_monthly$median_visit_duration,
-                                           digits = 1)
-# Convert relevant indicators to percentages
-all_monthly$active_days_percent= (all_monthly$active_days_percent)*100
+names (all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
 
 #Create "red herring" indicators
-#user_id to numeric: First convert from character to factor
-all_monthly$user_id <- as.factor(all_monthly$user_id)
-all_monthly$user_numeric = as.numeric(all_monthly$user_id)
 #domain to numeric: First convert from character to factor
-all_monthly$domain <- as.factor(all_monthly$domain)
-all_monthly$domain_numeric = as.numeric(all_monthly$domain)
+all_monthly$domain_numeric <- as.numeric(as.factor(all_monthly$domain))
 #Random numbers per row, using wide range (5x nrow), not specifying distribution, mean or sd
 all_monthly$sample_undefined <- sample(1:(5*nrow(all_monthly)), nrow(all_monthly), replace=F)
 #Random numbers per row, normal distribution, defining mean and sd
@@ -65,7 +58,7 @@ all_monthly$sample_normal <- rnorm(nrow(all_monthly), mean = 10, sd = 1)
 
 #Merge domain facets from domain table into all_monthly table
 facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit, active, test, Test.Project.)
+                          business_unit, active, Test.Project.)
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 
@@ -78,7 +71,7 @@ all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 #Tests for usage indicator evaluation
 #------------------------------------------------------------------------#
 
-indicators_to_test = c("nvisits", "active_days_percent", "median_visits_per_day", 
+indicators_to_test = c("nvisits", "active_day_percent", "median_visits_per_day", 
                        "ncases_registered", "nunique_followups", "median_visit_duration", 
                        "nforms", "user_numeric", "domain_numeric", "sample_undefined",
                        "sample_normal")
