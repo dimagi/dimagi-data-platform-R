@@ -67,16 +67,18 @@ leadup_comparison <- c(median(leadup_active$month_1), median(leadup_active$month
 leadup_data <- data.frame(cbind(rep(c(1:4), 2), c(leadup_3, leadup_comparison)))
 leadup_data$X1 <- as.factor(leadup_data$X1)
 month_levels <- rev(levels(leadup_data$X1))
-leadup_data$att_duration <- as.factor(c(rep(">= 3 months attrition",4), rep("No attrition",4)))
+leadup_data$att_duration <- as.factor(c(rep("Attrition",4), rep("No attrition",4)))
 
 g <- ggplot(leadup_data, aes(x = X1, y = X2, colour = att_duration, group = att_duration, linetype = att_duration)) +
   geom_point(shape = 15, size = 4.0, colour="peachpuff4") +
   geom_line(size = 1.5) + 
-  scale_colour_brewer(palette="Set2") +
+  scale_colour_brewer(palette="Set1") +
   scale_y_continuous(limits=c(0,13)) +
   scale_x_discrete(limits = month_levels) +
-  xlab("Month 'X' before attrition event") +
-  ylab("# cases visited") +
+  xlab("Number of months prior to attrition event") +
+  ylab("Number of cases visited") +
+  theme(axis.title.x=element_text(size=14), axis.text.x=element_text(size=14, colour = "black")) + 
+  theme(axis.title.y=element_text(size=14), axis.text.y=element_text(size=14, colour = "black")) +
   theme(legend.title=element_blank())
 
 

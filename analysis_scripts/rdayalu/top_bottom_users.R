@@ -93,6 +93,34 @@ g <- ggplot(bot, aes(x=prev_ncases_touched, y=ncases_touched)) +
   scale_x_continuous(limits=c(0,50)) +
   annotate("text", label="r^2 == 0.34", parse = T, x=3, y=48)
 
+#Ratio of top/bottom 10% months per user
+#First calculate # months that each user_pk has in the top/bottom category
+top_total <- top %>%
+  group_by(user_pk) %>%
+  summarise(top_total = sum(top_10p_ntouched))
+bot_total <- bot %>%
+  group_by(user_pk) %>%
+  summarise(bot_total = sum(bot_10p_ntouched))
+#Merge these totals back to the tb dataset
+tb <- merge(tb, bot_total, by = "user_pk", all.x = T)
+tb <- merge(tb, top_total, by = "user_pk", all.x = T)
+#Create top/bottom ratio for each user
+tb$top_ratio <- (tb$top_total/tb$active_months)*100
+tb$bot_ratio <- (tb$bot_total/tb$active_months)*100
+tb$top_user <- tb$user_pk %in% top_users
+tb$bot_user <- tb$user_pk %in% bot_users
+tb$user_rank[tb$top_user==T] <- "top_user"
+tb$user_rank[tb$bot_user==T] <- "bot_user"
+
+#Boxplot
+g <- ggplot(tb, aes(x="top_users", y=top_ratio)) + 
+  geom_boxplot(width = 0.3) +
+  scale_y_continuous(limits=c(0,80))
+
+g <- ggplot(tb, aes(x="bottom_users", y=bot_ratio)) + 
+  geom_boxplot(width = 0.3) + 
+  scale_y_continuous(limits=c(0,80))
+
 #Test statistic for correlations
 cor.test(top$prev_ncases_touched, top$ncases_touched, 
          alternative = "two.sided", conf.level = 0.95)
