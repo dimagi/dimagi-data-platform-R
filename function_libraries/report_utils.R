@@ -55,7 +55,7 @@ add_splitby_col <- function (data_table, domain_table, splitby_var, split_name="
   splityby_frame <- subset(domain_table, select=c("name",splitby_var))
   df <- merge(data_table,splityby_frame,by.x="domain",by.y="name")
   names(df)[names(df) == splitby_var] <- split_name
-  df[[split_name]] <- sapply(df[[split_name]], as.factor)
+#   df[[split_name]] <- sapply(df[[split_name]], as.factor)
   return(df)
 }
 

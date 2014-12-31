@@ -1,6 +1,8 @@
 # Comparision Report!
 library(zoo) #work with mm/yy calendar dates without day
 library("reshape2")
+library('gridExtra')
+library('ggplot2')
 
 render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   print(paste(c("split on: ", report_options$split_by)))
@@ -71,8 +73,9 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     split_monthly <- split_out(recent_monthly, split, splits)
     num_active_users <- nrow(split_monthly)
     num_active_domains <- length(unique(split_monthly[["domain"]]))
-    udf[df$split==split, 2] <- num_active_users
-    ddf[df$split==split, 2] <- num_active_domains
+    print(num_active_users)
+    udf[udf$split==split, 2] <- num_active_users
+    ddf[ddf$split==split, 2] <- num_active_domains
   }
   
   # % users with android
@@ -148,6 +151,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   # most frequent country  
   print("most frequent country")
   for (split in all_splits) {
+    print(split)
     split_monthly <- split_out(recent_monthly, split, splits)
     countries_users <- split_monthly[["country"]]
     freq_country_name_users <- Mode(na.omit(countries_users[countries_users!=""]))
@@ -186,10 +190,12 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   # percent of self starters
   print("self starters")
   for (split in all_splits) {
+    print(split)
     split_monthly <- split_out(recent_monthly, split, splits)
     self_started <- split_monthly[split_monthly$self_started=="True", ]
     num_domains <- length(unique(self_started[["domain"]]))
     num_users <- nrow(self_started)
+    print(num_users)
     perc_self_started_domains <- round((num_domains / ddf[ddf$split==split, 2]) * 100, digits=0)
     perc_self_started_users <- round((num_users / udf[udf$split==split, 2]) * 100, digits=0)
     udf[udf$split==split, 6] <- paste(c(num_users, " (", perc_self_started_users, "%)"), collapse="")
@@ -279,14 +285,11 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   print(outfile)
   pdf(outfile, height=8.5, width=16)
   
-  # rmarkdown::render('report_templates/comparison_report.Rmd')
-  
-  #overview
-  udf_table <- tableGrob(udf)
-  ddf_table <- tableGrob(ddf)
-  grid.arrange(udf_table, ddf_table, nrow=2)
-  
-  #grid.table(top_domains_df)
+  names(udf) <- c(report_options$split_by, "Active Users", "Attrition", "% Android", 
+                  "Most Common Country", "Self Starters")
+  names(ddf) <- c(report_options$split_by, "Active Domains", "% Android", "Most Common Country", 
+                  "Self Starters", "Services Income", "All Time Income")
+  rmarkdown::render('report_templates/comparison_report.Rmd')
   
   #detailed for active users
   ch <- melt(active_users_table, id.vars="split", value.name="active_users", variable.name="month")
