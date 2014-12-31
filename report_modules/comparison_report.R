@@ -5,7 +5,8 @@ library('gridExtra')
 library('ggplot2')
 
 render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
-  print(paste(c("split on: ", report_options$split_by)))
+  split_by <- report_options$split_by
+  print(paste(c("split on: ", split_by)))
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(db)
   
@@ -20,7 +21,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   names (monthly_table)[names(monthly_table) == "numeric_index"] = "obsnum"
   
   active_monthly <- monthly_table[monthly_table$nforms>0 & !is.na(monthly_table$nforms), ]
-  active_monthly <- add_splitby_col(active_monthly, domain_table, report_options$split_by)
+  active_monthly <- add_splitby_col(active_monthly, domain_table, split_by)
   
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
@@ -249,7 +250,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   self_start_users_table <- create_month_plot_table()
   self_start_domains_table <- create_month_plot_table()
   for (month in as.character(months)) {
-    print(month)
     month_data <- active_monthly[active_monthly$calendar_month==month, ]
     for (split in splits_with_none) {
       split_data <- split_out(month_data, split, splits)
@@ -285,9 +285,20 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   print(outfile)
   pdf(outfile, height=8.5, width=16)
   
-  names(udf) <- c(report_options$split_by, "Active Users", "Attrition", "% Android", 
+  custom_plot <- function(a_table, value_name, variable_name) {
+    #detailed for active users
+    colnames(a_table)[1] <- split_by
+    ch <- melt(a_table, id.vars=split_by, value.name=value_name, variable.name=variable_name)
+    ggplot(data=ch, aes_string(x = variable_name, y = value_name, group = split_by, colour = split_by)) +
+      geom_line() +
+      geom_point( size=2, shape=21, fill="white") +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  }
+  
+  
+  names(udf) <- c(split_by, "Active Users", "Attrition", "% Android", 
                   "Most Common Country", "Self Starters")
-  names(ddf) <- c(report_options$split_by, "Active Domains", "% Android", "Most Common Country", 
+  names(ddf) <- c(split_by, "Active Domains", "% Android", "Most Common Country", 
                   "Self Starters", "Services Income", "All Time Income")
   rmarkdown::render('report_templates/comparison_report.Rmd')
   
