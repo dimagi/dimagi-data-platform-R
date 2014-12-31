@@ -48,14 +48,14 @@ merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
 # data_table : the data to add a split_by column to
 # domain_table: the domain table
 # splitby_var: the variable to split by
-add_splitby_col <- function (data_table, domain_table, splitby_var) {
+add_splitby_col <- function (data_table, domain_table, splitby_var, split_name="split_by") {
   if (!(splitby_var %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", splitby_var))
   }
   splityby_frame <- subset(domain_table, select=c("name",splitby_var))
   df <- merge(data_table,splityby_frame,by.x="domain",by.y="name")
-  names(df)[names(df) == splitby_var] <- 'split_by'
-  df$split_by <- sapply(df$split_by, as.factor)
+  names(df)[names(df) == splitby_var] <- split_name
+  df[[split_name]] <- sapply(df[[split_name]], as.factor)
   return(df)
 }
 
