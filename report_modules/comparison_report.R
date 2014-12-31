@@ -91,8 +91,8 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     num_android_domains <- length(unique(android_monthly[["domain"]]))
     perc_android_domains = (num_android_domains / num_active_domains) * 100
     
-    udf[df$split==split, 4] <- round(perc_android_users, digits=2)
-    ddf[df$split==split, 3] <- round(perc_android_domains, digits=2)
+    udf[udf$split==split, 4] <- round(perc_android_users, digits=2)
+    ddf[ddf$split==split, 3] <- round(perc_android_domains, digits=2)
   }
   
   #Perform the following function by flw
@@ -209,7 +209,21 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   saas_info <- add_col(domains, sf_table, "services_income__c", "services", "domain", "domain")
   saas_info <- add_col(saas_info, sf_table, "all_time_income__c", "alltime", "domain", "domain")
   
+  cash_bracket <- function(amt) {
+    if (amt < 1) { return("zero") }
+    if (amt < 100) { return("one") }
+    if (amt < 500) { return("hundred") }
+    if (amt < 10000) { return("five_hundred") }
+    if (amt < 30000) { return("ten_k") }
+    if (amt < 100000) { return("thirty_k") }
+    if (amt < 10000000) { return("hundred_k") }
+  }
+  
   top_domains_df <- data.frame(split=all_splits, alltime=NA, services=NA)
+  services_grouping <- data.frame(split=splits_with_none, zero=0, one=0, hundred=0, 
+                                  five_hundred=0, ten_k=0, thirty_k=0, hundred_k=0)
+  alltime_grouping <- data.frame(split=splits_with_none, zero=0, one=0, hundred=0, 
+                                 five_hundred=0, ten_k=0, thirty_k=0, hundred_k=0)
   
   for (split in all_splits) {
     split_monthly <- split_out(recent_monthly, split, splits)
@@ -218,12 +232,20 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     alltime_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][c("domain", "alltime")]
     top_alltime_domains <- head(alltime_info[order(-alltime_info$alltime), ], 5)
     alltime_str_bits <- apply(top_alltime_domains, 1, function(x) paste(x, collapse= ": $"))
-    top_domains_df[top_domains_df$split==split, 'alltime'] <- paste(alltime_str_bits, collapse=" \n")
+    top_domains_df[top_domains_df$split==split, 'alltime'] <- paste(alltime_str_bits, collapse=" | ")
+    alltime_mapping <- as.data.frame(table(sapply(alltime_info$alltime, cash_bracket)))
+    for (var in alltime_mapping$Var1) {
+      alltime_grouping[alltime_grouping$split==split, var] <- alltime_mapping[alltime_mapping$Var1==var, "Freq"]
+    } 
     
     services_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$services), ][c("domain", "services")]
     top_services_domains <- head(services_info[order(-services_info$services), ], 5)
     services_str_bits <- apply(top_services_domains, 1, function(x) paste(x, collapse= ": $"))
-    top_domains_df[top_domains_df$split==split, 'services'] <- paste(services_str_bits, collapse=" \n")
+    top_domains_df[top_domains_df$split==split, 'services'] <- paste(services_str_bits, collapse=" | ")
+    services_mapping <- as.data.frame(table(sapply(services_info$services, cash_bracket)))
+    for (var in services_mapping$Var1) {
+      services_grouping[services_grouping$split==split, var] <- services_mapping[services_mapping$Var1==var, "Freq"]
+    } 
         
     services_income <- sum(saas_info[saas_info$domain %in% domains & !is.na(saas_info$services), ][["services"]])
     alltime_income <- sum(saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][["alltime"]])
@@ -281,10 +303,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   report_output_dir <- file.path(tmp_report_pdf_dir, "reports")
   dir.create(report_output_dir, showWarnings = FALSE)
   
-  outfile <- file.path(report_output_dir,"Comparison_Report.pdf")
-  print(outfile)
-  pdf(outfile, height=8.5, width=16)
-  
   custom_plot <- function(a_table, value_name, variable_name) {
     #detailed for active users
     colnames(a_table)[1] <- split_by
@@ -295,58 +313,76 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       theme(axis.text.x = element_text(angle = 90, hjust = 1))
   }
   
+  plot_grouping <- function(df) {
+    new_col_names <- c(split_by, 'x <= 0', '0 < x < 100', '100 < x < 500', '500 < x < 10000', 
+                       '10000 < x < 30000', '30000 < x < 100000', 'x > 100000')
+    colnames(df) <- new_col_names
+    dfm <- melt(df[, new_col_names], id.vars = 1)
+    value <- "domains"
+    variable <- "cash_bracket"
+    colnames(dfm) <- c(split_by, variable, value)
+    ggplot(dfm, aes_string(x = split_by, y = value)) + 
+      geom_bar(aes_string(fill = variable), position = "dodge", stat = "identity")
+  }
   
   names(udf) <- c(split_by, "Active Users", "Attrition", "% Android", 
                   "Most Common Country", "Self Starters")
   names(ddf) <- c(split_by, "Active Domains", "% Android", "Most Common Country", 
                   "Self Starters", "Services Income", "All Time Income")
+  names(top_domains_df) <- c(split_by, "Top 5 All-Time Income", "Top 5 Services Income")
   rmarkdown::render('report_templates/comparison_report.Rmd')
   
-  #detailed for active users
-  ch <- melt(active_users_table, id.vars="split", value.name="active_users", variable.name="month")
-  ggplot(data=ch, aes(x=month, y=active_users, group = split, colour = split)) +
-    geom_line() +
-    geom_point( size=2, shape=21, fill="white") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
   
-  #detailed for active domains
-  ch <- melt(active_domains_table, id.vars="split", value.name="active_domains", variable.name="month")
-  ggplot(data=ch, aes(x=month, y=active_domains, group = split, colour = split)) +
-    geom_line() +
-    geom_point( size=2, shape=21, fill="white") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
-  
-  #detailed for percent android
-  ch <- melt(android_users_table, id.vars="split", value.name="perc_android_users", variable.name="month")
-  ggplot(data=ch, aes(x=month, y=perc_android_users, group = split, colour = split)) +
-    geom_line() +
-    geom_point( size=2, shape=21, fill="white") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
-  
-  #detailed for percent android
-  ch <- melt(android_domains_table, id.vars="split", value.name="perc_android_domains", variable.name="month")
-  ggplot(data=ch, aes(x=month, y=perc_android_domains, group = split, colour = split)) +
-    geom_line() +
-    geom_point( size=2, shape=21, fill="white") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
-  
-  #detailed for percent self starter
-  ch <- melt(self_start_users_table, id.vars="split", value.name="perc_self_started_users", variable.name="month")
-  ggplot(data=ch, aes(x=month, y=perc_self_started_users, group = split, colour = split)) +
-    geom_line() +
-    geom_point( size=2, shape=21, fill="white") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
-  
-  #detailed for percent self starter
-  ch <- melt(self_start_domains_table, id.vars="split", value.name="perc_self_started_domains", variable.name="month")
-  ggplot(data=ch, aes(x=month, y=perc_self_started_domains, group = split, colour = split)) +
-    geom_line() +
-    geom_point( size=2, shape=21, fill="white") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-  dev.off()
-  module_pdfs <- c(module_pdfs, outfile)
-  print(module_pdfs)
-  
+#   
+#   outfile <- file.path(report_output_dir,"Comparison_Report.pdf")
+#   print(outfile)
+#   pdf(outfile, height=8.5, width=16)
+#   
+#   #detailed for active users
+#   ch <- melt(active_users_table, id.vars="split", value.name="active_users", variable.name="month")
+#   ggplot(data=ch, aes(x=month, y=active_users, group = split, colour = split)) +
+#     geom_line() +
+#     geom_point( size=2, shape=21, fill="white") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#   
+#   #detailed for active domains
+#   ch <- melt(active_domains_table, id.vars="split", value.name="active_domains", variable.name="month")
+#   ggplot(data=ch, aes(x=month, y=active_domains, group = split, colour = split)) +
+#     geom_line() +
+#     geom_point( size=2, shape=21, fill="white") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#   
+#   #detailed for percent android
+#   ch <- melt(android_users_table, id.vars="split", value.name="perc_android_users", variable.name="month")
+#   ggplot(data=ch, aes(x=month, y=perc_android_users, group = split, colour = split)) +
+#     geom_line() +
+#     geom_point( size=2, shape=21, fill="white") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#   
+#   #detailed for percent android
+#   ch <- melt(android_domains_table, id.vars="split", value.name="perc_android_domains", variable.name="month")
+#   ggplot(data=ch, aes(x=month, y=perc_android_domains, group = split, colour = split)) +
+#     geom_line() +
+#     geom_point( size=2, shape=21, fill="white") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#   
+#   #detailed for percent self starter
+#   ch <- melt(self_start_users_table, id.vars="split", value.name="perc_self_started_users", variable.name="month")
+#   ggplot(data=ch, aes(x=month, y=perc_self_started_users, group = split, colour = split)) +
+#     geom_line() +
+#     geom_point( size=2, shape=21, fill="white") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#   
+#   #detailed for percent self starter
+#   ch <- melt(self_start_domains_table, id.vars="split", value.name="perc_self_started_domains", variable.name="month")
+#   ggplot(data=ch, aes(x=month, y=perc_self_started_domains, group = split, colour = split)) +
+#     geom_line() +
+#     geom_point( size=2, shape=21, fill="white") +
+#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# 
+#   dev.off()
+#   module_pdfs <- c(module_pdfs, outfile)
+#   print(module_pdfs)
+#   
   return(module_pdfs)
 }
