@@ -3,6 +3,8 @@ library(zoo) #work with mm/yy calendar dates without day
 library("reshape2")
 library('gridExtra')
 library('ggplot2')
+library('xtable')
+
 
 render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   split_by <- report_options$split_by
@@ -47,7 +49,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   recent_monthly <- active_monthly[active_monthly$calendar_month==cur_month & !is.na(active_monthly$calendar_month), ]  
   
   splits = unique(active_monthly[, "split_by"])
-  splits = unique(names(sort(table(active_monthly[, 'split_by']), decreasing=TRUE)[c(1:report_options$max_splits)]))
+  splits = unique(names(sort(table(active_monthly[, 'split_by']), decreasing=TRUE)[c(1:report_options$max_groups)]))
   splits = as.vector(na.omit(replace(splits, splits %in% c("", "None"), NA))) # remove None and NA
   all_splits <- c(splits, c("None", "Total"))
   splits_with_none <- c(splits, "None")
@@ -55,7 +57,8 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   #active users
   print("active users")
   udf <- data.frame(split=all_splits, active_users=NA, attrition=NA, perc_android=NA, 
-                    freq_country=NA, self_starter_users=NA)
+                    freq_country=NA, self_starter_users=NA, median_cases_touched=NA, 
+                    median_days_active=NA, median_visit_duration=NA)
   
   ddf <- data.frame(split=all_splits, active_domains=NA, perc_android=NA, freq_country=NA, 
                     self_starter_domains=NA, services_income=NA, all_time_income=NA)
@@ -196,7 +199,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     self_started <- split_monthly[split_monthly$self_started=="True", ]
     num_domains <- length(unique(self_started[["domain"]]))
     num_users <- nrow(self_started)
-    print(num_users)
     perc_self_started_domains <- round((num_domains / ddf[ddf$split==split, 2]) * 100, digits=0)
     perc_self_started_users <- round((num_users / udf[udf$split==split, 2]) * 100, digits=0)
     udf[udf$split==split, 6] <- paste(c(num_users, " (", perc_self_started_users, "%)"), collapse="")
@@ -231,6 +233,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     
     alltime_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][c("domain", "alltime")]
     top_alltime_domains <- head(alltime_info[order(-alltime_info$alltime), ], 5)
+    top_alltime_domains$alltime <- sapply(top_alltime_domains$alltime, round)
     alltime_str_bits <- apply(top_alltime_domains, 1, function(x) paste(x, collapse= ": $"))
     top_domains_df[top_domains_df$split==split, 'alltime'] <- paste(alltime_str_bits, collapse=" | ")
     alltime_mapping <- as.data.frame(table(sapply(alltime_info$alltime, cash_bracket)))
@@ -240,6 +243,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     
     services_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$services), ][c("domain", "services")]
     top_services_domains <- head(services_info[order(-services_info$services), ], 5)
+    top_services_domains$services <- sapply(top_services_domains$services, function(x) as.character(round(x)))
     services_str_bits <- apply(top_services_domains, 1, function(x) paste(x, collapse= ": $"))
     top_domains_df[top_domains_df$split==split, 'services'] <- paste(services_str_bits, collapse=" | ")
     services_mapping <- as.data.frame(table(sapply(services_info$services, cash_bracket)))
@@ -249,10 +253,9 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
         
     services_income <- sum(saas_info[saas_info$domain %in% domains & !is.na(saas_info$services), ][["services"]])
     alltime_income <- sum(saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][["alltime"]])
-    ddf[ddf$split==split, 6] = services_income
-    ddf[ddf$split==split, 7] = alltime_income
+    ddf[ddf$split==split, 6] = round(services_income)
+    ddf[ddf$split==split, 7] = round(alltime_income)
   }
-  
   
   months <- sort(as.yearmon(unique(active_monthly[["calendar_month"]])))
   create_month_plot_table <- function() {
@@ -271,6 +274,10 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   android_domains_table <- create_month_plot_table()
   self_start_users_table <- create_month_plot_table()
   self_start_domains_table <- create_month_plot_table()
+  cases_touched_table <- create_month_plot_table()
+  active_days_table <- create_month_plot_table()
+  visit_duration_table <- create_month_plot_table()
+  
   for (month in as.character(months)) {
     month_data <- active_monthly[active_monthly$calendar_month==month, ]
     for (split in splits_with_none) {
@@ -286,15 +293,30 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       perc_ss_users <- round((nrow(self_started) / num_users) * 100, digits=2)
       perc_ss_domains <- round((length(unique(self_started[["domain"]])) / num_domains) * 100, digits=2)
       
+      median_cases_touched <- median(na.omit(split_data[['ncases_touched']]))
+      median_active_days <- median(na.omit(split_data[['active_days']]))
+      median_visit_duration <- median(na.omit(split_data[['median_visit_duration']]))
+      
+      if (cur_month == month) {
+        udf[udf$split==split, 7] <- median_cases_touched
+        udf[udf$split==split, 8] <- median_active_days
+        udf[udf$split==split, 9] <- median_visit_duration
+      }
+      
       active_users_table[active_users_table$split==split, ][[month]] <- num_users
       active_domains_table[active_domains_table$split==split, ][[month]] <- num_domains
       android_users_table[android_users_table$split==split, ][[month]] <- perc_android_users
       android_domains_table[android_domains_table$split==split, ][[month]] <- perc_android_domains
       self_start_users_table[self_start_users_table$split==split, ][[month]] <- perc_ss_users
       self_start_domains_table[self_start_domains_table$split==split, ][[month]] <- perc_ss_domains
+      active_days_table[active_days_table$split==split, ][[month]] <- median_active_days
+      cases_touched_table[cases_touched_table$split==split, ][[month]] <- median_cases_touched
+      visit_duration_table[visit_duration_table$split==split, ][[month]] <- median_visit_duration
     }
   }
-  
+  udf[udf$split=="Total", 7] <- median(na.omit(recent_monthly[['ncases_touched']]))
+  udf[udf$split=="Total", 8] <- median(na.omit(recent_monthly[['active_days']]))
+  udf[udf$split=="Total", 9] <- median(na.omit(recent_monthly[['median_visit_duration']]))
   
   #-----------------------------------------------------------------------------#
   #PRINT PLOTS AND EXPORT TO PDF
@@ -325,8 +347,8 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       geom_bar(aes_string(fill = variable), position = "dodge", stat = "identity")
   }
   
-  names(udf) <- c(split_by, "Active Users", "Attrition", "% Android", 
-                  "Most Common Country", "Self Starters")
+  names(udf) <- c(split_by, "Active Users", "Attrition", "% Android", "Most Common Country", 
+                  "Self Starters", "Median Cases Touched", "Median Active Days", "Median Visit Duration")
   names(ddf) <- c(split_by, "Active Domains", "% Android", "Most Common Country", 
                   "Self Starters", "Services Income", "All Time Income")
   names(top_domains_df) <- c(split_by, "Top 5 All-Time Income", "Top 5 Services Income")
@@ -338,48 +360,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
 #   print(outfile)
 #   pdf(outfile, height=8.5, width=16)
 #   
-#   #detailed for active users
-#   ch <- melt(active_users_table, id.vars="split", value.name="active_users", variable.name="month")
-#   ggplot(data=ch, aes(x=month, y=active_users, group = split, colour = split)) +
-#     geom_line() +
-#     geom_point( size=2, shape=21, fill="white") +
-#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#   
-#   #detailed for active domains
-#   ch <- melt(active_domains_table, id.vars="split", value.name="active_domains", variable.name="month")
-#   ggplot(data=ch, aes(x=month, y=active_domains, group = split, colour = split)) +
-#     geom_line() +
-#     geom_point( size=2, shape=21, fill="white") +
-#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#   
-#   #detailed for percent android
-#   ch <- melt(android_users_table, id.vars="split", value.name="perc_android_users", variable.name="month")
-#   ggplot(data=ch, aes(x=month, y=perc_android_users, group = split, colour = split)) +
-#     geom_line() +
-#     geom_point( size=2, shape=21, fill="white") +
-#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#   
-#   #detailed for percent android
-#   ch <- melt(android_domains_table, id.vars="split", value.name="perc_android_domains", variable.name="month")
-#   ggplot(data=ch, aes(x=month, y=perc_android_domains, group = split, colour = split)) +
-#     geom_line() +
-#     geom_point( size=2, shape=21, fill="white") +
-#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#   
-#   #detailed for percent self starter
-#   ch <- melt(self_start_users_table, id.vars="split", value.name="perc_self_started_users", variable.name="month")
-#   ggplot(data=ch, aes(x=month, y=perc_self_started_users, group = split, colour = split)) +
-#     geom_line() +
-#     geom_point( size=2, shape=21, fill="white") +
-#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#   
-#   #detailed for percent self starter
-#   ch <- melt(self_start_domains_table, id.vars="split", value.name="perc_self_started_domains", variable.name="month")
-#   ggplot(data=ch, aes(x=month, y=perc_self_started_domains, group = split, colour = split)) +
-#     geom_line() +
-#     geom_point( size=2, shape=21, fill="white") +
-#     theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# 
 #   dev.off()
 #   module_pdfs <- c(module_pdfs, outfile)
 #   print(module_pdfs)
