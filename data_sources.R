@@ -28,11 +28,6 @@ get_visit_detail <- function(db, limit=-1){
   dat$visit_date <- as.Date(dat$time_start)
   dat$month.index <- as.character(as.yearmon(dat$visit_date)) # dplyr doesn't handle yearmon data type
   
-  # Sorting
-  dat <- dat[order(dat$user_id, dat$time_start), ]  # sort visits by user_id and first interaction time
-  dat <- within(dat, date_difference <- dateDiff(visit_date, time_since_previous))
-  dat <- within(dat, batch_entry <- batchEntry(date_difference, time_since_previous, 600))
-  
   # visit hours (needs to be functioned)
   dat$time_ffs <- strftime(dat$time_start, format = "%H:%M:%S") # extracts hours and minutes
   dat$visit_time <- ifelse(dat$time_ffs >= "06:00:00" & dat$time_ffs < "12:00:00", "morning",
