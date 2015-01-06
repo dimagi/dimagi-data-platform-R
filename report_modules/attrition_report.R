@@ -8,14 +8,15 @@
 # Clear workspace and attach packages
 # rm(list = ls())
 # suppressPackageStartupMessages
-library(zoo) #work with mm/yy calendar dates without day
+detach("package:lubridate")
+library(zoo)
+library(lubridate)
 library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 
 render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   output_directory <- tmp_report_pdf_dir
-  
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(db)
   
@@ -29,24 +30,22 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
   
   #Remove any dates before report start_date and after report end_date
-  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
-  all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
-  all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
+  all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
+  all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
   start_date = as.Date(report_options$start_date)
   end_date = as.Date(report_options$end_date)
-  all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
-                       & all_monthly$last_visit_date <= end_date)
-  
-  #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day.
-  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
+  all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
+                       & all_monthly$date_last_visit <= end_date)
   
   #Change column names as needed
-  names (all_monthly)[names(all_monthly) == "X"] = "row_num"
-  names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
-  names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
-  names (all_monthly)[names(all_monthly) == "domain"] = "domain_char"
-  names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
+  names(all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
+  names(all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
+  
+  #Convert calendar month to actual date
+  all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
+  all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
+  all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
+  
   
   #Perform the following function by flw
   #If the flw has been around for only one month
@@ -60,33 +59,30 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   #If not equal, then the flw was added (addition = T) 
   
   retain_add <- function(x) {
-    if (length(x$obsnum) == 1) {
+    if (length(x$month_index) == 1) {
       x$retained <- FALSE
       x$addition <- TRUE
     }
     else {
-      x$retained <- c(x$obsnum[1:(length(x$obsnum)-1)] + 1 == x$obsnum[2:length(x$obsnum)], FALSE)
-      x$addition <- c(TRUE, x$obsnum[2:length(x$obsnum)] != x$obsnum[1:(length(x$obsnum)-1)] + 1)
+      x$retained <- c(x$month_index[1:(length(x$month_index)-1)] + 1 == x$month_index[2:length(x$month_index)], FALSE)
+      x$addition <- c(TRUE, x$month_index[2:length(x$month_index)] != x$month_index[1:(length(x$month_index)-1)] + 1)
     }
     return(x)
   }
   
-  #Get rid of calendar_month for this part because it is not supported for this
-  #operation. We can always add it back later.
-  df1 = select(all_monthly, -calendar_month)
-  df1 = arrange(df1, user_id, obsnum)
-  df_group = group_by(df1, user_id)
+  df1 = arrange(all_monthly, user_pk, month_index)
+  df_group = group_by(df1, user_pk)
   df2 <- retain_add(df_group)
   
-  #This gives the attrition rate in the next month, using the # in obsnum as the denominator
+  #This gives the attrition rate in the next month, using the # in month_index as the denominator
   #Numerator is # of flws that are not retained in the next month from the previous month
-  #This also gives the addition rate in the obsnum month, using # in obsnum as the denominator
-  #Numerator is # of flws that were added in for that obsnum  
-  attrition_table = ddply(df2, .(obsnum), 
+  #This also gives the addition rate in the month_index month, using # in month_index as the denominator
+  #Numerator is # of flws that were added in for that month_index  
+  attrition_table = ddply(df2, .(month_index), 
                           function(x) c(attrition=mean(!x$retained)*100, 
                                         additions=mean(x$addition)*100))
   
-  attrition_table_split = ddply(df2, .(obsnum, split_by), 
+  attrition_table_split = ddply(df2, .(month_index, split_by), 
                                 function(x) c(attrition=mean(!x$retained)*100, 
                                               additions=mean(x$addition)*100))
   
@@ -97,13 +93,13 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   
   #-----------------------------------------------------------------------------#
   
-  #Number of users by obsnum
+  #Number of users by month_index
   #Overall dataset
   #Number of users by monthly index
   all_monthly$count_user = 1
-  overall = ddply(all_monthly, .(obsnum), summarise,
+  overall = ddply(all_monthly, .(month_index), summarise,
                   sum_user = sum(count_user, na.rm=T))
-  p_users = ggplot(overall, aes(x=obsnum, y=sum_user)) +
+  p_users = ggplot(overall, aes(x=month_index, y=sum_user)) +
     geom_point(size = 6, shape = 19, alpha = 0.5, colour = "darkblue", 
                fill = "lightblue") +
     geom_line(colour = "darkblue") + 

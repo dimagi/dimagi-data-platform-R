@@ -94,8 +94,7 @@ training_typical <-
 # 2. Exclude rows before the 6th month on CC
 training_typical <- filter(training_typical, month_index >= 6)
 
-# 3. Exclude rows before the 6th month on CC 
-# AND users with < 6 active months on CC
+# 3. Exclude rows before the 6th month on CC AND users with < 6 active months on CC
 training_typical <- filter(training_typical, month_index >= 6)
 training_typical <- filter(training_typical, active_months >= 6)
 
@@ -283,7 +282,7 @@ indicators <- c("nvisits", "active_day_percent", "nforms",
                 "median_visit_duration", "median_visits_per_day", 
                 "time_using_cc", "ncases_registered", "register_followup", 
                 "case_register_followup_rate", "ncases_touched", 
-                "nunique_followups")
+                "nunique_followups", "sample_increase", "sample_decrease")
 
 test_2a <- 
   c(cor(training_typical$prev_nvisits, training_typical$nvisits, use = "complete.obs"),
@@ -310,10 +309,10 @@ test_2a <-
     cor(training_typical$prev_sample_decrease, training_typical$sample_decrease, use = "complete.obs"))
 names(test_2a) <- indicators
 
-g <- ggplot(training_typical, aes(x=prev_time_using_cc, y=time_using_cc)) +
+g <- ggplot(training_typical, aes(x=prev_ncases_touched, y=ncases_touched)) +
   geom_point(shape=1) +
-  scale_x_continuous(limits=c(0,100000)) +
-  scale_y_continuous(limits=c(0,100000)) +
+  scale_x_continuous(limits=c(0,100)) +
+  scale_y_continuous(limits=c(0,100)) +
   geom_smooth(method=lm)
 
 #------------------------------------------------------------------------#

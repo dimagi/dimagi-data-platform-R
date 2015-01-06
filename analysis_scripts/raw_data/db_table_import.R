@@ -28,8 +28,12 @@ form_table <- collect(form_table)
 
 app <- tbl(db, "application")
 device_log <- tbl(db, "device_log")
-domain_table <- tbl(db, "domain")
+domain <- tbl(db, "domain")
 users <- tbl(db, "users") 
+
+#Get table for user_type (mobile, web, superuser, etc.)
+#This function has been defined in data_sources.R
+user_type <- get_user_type_table(db)
 
 #------------------------------------------------------------------------#
 #Calculations on DB tables
