@@ -29,9 +29,12 @@ names(all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
 all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 
+#Modify relevant variables
+all_monthly$domain_numeric = as.numeric(as.factor(all_monthly$domain))
+
 #Calculate differences (in days) between consecutive monthly rows per user to calculate 
 #next_month_active and previous_month_active variables
-all_monthly <- arrange(all_monthly, user_pk, calendar_month)
+all_monthly <- arrange(all_monthly, domain_numeric, user_pk, calendar_month)
 df <- data.table(all_monthly)
 setkey(df,user_pk)
 df[,diff_days:=c(NA,diff(calendar_month)),by=user_pk]
