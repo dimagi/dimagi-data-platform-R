@@ -9,8 +9,12 @@
 # rm(list = ls())
 # suppressPackageStartupMessages
 detach("package:lubridate")
+detach("package:plyr")
+detach("package:dplyr")
 library(zoo)
 library(lubridate)
+library(plyr)
+library(dplyr)
 library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
@@ -25,9 +29,12 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   all_monthly <- add_splitby_col(monthly_table,domain_table,report_options$split_by)
   #------------------------------------------------------------------------#
   
-  #Remove demo users
+  #Remove demo users and NA/NONE users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
+  all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
+  all_monthly = all_monthly[!is.na(all_monthly$user_id),]
   
   #Remove any dates before report start_date and after report end_date
   all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
@@ -46,6 +53,17 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
   all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
   
+  #Exclude any users that don't have a month_index = 1
+  #These users have months that started outside our data range for this dataset
+  #so we shouldn't include them
+  all_monthly$has_index_1 <- all_monthly$month_index == 1
+  user_index_1 <- all_monthly %.%
+    group_by(user_pk) %.%
+    summarise(keep_user = sum(has_index_1))
+  user_index_1 <- filter(user_index_1, keep_user != 0)
+  #Keep users that have a month_index = 1
+  all_monthly <- 
+    all_monthly[all_monthly$user_pk %in% user_index_1$user_pk, ]
   
   #Perform the following function by flw
   #If the flw has been around for only one month
@@ -79,12 +97,12 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   #This also gives the addition rate in the month_index month, using # in month_index as the denominator
   #Numerator is # of flws that were added in for that month_index  
   attrition_table = ddply(df2, .(month_index), 
-                          function(x) c(attrition=mean(!x$retained)*100, 
-                                        additions=mean(x$addition)*100))
+                          function(x) c(attrition=mean(!x$retained, na.rm = T)*100, 
+                                        additions=mean(x$addition, na.rm = T)*100))
   
   attrition_table_split = ddply(df2, .(month_index, split_by), 
-                                function(x) c(attrition=mean(!x$retained)*100, 
-                                              additions=mean(x$addition)*100))
+                                function(x) c(attrition=mean(!x$retained, na.rm = T)*100, 
+                                              additions=mean(x$addition, na.rm = T)*100))
   
   
   #-----------------------------------------------------------------------------#
@@ -124,7 +142,7 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   # Attrition and Addition (%) graphs - overall
   
   g_attrition = 
-    ggplot(data=attrition_table, aes(x=obsnum, y=attrition)) +
+    ggplot(data=attrition_table, aes(x=month_index, y=attrition)) +
     geom_line(color = "indianred1", size = 1.3) +
     ggtitle("FLWs lost in next month (%) by monthly index") +
     theme(plot.title = element_text(size=14, face="bold")) + 
@@ -134,7 +152,7 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
                                                                    face="bold"))
   
   g_addition = 
-    ggplot(data=attrition_table, aes(x=obsnum, y=additions)) +
+    ggplot(data=attrition_table, aes(x=month_index, y=additions)) +
     geom_line(color = "darkblue", size = 1.3) +
     ggtitle("FLWs added each month (%) by monthly index") +
     theme(plot.title = element_text(size=14, face="bold")) + 
@@ -147,7 +165,7 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   # Attrition and Addition (%) graphs - split-by
   
   g_attrition_split = 
-    ggplot(data=attrition_table_split, aes(x=obsnum, y=attrition)) +
+    ggplot(data=attrition_table_split, aes(x=month_index, y=attrition)) +
     geom_line(aes(group=split_by, colour=split_by), size=1.3)+
     ggtitle("FLWs lost in next month (%) by monthly index") +
     theme(plot.title = element_text(size=14, face="bold")) + 
@@ -157,7 +175,7 @@ render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
                                                                    face="bold"))
   
   g_addition_split = 
-    ggplot(data=attrition_table_split, aes(x=obsnum, y=additions)) +
+    ggplot(data=attrition_table_split, aes(x=month_index, y=additions)) +
     geom_line(aes(group=split_by, colour=split_by), size=1.3) +
     ggtitle("FLWs added each month (%) by monthly index") +
     theme(plot.title = element_text(size=14, face="bold")) + 

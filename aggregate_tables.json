@@ -29,7 +29,10 @@
                "afternoon":"afternoon",
                "evening":"evening",
                "night":"night",
-               "time_using_cc":"time_using_cc"
+               "time_using_cc":"time_using_cc",
+               "nvisits_travel":"nvisits_travel",
+               "nvisits_travel_batch":"nvisits_travel_batch",
+               "travel_batch_percent":"travel_batch_percent"
             }
          },
          {
