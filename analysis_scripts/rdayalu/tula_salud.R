@@ -506,7 +506,7 @@ g <- ggplot(months_median, aes(x=month_before_attrition, y=months_median, group 
 attrition_subset$slope_abs <- apply(attrition_subset[,1:4], 1, function(x) 
   lm(x~c(1:4))$coefficients[[2]])
 
-#Test 4B: slope of line (lm) for realtive months 1-4 for each row
+#Test 4B: slope of line (lm) for relative months 1-4 for each row
 attrition_subset$slope_rel <- apply(attrition_subset[,25:28], 1, function(x) 
   lm(x~c(1:4))$coefficients[[2]])
 

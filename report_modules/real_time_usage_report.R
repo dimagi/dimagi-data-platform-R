@@ -4,22 +4,29 @@
 # data platform. This report will be based on the aggregate FLW monthly tables
 # which were computed from the data platform visit tables.
 # The batch entry section of this report must only be created for domains 
-# that have manual form annotations. We can look at median visit duration and 
-# visit time of day for all domains, regardless of hand annotations.
+# that have manual form annotations for travel/home visits. 
+# We can look at median visit duration and visit time of day for all domains, 
+# regardless of hand annotations.
+# Have not made graphs for visit time of day yet.
 #------------------------------------------------------------------------------#
 
 # Clear workspace and attach packages
 # rm(list = ls())
 #suppressPackageStartupMessages
-library(zoo) #work with mm/yy calendar dates without day
+detach("package:lubridate")
+detach("package:plyr")
+detach("package:dplyr")
+library(zoo)
+library(lubridate)
+library(plyr)
+library(dplyr)
 library(ggplot2) #graphing across multiple domains
 library(gridExtra) #graphing plots in columns/rows for ggplot
 library(RColorBrewer) #Color palettes
 
 
-render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tmp_report_pdf_dir) {
+render <- function (db, domains_for_run, report_options, tmp_report_pdf_dir) {
   output_directory <- tmp_report_pdf_dir
-  
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
   domain_table <- get_domain_table(db)
   
@@ -28,48 +35,53 @@ render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tm
   all_monthly <- add_splitby_col(monthly_table,domain_table,report_options$split_by)
   #------------------------------------------------------------------------#
   
-  #Remove demo users
+  #Remove demo users and NA/NONE users
   #We also need to find a way to exclude admin/unknown users
   all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
+  all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
+  all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
+  all_monthly = all_monthly[!is.na(all_monthly$user_id),]
   
   #Remove any dates before report start_date and after report end_date
-  names (all_monthly)[names(all_monthly) == "first_visit_date.x"] = "first_visit_date"
-  all_monthly$first_visit_date = as.Date(all_monthly$first_visit_date)
-  all_monthly$last_visit_date = as.Date(all_monthly$last_visit_date)
+  all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
+  all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
   start_date = as.Date(report_options$start_date)
   end_date = as.Date(report_options$end_date)
-  all_monthly = subset(all_monthly, all_monthly$first_visit_date >= start_date
-                       & all_monthly$last_visit_date <= end_date)
-  
-  #Convert calendar_month (character) to yearmon class since as.Date won't work 
-  #without a day.
-  all_monthly$month.index = as.yearmon(all_monthly$month.index, "%b %Y")
+  all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
+                       & all_monthly$date_last_visit <= end_date)
   
   #Change column names as needed
-  names (all_monthly)[names(all_monthly) == "X"] = "row_num"
-  names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
-  names (all_monthly)[names(all_monthly) == "active_day_percent"] = "active_days_percent"
-  names (all_monthly)[names(all_monthly) == "domain"] = "domain_char"
-  names (all_monthly)[names(all_monthly) == "numeric_index"] = "obsnum"
+  names(all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
+  names(all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
   
-  all_monthly$batch_entry_percent= (all_monthly$batch_entry_percent)*100
-  all_monthly$median_visit_duration = round(all_monthly$median_visit_duration/60,
-                                            digits=2) 
+  #Convert calendar month to actual date
+  all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
+  all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
+  all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
+  
+  #Exclude any users that don't have a month_index = 1
+  #These users have months that started outside our data range for this dataset
+  #so we shouldn't include them
+  all_monthly$has_index_1 <- all_monthly$month_index == 1
+  user_index_1 <- all_monthly %.%
+    group_by(user_pk) %.%
+    summarise(keep_user = sum(has_index_1))
+  user_index_1 <- filter(user_index_1, keep_user != 0)
+  #Keep users that have a month_index = 1
+  all_monthly <- 
+    all_monthly[all_monthly$user_pk %in% user_index_1$user_pk, ]
   
   #-----------------------------------------------------------------------------#
-  
   #CREATE PLOTS
-  
   #-----------------------------------------------------------------------------#
-  #Number of users by obsnum
+  #Number of users by month_index
   #Overall dataset
   #Number of users by monthly index
   all_monthly$count_user = 1
-  overall = ddply(all_monthly, .(obsnum), summarise,
+  overall = ddply(all_monthly, .(month_index), summarise,
                   sum_user = sum(count_user, na.rm=T))
-  #overall = ddply(all_monthly, .(domain_char), summarise,
-  #               min_value = min(obsnum, na.rm=T))
-  p_users = ggplot(overall, aes(x=obsnum, y=sum_user)) +
+
+  p_users = ggplot(overall, aes(x=month_index, y=sum_user)) +
     geom_point(size = 6, shape = 19, alpha = 0.5, colour = "darkblue", 
                fill = "lightblue") +
     geom_line(colour = "darkblue") + 
@@ -93,32 +105,32 @@ render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tm
   
   #-----------------------------------------------------------------------------#
   
-  #Batch entry % by monthly index
-  #Batch entry should be calculated in the monthly tables only for travel visits
-  #between unrelated cases. The denominator is the total # of travel visits. 
+  #Batch entry % by monthly index: % of travel visits that are within < 10 mins of 
+  #each other
+  #The denominator is the total # of travel visits. 
   
   #By split-by
-  #Calculate median within each obsum & split-by
-  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
-                        batch_per_med = median(batch_entry_percent, na.rm=T))
+  #Calculate mean within each month_index & split-by
+  overall_split = ddply(all_monthly, .(split_by, month_index), summarise,
+                        batch_per_med = mean(travel_batch_percent, na.rm=T))
   maximum_ci = max(overall_split$batch_per_med, na.rm = T) + 5
   
   g_batch_med_split = (
-    ggplot(data=overall_split, aes(x=obsnum, y=batch_per_med)) +
+    ggplot(data=overall_split, aes(x=month_index, y=batch_per_med)) +
       geom_line(aes(group=split_by), size=1.3, color="darkslateblue")) +
     scale_y_continuous(limits = c(0, maximum_ci)) + 
-    ggtitle("Batch entry (%) by month index") +
+    ggtitle("Batch entry (%) of travel visits by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Batch entry (%), median") +
+    ylab("Batch entry (%) of travel visits, mean") +
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
                                                                    face="bold"))
   
   # Batch entry - by month index overall
-  overall = ddply(all_monthly, .(obsnum), summarise,
-                  batch_per_med = median(batch_entry_percent, na.rm = T),
-                  sd = sd(batch_entry_percent, na.rm=T),
-                  n = sum(!is.na(batch_entry_percent)),
+  overall = ddply(all_monthly, .(month_index), summarise,
+                  batch_per_med = mean(travel_batch_percent, na.rm = T),
+                  sd = sd(travel_batch_percent, na.rm=T),
+                  n = sum(!is.na(travel_batch_percent)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$batch_per_med, na.rm = T) + 5
@@ -150,18 +162,18 @@ render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tm
   assign("over_max",over_max,envir=globalenv())
   
   g_batch_overall = 
-    ggplot(overall, aes(x = obsnum, y = batch_per_med, ymax = maximum_ci)) + 
+    ggplot(overall, aes(x = month_index, y = batch_per_med, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
-    ggtitle("Batch entry (%) by month index") +
+    ggtitle("Batch entry (%) of travel visits by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Batch entry (%), median") +
+    ylab("Batch entry (%) of travel visits, mean") +
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  outfile <- file.path(report_output_dir,"Batch_median.pdf")
+  outfile <- file.path(report_output_dir,"Batch_mean.pdf")
   pdf(outfile)
   grid.arrange(g_batch_med_split, g_batch_overall, nrow=2)
   dev.off()
@@ -169,28 +181,28 @@ render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tm
   
   #-----------------------------------------------------------------------------#
   
-  #Visit duration (mins) by obsnum
+  #Visit duration (mins) by month_index
   
   #By split-by
-  #Calculate median within each obsum & split-by
-  overall_split = ddply(all_monthly, .(split_by, obsnum), summarise,
-                        visit_dur = median(median_visit_duration, na.rm=T))
+  #Calculate mean within each obsum & split-by
+  overall_split = ddply(all_monthly, .(split_by, month_index), summarise,
+                        visit_dur = mean(median_visit_duration, na.rm=T))
   maximum_ci = max(overall_split$visit_dur, na.rm = T) + 5
   
   g_visit_dur_split = (
-    ggplot(data=overall_split, aes(x=obsnum, y=visit_dur)) +
+    ggplot(data=overall_split, aes(x=month_index, y=visit_dur)) +
       geom_line(aes(group=split_by), size=1.3, color="darkslateblue")) +
     scale_y_continuous(limits = c(0, maximum_ci)) + 
     ggtitle("Visit duration (mins) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Median visit duration (mins), median") +
+    ylab("Median visit duration (mins), mean") +
     theme(axis.text=element_text(size=12), axis.title=element_text(size=14,
                                                                    face="bold"))
   
   # Visit duration - by month index overall
-  overall = ddply(all_monthly, .(obsnum), summarise,
-                  visit_dur = median(median_visit_duration, na.rm = T),
+  overall = ddply(all_monthly, .(month_index), summarise,
+                  visit_dur = mean(median_visit_duration, na.rm = T),
                   sd = sd(median_visit_duration, na.rm=T),
                   n = sum(!is.na(median_visit_duration)),
                   se = sd/sqrt(n))
@@ -224,14 +236,14 @@ render <- function (db, domains_for_run, report_options, aggregate_tables_dir,tm
   assign("over_max",over_max,envir=globalenv())
   
   g_visit_dur_overall = 
-    ggplot(overall, aes(x = obsnum, y = visit_dur, ymax = maximum_ci)) + 
+    ggplot(overall, aes(x = month_index, y = visit_dur, ymax = maximum_ci)) + 
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
     ggtitle("Visit duration (mins) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Median visit duration (mins), median") +
+    ylab("Median visit duration (mins), mean") +
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
