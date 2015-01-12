@@ -3,13 +3,14 @@
 # for the whole domain 
 
 # remove visits by demo_user
-merged <- merged[-which(merged$user_id == "demo_user"),]
-
-# total cases
-length(unique(merged$case_id)) 
+if (length(which(merged$user_id == "demo_user"))) merged[-which(merged$user_id == "demo_user"),] -> merged
 
 # total closed cases
 get_open_close(merged)
+
+
+
+##### to be functioned #####
 
 # get case table with the following fields: 
   # visit_first, visit_last, 
@@ -24,16 +25,17 @@ merged_total_visits <- get_total_visits(merged)
 merged_first <- merged_first[order(merged_first$case_id),]
 merged_last <- merged_last[order(merged_last$case_id),]
 merged_total_visits <- merged_total_visits[order(merged_total_visits$case_id),]
-merged_last$first_visit <- merged_first$first_visit
+merged_last$first_visit <- as.Date(merged_first$first_visit)
 merged_last$total_visits <- merged_total_visits$total_visits
 
-colnames(merged_last)[5:7] <- c("last_visit_created", "last_visit_updated", "last_visit_closed")
+merged_last <- rename(merged_last, c("created" = "last_visit_created", "updated" = "last_visit_updated", "closed" = "last_visit_closed"))
+
+merged_last$total_days <- as.numeric(as.Date(merged_last$last_visit) - as.Date(merged_last$first_visit))
 
 merged_last$touched_120 <- ifelse(as.Date(merged_last$last_visit) > get_inactive_line(export_date, 120), "yes", "no")
 merged_last$touched_60 <- ifelse(as.Date(merged_last$last_visit) > get_inactive_line(export_date, 60), "yes", "no")
 
-merged_last$total_days <- as.numeric(as.Date(merged_last$last_visit) - as.Date(merged_last$first_visit))
-avg_days_between_visits <- get_avg_days_elapsed(merged)
+avg_days_between_visits <- get_avg_days_elapsed(merged) 
 merged_last$avg_days_between_visits <- round(avg_days_between_visits$avg_days_elapsed_btw_visits, digits = 1)
 
 
@@ -70,6 +72,6 @@ cases_inactive <- length(which(merged_last$touched_120 == "no" & merged_last$las
 length(unique(merged$case_id))
 
 # fu_rate
-fu_pmp <- cases_created_updated_60/(cases_inactive + cases_created_updated_120)
+fu_pmp <- cases_created_updated_120/(cases_inactive + cases_created_updated_120)
 
 
