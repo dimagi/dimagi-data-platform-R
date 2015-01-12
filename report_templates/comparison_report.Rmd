@@ -61,32 +61,25 @@ knitr::kable(ddf)
   custom_plot(self_start_domains_table, "perc_self_started_domains", "month")
 ```
 
-### Top 5 domains by services revenue
-```{r, results='asis', echo=FALSE}
-knitr::kable(top_domains_df[, c(1,3)])
-```
-
-### Number of domains by services income bracket
-```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
-plot_grouping(services_grouping)
-```
-
 ### Top 5 domains by all time revenue
 ```{r, results='asis', echo=FALSE}
 knitr::kable(top_domains_df[, c(1,2)])
 ```
 
-### Number of domains by all-time income bracket
+### Domains by all-time income
 ```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
-plot_grouping(alltime_grouping)
+    top_doms$domain <- factor(top_doms$domain, levels = top_doms$domain[order(-top_doms$alltime)])
+    ggplot(top_doms, aes_string(x="domain", y="alltime", fill=split_by)) + 
+      geom_bar(stat='identity') + 
+      theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-### Number of median active days over time
+### Median active days over time
 ```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
   custom_plot(active_days_table, "median_active_days", "month")
 ```
 
-### Number of median cases touched over time
+### Median cases touched over time
 ```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
   custom_plot(cases_touched_table, "median_cases_touched", "month")
 ```

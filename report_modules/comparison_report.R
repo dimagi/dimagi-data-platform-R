@@ -45,7 +45,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   active_monthly <- add_splitby_col(active_monthly, domain_table, "internal.self_started", "self_started")
   
   cur_month = as.yearmon(Sys.Date())
-  cur_month <- "May 2013"
+  cur_month <- "Nov 2014"
   recent_monthly <- active_monthly[active_monthly$calendar_month==cur_month & !is.na(active_monthly$calendar_month), ]  
   
   splits = unique(active_monthly[, "split_by"])
@@ -61,7 +61,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
                     median_days_active=NA, median_visit_duration=NA)
   
   ddf <- data.frame(split=all_splits, active_domains=NA, perc_android=NA, freq_country=NA, 
-                    self_starter_domains=NA, services_income=NA, all_time_income=NA)
+                    self_starter_domains=NA, all_time_income=NA, perc_greens=NA)
   split_out <- function(frame, split, splits) {
     if (split %in% splits) {
       return(frame[frame$split_by==split & !is.na(frame$split_by) ,])
@@ -73,11 +73,9 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   }
   
   for (split in all_splits) {
-    print(split)
     split_monthly <- split_out(recent_monthly, split, splits)
     num_active_users <- nrow(split_monthly)
     num_active_domains <- length(unique(split_monthly[["domain"]]))
-    print(num_active_users)
     udf[udf$split==split, 2] <- num_active_users
     ddf[ddf$split==split, 2] <- num_active_domains
   }
@@ -87,13 +85,13 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   for (split in all_splits) {
     split_monthly <- split_out(recent_monthly, split, splits)
     num_active_users <- nrow(split_monthly)
-    android_monthly = split_monthly[split_monthly$summary_device_type=="Android",]
+    android_monthly = na.omit(split_monthly[split_monthly$summary_device_type=="Android",])
     perc_android_users = (nrow(android_monthly) / num_active_users) * 100
     
     num_active_domains <- length(unique(split_monthly[["domain"]]))
     num_android_domains <- length(unique(android_monthly[["domain"]]))
-    perc_android_domains = (num_android_domains / num_active_domains) * 100
-    
+    perc_android_domains <- (num_android_domains / num_active_domains) * 100
+  
     udf[udf$split==split, 4] <- round(perc_android_users, digits=2)
     ddf[ddf$split==split, 3] <- round(perc_android_domains, digits=2)
   }
@@ -155,7 +153,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   # most frequent country  
   print("most frequent country")
   for (split in all_splits) {
-    print(split)
     split_monthly <- split_out(recent_monthly, split, splits)
     countries_users <- split_monthly[["country"]]
     freq_country_name_users <- Mode(na.omit(countries_users[countries_users!=""]))
@@ -172,8 +169,9 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     }
     freq_country_name_domains <- Mode(na.omit(countries_domains[countries_domains!=""]))
     
+    print(split)
     print(freq_country_name_users)
-    if (is.na(freq_country_name_users)) {
+    if (is.null(freq_country_name_users)) {
       udf[udf$split==split, 5] <- "No country set (100%)"
     } else {
       num_country_users <- nrow(split_monthly[split_monthly$country==freq_country_name_users, ])
@@ -181,7 +179,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       udf[udf$split==split, 5] = paste(c(freq_country_name_users, " (", perc_country, "%) "), collapse="")
     }
     print(freq_country_name_domains)
-    if (is.null(freq_country_name_domains) | is.na(freq_country_name_domains)) {
+    if (is.null(freq_country_name_domains)) {
       ddf[ddf$split==split, 4] <- "No country set (100%)"
     } else {
       freq_monthly <- split_monthly[split_monthly$country==freq_country_name_domains, ]
@@ -196,20 +194,29 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   for (split in all_splits) {
     print(split)
     split_monthly <- split_out(recent_monthly, split, splits)
-    self_started <- split_monthly[split_monthly$self_started=="True", ]
+    self_started <- split_monthly[split_monthly$self_started=="True" & !is.na(split_monthly$self_started), ]
     num_domains <- length(unique(self_started[["domain"]]))
     num_users <- nrow(self_started)
-    perc_self_started_domains <- round((num_domains / ddf[ddf$split==split, 2]) * 100, digits=0)
-    perc_self_started_users <- round((num_users / udf[udf$split==split, 2]) * 100, digits=0)
-    udf[udf$split==split, 6] <- paste(c(num_users, " (", perc_self_started_users, "%)"), collapse="")
-    ddf[ddf$split==split, 5] <- paste(c(num_domains, " (", perc_self_started_domains, "%)"), collapse="")
+
+    if (num_users == 0) {
+      udf[udf$split==split, 6] <- "0 (0%)"
+      ddf[ddf$split==split, 5] <- "0 (0%)"
+    } else {
+      perc_self_started_domains <- round((num_domains / ddf[ddf$split==split, 2]) * 100, digits=0)
+      perc_self_started_users <- round((num_users / udf[udf$split==split, 2]) * 100, digits=0)
+      udf[udf$split==split, 6] <- paste(c(num_users, " (", perc_self_started_users, "%)"), collapse="")
+      ddf[ddf$split==split, 5] <- paste(c(num_domains, " (", perc_self_started_domains, "%)"), collapse="") 
+    }
   }
   
   # income
   print("calculating income")
   domains <- data.frame(domain=unique(active_monthly$domain))
-  saas_info <- add_col(domains, sf_table, "services_income__c", "services", "domain", "domain")
-  saas_info <- add_col(saas_info, sf_table, "all_time_income__c", "alltime", "domain", "domain")
+  saas_info <- add_col(domains, sf_table, "all_time_income__c", "alltime", "domain", "domain")
+  top_doms <- add_col(na.omit(saas_info), domain_table, split_by, "split")
+  top_doms <- top_doms[top_doms$alltime > 0 & top_doms$split %in% splits_with_none, ]
+  names(top_doms)[3] <- split_by
+  top_doms <- top_doms[order(-top_doms$alltime), ]
   
   cash_bracket <- function(amt) {
     if (amt < 1) { return("zero") }
@@ -221,9 +228,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     if (amt < 10000000) { return("hundred_k") }
   }
   
-  top_domains_df <- data.frame(split=all_splits, alltime=NA, services=NA)
-  services_grouping <- data.frame(split=splits_with_none, zero=0, one=0, hundred=0, 
-                                  five_hundred=0, ten_k=0, thirty_k=0, hundred_k=0)
+  top_domains_df <- data.frame(split=all_splits, alltime=NA)
   alltime_grouping <- data.frame(split=splits_with_none, zero=0, one=0, hundred=0, 
                                  five_hundred=0, ten_k=0, thirty_k=0, hundred_k=0)
   
@@ -232,29 +237,41 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     domains <- unique(split_monthly[["domain"]])
     
     alltime_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][c("domain", "alltime")]
-    top_alltime_domains <- head(alltime_info[order(-alltime_info$alltime), ], 5)
-    top_alltime_domains$alltime <- sapply(top_alltime_domains$alltime, round)
-    alltime_str_bits <- apply(top_alltime_domains, 1, function(x) paste(x, collapse= ": $"))
-    top_domains_df[top_domains_df$split==split, 'alltime'] <- paste(alltime_str_bits, collapse=" | ")
-    alltime_mapping <- as.data.frame(table(sapply(alltime_info$alltime, cash_bracket)))
-    for (var in alltime_mapping$Var1) {
-      alltime_grouping[alltime_grouping$split==split, var] <- alltime_mapping[alltime_mapping$Var1==var, "Freq"]
-    } 
-    
-    services_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$services), ][c("domain", "services")]
-    top_services_domains <- head(services_info[order(-services_info$services), ], 5)
-    top_services_domains$services <- sapply(top_services_domains$services, function(x) as.character(round(x)))
-    services_str_bits <- apply(top_services_domains, 1, function(x) paste(x, collapse= ": $"))
-    top_domains_df[top_domains_df$split==split, 'services'] <- paste(services_str_bits, collapse=" | ")
-    services_mapping <- as.data.frame(table(sapply(services_info$services, cash_bracket)))
-    for (var in services_mapping$Var1) {
-      services_grouping[services_grouping$split==split, var] <- services_mapping[services_mapping$Var1==var, "Freq"]
-    } 
+    print(alltime_info)
+    if (nrow(alltime_info) > 0) {
+      top_alltime_domains <- head(alltime_info[order(-alltime_info$alltime), ], 5)
+      top_alltime_domains$alltime <- sapply(top_alltime_domains$alltime, round)
+      alltime_str_bits <- apply(top_alltime_domains, 1, function(x) paste(x, collapse= ": $"))
+      top_domains_df[top_domains_df$split==split, 'alltime'] <- paste(alltime_str_bits, collapse=" | ")
+      alltime_mapping <- as.data.frame(table(sapply(alltime_info$alltime, cash_bracket)))
+      for (var in alltime_mapping$Var1) {
+        alltime_grouping[alltime_grouping$split==split, var] <- alltime_mapping[alltime_mapping$Var1==var, "Freq"]
+      }
+    }
         
-    services_income <- sum(saas_info[saas_info$domain %in% domains & !is.na(saas_info$services), ][["services"]])
     alltime_income <- sum(saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][["alltime"]])
-    ddf[ddf$split==split, 6] = round(services_income)
-    ddf[ddf$split==split, 7] = round(alltime_income)
+    ddf[ddf$split==split, 6] = round(alltime_income)
+  }
+  
+  
+  report_out_table <- as.data.frame(get_salesforce_reportouts(db))
+  get_report_status <- function(dname) {
+    rows <- report_out_table[report_out_table$dname==dname, ]
+    if (nrow(rows) > 0) {
+      return(rows[1, "status__c"])
+    }
+    return(NA)
+  }
+  
+  report_out_domains <- data.frame(split=all_splits, value=NA)
+  for (split in all_splits) {
+    split_monthly <- split_out(recent_monthly, split, splits)
+    domains <- unique(split_monthly[["domain"]])
+    statuses <- sapply(as.list(domains), get_report_status, simplify=TRUE)
+    num_greens <- sum(na.omit(unlist(statuses) == 'Green'))
+    perc_green <- round(num_greens/length(statuses))
+    perc_green_w_status <- round((num_greens/length(na.omit(statuses))) * 100)
+    ddf[ddf$split==split, 7] = round(perc_green_w_status)
   }
   
   months <- sort(as.yearmon(unique(active_monthly[["calendar_month"]])))
@@ -285,7 +302,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       num_users <- nrow(split_data)
       num_domains <- length(unique(split_data[["domain"]]))
 
-      android = split_data[split_data$summary_device_type=="Android",]
+      android = na.omit(split_data[split_data$summary_device_type=="Android",])
       perc_android_users <- round((nrow(android) / num_users) * 100, digits=2)
       perc_android_domains <- round((length(unique(android[["domain"]])) / num_domains) * 100, digits=2)
       
@@ -346,12 +363,11 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     ggplot(dfm, aes_string(x = split_by, y = value)) + 
       geom_bar(aes_string(fill = variable), position = "dodge", stat = "identity")
   }
-  
   names(udf) <- c(split_by, "Active Users", "Attrition", "% Android", "Most Common Country", 
                   "Self Starters", "Median Cases Touched", "Median Active Days", "Median Visit Duration")
   names(ddf) <- c(split_by, "Active Domains", "% Android", "Most Common Country", 
-                  "Self Starters", "Services Income", "All Time Income")
-  names(top_domains_df) <- c(split_by, "Top 5 All-Time Income", "Top 5 Services Income")
+                  "Self Starters", "All Time Income", "% Green Report Outs")
+  names(top_domains_df) <- c(split_by, "Top 5 All-Time Income")
   rmarkdown::render('report_templates/comparison_report.Rmd')
   
   
