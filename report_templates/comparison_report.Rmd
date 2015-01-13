@@ -84,7 +84,15 @@ knitr::kable(top_domains_df[, c(1,2)])
   custom_plot(cases_touched_table, "median_cases_touched", "month")
 ```
 
-### Median visit duration touched over time
+### Median visit duration over time
 ```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
   custom_plot(visit_duration_table, "median_visit_duration", "month")
+```
+
+### Breakdown of report-out statuses by split 
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+      ggplot(ro_breakdown, aes(x=status, y=num_domains)) + 
+        facet_wrap(~split) +
+        geom_bar(aes(fill=status), stat="identity") +
+        scale_fill_manual(values=c("Green" = "green", "Yellow" = "yellow", "Red" = "red"))
 ```

@@ -48,8 +48,8 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   cur_month <- "Nov 2014"
   recent_monthly <- active_monthly[active_monthly$calendar_month==cur_month & !is.na(active_monthly$calendar_month), ]  
   
-  splits = unique(active_monthly[, "split_by"])
-  splits = unique(names(sort(table(active_monthly[, 'split_by']), decreasing=TRUE)[c(1:report_options$max_groups)]))
+  splits = unique(recent_monthly[, "split_by"])
+  splits = unique(names(sort(table(recent_monthly[, 'split_by']), decreasing=TRUE)[c(1:report_options$max_groups)]))
   splits = as.vector(na.omit(replace(splits, splits %in% c("", "None"), NA))) # remove None and NA
   all_splits <- c(splits, c("None", "Total"))
   splits_with_none <- c(splits, "None")
@@ -263,6 +263,25 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     return(NA)
   }
   
+  report_out_colors <- c("Red", "Green", "Yellow")
+  ro_breakdown <- expand.grid(split=splits_with_none, status=report_out_colors, num_domains=0)
+  for (split in all_splits) {
+    updated <- FALSE
+    split_monthly <- split_out(recent_monthly, split, splits)
+    domains <- unique(split_monthly[["domain"]])
+    for (domain in domains) {
+      status <- get_report_status(domain)
+      if (!is.na(status)) {
+        updated <- TRUE
+        count <- ro_breakdown[ro_breakdown$split==split & ro_breakdown$status==status, ][["num_domains"]] + 1
+        ro_breakdown[ro_breakdown$split==split & ro_breakdown$status==status, ][["num_domains"]] <- count
+      }
+    }
+    if (!updated) {
+      ro_breakdown <- ro_breakdown[ro_breakdown$split!=split, ]
+    }
+  }
+  
   report_out_domains <- data.frame(split=all_splits, value=NA)
   for (split in all_splits) {
     split_monthly <- split_out(recent_monthly, split, splits)
@@ -302,11 +321,11 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       num_users <- nrow(split_data)
       num_domains <- length(unique(split_data[["domain"]]))
 
-      android = na.omit(split_data[split_data$summary_device_type=="Android",])
+      android = na.omit(split_data[split_data$summary_device_type=="Android" & !is.na(split_data$summary_device_type),])
       perc_android_users <- round((nrow(android) / num_users) * 100, digits=2)
       perc_android_domains <- round((length(unique(android[["domain"]])) / num_domains) * 100, digits=2)
       
-      self_started <- split_data[split_data$self_started=="True", ]
+      self_started <- split_data[split_data$self_started=="True" & !is.na(split_data$self_started), ]
       perc_ss_users <- round((nrow(self_started) / num_users) * 100, digits=2)
       perc_ss_domains <- round((length(unique(self_started[["domain"]])) / num_domains) * 100, digits=2)
       
@@ -363,6 +382,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     ggplot(dfm, aes_string(x = split_by, y = value)) + 
       geom_bar(aes_string(fill = variable), position = "dodge", stat = "identity")
   }
+  
   names(udf) <- c(split_by, "Active Users", "Attrition", "% Android", "Most Common Country", 
                   "Self Starters", "Median Cases Touched", "Median Active Days", "Median Visit Duration")
   names(ddf) <- c(split_by, "Active Domains", "% Android", "Most Common Country", 
