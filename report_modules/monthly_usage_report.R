@@ -255,30 +255,30 @@ if (nlevels(all_monthly$split_by) > 10) {
   module_pdfs <- c(module_pdfs,outfile)
   
   #-----------------------------------------------------------------------------#
-  #active_days_per_month by month_index
+  #active_day_percent by month_index
   
   #By split-by
   #Calculate mean within each month_index & domain level
   overall_split = ddply(all_monthly, .(split_by, month_index), summarise,
-                        active_days_med = mean(active_days_per_month, na.rm=T))
+                        active_days_med = mean(active_day_percent, na.rm=T))
   maximum_ci = max(overall_split$active_days_med, na.rm = T) + 5
 
   g_active_days_split = (
     ggplot(data=overall_split, aes(x=month_index, y=active_days_med)) +
       geom_line(aes(group=split_by, colour=split_by), size=1.3)) + 
     scale_y_continuous(limits = c(0, maximum_ci)) + 
-    ggtitle("Active days (#) by month index") +
+    ggtitle("Active days per month (%) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Active days (#), mean") +
+    ylab("Active days per month (%), mean") +
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
   # Active days per month - overall by month index
   overall = ddply(all_monthly, .(month_index), summarise,
-                  act_days_med = mean(active_days_per_month, na.rm = T),
-                  sd = sd(active_days_per_month, na.rm=T),
-                  n = sum(!is.na(active_days_per_month)),
+                  act_days_med = mean(active_day_percent, na.rm = T),
+                  sd = sd(active_day_percent, na.rm=T),
+                  n = sum(!is.na(active_day_percent)),
                   se = sd/sqrt(n))
   overall$ci95 = overall$se * qt(.975, overall$n-1)
   maximum_ci = max(overall$act_days_med, na.rm = T) + 5
@@ -314,14 +314,14 @@ if (nlevels(all_monthly$split_by) > 10) {
     geom_line(colour = "indianred1", size = 1.5) +
     geom_ribbon(aes(ymin = over_min, ymax = over_max),
                 alpha = 0.2) +
-    ggtitle("Active days (#) by month index") +
+    ggtitle("Active days per month (%) by month index") +
     theme(plot.title = element_text(size=14, face="bold")) +
     xlab("Month index") +
-    ylab("Active days (#), mean") +
+    ylab("Active days per month (%), mean") +
     theme(axis.text=element_text(size=12), 
           axis.title=element_text(size=14,face="bold"))
   
-  outfile <- file.path(report_output_dir,"Active_days_mean.pdf")
+  outfile <- file.path(report_output_dir,"Active_days_percent_mean.pdf")
   pdf(outfile)
   grid.arrange(g_active_days_overall, g_active_days_split, nrow=2)
   dev.off()

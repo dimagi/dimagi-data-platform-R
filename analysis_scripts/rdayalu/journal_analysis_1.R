@@ -63,7 +63,7 @@ library(ggplot2)
 #Keep only the "typical FLW" domains. There are 39 of these domains
 #I set the config_run to "permitted_data_only" : false otherwise tulasalud 
 #will be excluded, which isn't correct.
-#However, keiskamma and ssqh-cs have opted out per EULA, so we shouldn't
+#However, keiskamma and ssqh-cs have opted out per EULA, so we shouldn't include those?
 #TALK TO NEAL ABOUT THIS. These domains have 352 users (out of 2779 users) 
 #that contribute 1162 monthly rows. ssqh has not actually 
 #opted out per Sheel's knowledge
@@ -83,10 +83,11 @@ all_monthly <- all_monthly[all_monthly$domain %in% typical_FLW_domains,]
 all_monthly <- all_monthly[all_monthly$user_pk %in% chw_single_app$user_pk,]
 
 #Get report_options from config run file
-report = run_conf$reports$modules$name
+report <- run_conf$reports$modules$name
 report_options <- get_report_options(run_conf,report)
 
 #Keep rows only from 1/1/10 - 11/30/14 (based on config run file)
+#This leaves us with 2746 FLWs
 all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
 all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
 start_date = as.Date(report_options$start_date)
@@ -95,6 +96,7 @@ all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
                      & all_monthly$date_last_visit <= end_date)
 
 #Remove demo users and NA/NONE users
+#This does not exclude any FLWs, so we still have 2746 FLWs
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
@@ -158,12 +160,12 @@ all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 #Exclude any users who logged > 100 visits in any month
 #These are probably atypical users
 #We lose one domain because of this step (crc-intervention)
+#We are left with 2461 FLWs that have only <= 100 visits per month
 all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
 user_ge_100 <- all_monthly %.%
   group_by(user_pk) %.%
   summarise(ge_100 = sum(visits_ge_100))
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
-#2461 users have only <= 100 visits per month
 all_monthly <- all_monthly[all_monthly$user_pk %in% user_le_100$user_pk, ]
 
 #Get lifetime table for total nunique_followups, active_months per user
