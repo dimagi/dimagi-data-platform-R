@@ -12,7 +12,7 @@ active_day_percent <- function(x) (active_days(x) / days_in_month(date_first_vis
 nvisits <- function(x) NROW(x)
 nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
 median_visit_duration <- function(x) round(as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE)), digits = 1)
-time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
+time_using_cc <- function(x) sum(x$form_duration, na.rm = T)/60
 median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
 nvisits_travel <- function(x) sum(x$home_visit, na.rm=T)
 nvisits_travel_batch <- function(x) sum(x$time_since_previous_hv/60<10, na.rm = T)  
