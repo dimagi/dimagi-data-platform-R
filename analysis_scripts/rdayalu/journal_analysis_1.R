@@ -450,6 +450,8 @@ write.csv(test, file = "journal_set_results.csv")
 #TABLE 2 - country and subsector
 #------------------------------------------------------------------------#
 
+table(fullset$subsector_final, useNA = "always")
+
 program <- fullset %>% group_by(domain) %>% 
   summarise(country = unique(country_final), 
             subsector = unique(subsector_final),
@@ -511,11 +513,9 @@ active_6_mos <- test %>% group_by(user_pk) %>%
 # M & E questions
 #------------------------------------------------------------------------#
 
-season <- fullset %>% group_by(month_abbr) %>% 
-  summarise(med_forms = median(nforms),
-            med_active_days = median(active_day_percent))
-
-#Diwali?
+#Seasonal/monthly activity: use fullset
+#We are going to filter India to make seasonal/holiday comparisons more applicable
+# % days active and # forms
 test <- filter(fullset, country_final == "India")
 season <- test %>% group_by(month_abbr) %>% 
   summarise(med_forms = median(nforms),
@@ -524,3 +524,138 @@ season <- data.frame(rep(season$month_abbr,2),
                      c(season$med_forms, season$med_active_days))
 season$indicator <- c(rep("# forms", 12), rep("% active days", 12))
 names(season) <- c("month", "median_metric", "metric")
+
+#normalized metrics
+season <- test %>% group_by(month_abbr) %>% 
+  summarise(med_nvisits = median(nvisits),
+            med_median_visit_duration = median(median_visit_duration), 
+            med_median_visits_per_day = median(median_visits_per_day),
+            med_time_using_cc = median(time_using_cc),
+            med_ninteractions = median(ninteractions),
+            med_ncases_registered = median(ncases_registered),
+            med_register_followup = median(register_followup),
+            med_case_register_followup_rate = median(case_register_followup_rate),
+            med_ncases_touched = median(ncases_touched),
+            med_nunique_followups = median(nunique_followups))
+season <- data.frame(rep(season$month_abbr,10), 
+                     c(season$med_nvisits, season$med_median_visit_duration, season$med_median_visits_per_day,
+                       season$med_time_using_cc, season$med_ninteractions, season$med_ncases_registered, 
+                       season$med_register_followup, season$med_case_register_followup_rate,
+                       season$med_ncases_touched, season$med_nunique_followups))
+season$indicator <- c(rep("# visits", 12), rep("median visit duration", 12), rep("median visits per day", 12), 
+                      rep("total duration using CC", 12), rep("# interactions", 12),
+                      rep("# cases registered", 12), rep("# follow-up visits", 12), 
+                      rep("% follow-up visits", 12), rep("# cases", 12), 
+                      rep("# cases followed-up", 12))
+names(season) <- c("month", "median_metric", "metric")
+season$overall_max <- c(rep(max(test$nvisits), 12), rep(max(test$median_visit_duration), 12), 
+                        rep(max(test$median_visits_per_day), 12), rep(max(test$time_using_cc), 12), 
+                        rep(max(test$ninteractions), 12), rep(max(test$ncases_registered), 12), 
+                        rep(max(test$register_followup), 12), rep(max(test$case_register_followup_rate), 12), 
+                        rep(max(test$ncases_touched), 12), rep(max(test$nunique_followups), 12))
+season$normalized_median <- (season$median_metric/season$overall_max)*100
+
+#Activity by device type
+#Only include users with a single device type
+users_device_count <- fullset %>% group_by(user_pk) %>% 
+  summarise(ndevice_type = length(unique(summary_device_type)))
+table(users_device_count$ndevice_type, useNA = "always")
+#918 users have only one device type
+#Keep only these users
+users_device_count <- filter(users_device_count, ndevice_type == 1)
+monthly_single_device <- fullset[fullset$user_pk %in% users_device_count$user_pk,]
+#Exclude users who have device type = None. We are left with 831 users
+monthly_single_device <- filter(monthly_single_device, summary_device_type != "None")
+#191 android users
+android <- filter(monthly_single_device, summary_device_type == "Android") 
+#640 feature phone users
+feature <- filter(monthly_single_device, summary_device_type == "Nokia") 
+
+#Median metrics
+android_median <- c(median(android$nvisits), median(android$active_day_percent),
+ median(android$nforms), median(android$median_visit_duration), median(android$median_visits_per_day),
+ median(android$time_using_cc), median(android$ninteractions), median(android$ncases_registered),
+ median(android$register_followup), median(android$case_register_followup_rate), 
+ median(android$ncases_touched), median(android$nunique_followups))
+
+feature_median <- c(median(feature$nvisits), median(feature$active_day_percent),
+                    median(feature$nforms), median(feature$median_visit_duration), median(feature$median_visits_per_day),
+                    median(feature$time_using_cc), median(feature$ninteractions), median(feature$ncases_registered),
+                    median(feature$register_followup), median(feature$case_register_followup_rate), 
+                    median(feature$ncases_touched), median(feature$nunique_followups))
+
+median_metric <- c(android_median, feature_median)
+
+device_metrics <- c("# visits", "% active days", "# forms", 
+                    "median visit duration", "median visits per day", 
+                     "total duration using CC", "# interactions",
+                     "# cases registered", "# follow-up visits", 
+                     "% follow-up visits", "# cases", 
+                      "# cases followed-up")
+
+device_data <- data.frame(cbind(rep(c("Android", "Feature"), each=12), rep(device_metrics, 2), 
+                                median_metric))
+names(device_data) <- c("device", "metric", "median_metric")
+device_data$median_metric <- as.numeric(levels(device_data$median_metric))[device_data$median_metric]
+
+# percent active days and # forms
+device_eval <- filter(device_data, metric == "% active days" | metric == "# forms")
+g_dev_eval <- ggplot(device_eval, aes(x = metric, y = median_metric, fill = device)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  xlab("Usage metric") +
+  ylab("Median metric") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) + 
+  theme(axis.text=element_text(size=9), 
+        axis.title=element_text(size=9))
+
+# Remaining 10 metrics
+device_eval <- filter(device_data, metric != "% active days" & metric != "# forms")
+device_eval$overall_max <- rep(c(max(fullset$nvisits), max(fullset$median_visit_duration), 
+                                max(fullset$median_visits_per_day), max(fullset$time_using_cc), 
+                                max(fullset$ninteractions), max(fullset$ncases_registered), 
+                                max(fullset$register_followup), max(fullset$case_register_followup_rate), 
+                                max(fullset$ncases_touched), max(fullset$nunique_followups)), 2)
+device_eval$normalized_median <- (device_eval$median_metric/device_eval$overall_max)*100
+
+g_dev_overall <- ggplot(device_eval, aes(x = metric, y = normalized_median, fill = device)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_brewer(palette = "Set2") +
+  xlab("Usage metric") +
+  ylab("Normalized median (% of overall metric maximum)") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  theme(axis.text.x=element_blank(), 
+        axis.title.x=element_blank()) +
+  theme(axis.text.y=element_text(size=9), 
+        axis.title.y=element_text(size=9)) + 
+  theme(legend.title=element_text(size=8), 
+        legend.text=element_text(size=8))
+
+device_eval <- filter(device_eval, metric != "% active days" & metric != "# forms" & 
+                        metric != "% follow-up visits")
+g_dev_zoom <- ggplot(device_eval, aes(x = metric, y = normalized_median, fill = device)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits=c(0,25)) +
+  xlab("Usage metric") +
+  ylab("Normalized median (% of overall metric maximum)") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  theme(axis.text.x=element_blank(), 
+        axis.title.x=element_blank()) +
+  theme(axis.text.y=element_text(size=9), 
+        axis.title.y=element_text(size=9)) + 
+  theme(legend.title=element_text(size=8), 
+        legend.text=element_text(size=8))
+
+pdf("device_eval.pdf", width=8, height=4)
+grid.arrange(g_dev_eval)
+dev.off()
+
+pdf("dev_overall.pdf")
+grid.arrange(g_dev_overall, g_dev_zoom, nrow = 2, ncol=1)
+dev.off()

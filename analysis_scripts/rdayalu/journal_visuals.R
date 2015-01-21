@@ -237,9 +237,14 @@ pdf("foo.pdf")
 grid.arrange(g1, g2, g3, g4, nrow = 2, ncol=2)
 dev.off()
 
+#------------------------------------------------------------------------#
+# M & E: Seasons
+#------------------------------------------------------------------------#
 #Do CHWs have different levels of activity by calendar month or season?
+#% active days and # forms
 g_season <- ggplot(season, aes(x=month, y=median_metric, group = metric, colour = metric)) +
   geom_line() +
+  scale_y_continuous(limits=c(0,35)) +
   geom_point(size = 1.5, shape = 19, alpha = 0.5) +
   xlab("Month") +
   ylab("Median metric") +
@@ -248,6 +253,46 @@ g_season <- ggplot(season, aes(x=month, y=median_metric, group = metric, colour 
         panel.grid.minor = element_blank()) + 
   theme(axis.text=element_text(size=9), 
         axis.title=element_text(size=9))
+#normalized graph overall
+g_season_normal_overall <- ggplot(season, aes(x=month, y=normalized_median, group = metric, colour = metric)) +
+  geom_line() +
+  #scale_y_continuous(limits=c(0,20)) +
+  geom_point(size = 1.5, shape = 19, alpha = 0.5) +
+  xlab("Month") +
+  ylab("Normalized median (% of overall metric maximum)") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) + 
+  theme(axis.text=element_text(size=9), 
+        axis.title=element_text(size=9)) + 
+  theme(legend.title=element_text(size=8), 
+        legend.text=element_text(size=8))
+#normalized graph zoomed
+g_season_normal_zoom <- ggplot(season, aes(x=month, y=normalized_median, group = metric, colour = metric)) +
+  geom_line() +
+  scale_y_continuous(limits=c(0,20)) +
+  geom_point(size = 1.5, shape = 19, alpha = 0.5) +
+  xlab("Month") +
+  ylab("Normalized median (% of overall metric maximum)") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) + 
+  theme(axis.text=element_text(size=9), 
+        axis.title=element_text(size=9)) + 
+  theme(legend.title=element_text(size=8), 
+        legend.text=element_text(size=8))
+
+pdf("foo.pdf", width=8, height=4)
+grid.arrange(g_season)
+dev.off()
+
+pdf("foo.pdf")
+grid.arrange(g_season_normal_overall, g_season_normal_zoom, nrow = 2, ncol=1)
+dev.off()
+
+#------------------------------------------------------------------------#
+# M & E: attrition
+#------------------------------------------------------------------------#
 
 
 #------------------------------------------------------------------------#
