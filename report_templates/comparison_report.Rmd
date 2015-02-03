@@ -89,7 +89,7 @@ knitr::kable(top_domains_df[, c(1,2)])
   custom_plot(visit_duration_table, "median_visit_duration", "month")
 ```
 
-### Breakdown of report-out statuses by split 
+### Breakdown of report-out statuses by split (`r split_by`)
 ```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
       ggplot(ro_breakdown, aes(x=status, y=num_domains)) + 
         facet_wrap(~split) +

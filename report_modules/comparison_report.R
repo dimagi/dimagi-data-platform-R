@@ -23,6 +23,35 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   names (monthly_table)[names(monthly_table) == "numeric_index"] = "obsnum"
   
   active_monthly <- monthly_table[monthly_table$nforms>0 & !is.na(monthly_table$nforms), ]
+  
+  nbu <- FALSE
+  if (split_by=="new_business_unit") {
+    nbu <- TRUE
+    split_by <- "business_unit"
+  }
+  
+  inc_list <- c("California", "Canada", "United Kingdom", "United States", "United States of America", "Wales", "France", "france", "Spain", "US", "USA")
+  dsi_list <- c("Afghanistan", "Bangladesh", "Burma", "India", "Indonesia", "Laos", "Myanmar", "Nepal", "Pakistan", "Philippines", "Philippines", "Thailand", "bangladesh", "india")
+  dsa_list <- c("Angola", "Burundi", "Ethiopia", "Kenya", "Lesotho", "Madagascar", "Malawi", "Rwanda", "South Africa", "South Sudan", "Tanzania", "Uganda", "Zambia", "Zimbabwe", "ethiopia", "kenya", "malawi", "south africa", "south africa ", "Sri Lanka")
+  dwa_list <- c("Benin", "Burkina Faso", "Ghana", "Guinea", "Mali", "Niger and Burkina Faso", "Nigeria", "Senegal", "Sierra Leone", "Togo", "senegal")
+  dlac_list <- c("Brazil", "Colombia", "Dominican Republic", "Grenada", "Guatemala", "Haiti", "Mexico", "Nicaragu", "Nicaragua") 
+  dmoz_list <- c("Mozambique")
+  list_of_lists <- list(inc_list, dsi_list, dsa_list, dwa_list, dlac_list, dmoz_list)
+  names(list_of_lists) <- c("Inc", "DSI", "DSA", "DWA", "DLAC", "DMOZ")
+  set_unit <- function(business_unit, country) {
+    if (is.na(business_unit) | business_unit %in% c("None", "")) {
+      for(unit in names(list_of_lists)) {
+        if (country %in% list_of_lists[[unit]]) {
+          return(unit)
+        }
+      }
+    }
+    return(business_unit)
+  }
+  if (nbu) { # logic for the new business unit
+    domain_table[["business_unit"]] <- mapply(set_unit, domain_table$business_unit, domain_table$deployment.country)
+  }
+  
   active_monthly <- add_splitby_col(active_monthly, domain_table, split_by)
   
   #Remove demo users
@@ -40,7 +69,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   
   #add countries
   active_monthly <- add_splitby_col(active_monthly, domain_table, "deployment.country", "country")
-  print(head(active_monthly))
   #add self starters
   active_monthly <- add_splitby_col(active_monthly, domain_table, "internal.self_started", "self_started")
   
@@ -66,7 +94,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     if (split %in% splits) {
       return(frame[frame$split_by==split & !is.na(frame$split_by) ,])
     } else if (split == 'None') {
-      return(frame[frame$split_by=="None" | is.na(frame$split_by), ])
+      return(frame[frame$split_by %in% c("None", "") | is.na(frame$split_by), ])
     } else {
       return(frame)
     }
@@ -121,7 +149,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   
   #Get rid of calendar_month for this part because it is not supported for this
   #operation. We can always add it back later.
-  df1 = select(active_monthly, -calendar_month)
+  df1 = dplyr::select(active_monthly, -calendar_month)
   df1 = arrange(df1, user_id, obsnum)
   df_group = group_by(df1, user_id)
   df2 <- retain_add(df_group)
@@ -168,9 +196,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       countries_domains <- c(countries_domains, country_name)
     }
     freq_country_name_domains <- Mode(na.omit(countries_domains[countries_domains!=""]))
-    
-    print(split)
-    print(freq_country_name_users)
+
     if (is.null(freq_country_name_users)) {
       udf[udf$split==split, 5] <- "No country set (100%)"
     } else {
@@ -178,7 +204,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
       perc_country <- round((num_country_users / nrow(split_monthly)) * 100, digits=0)
       udf[udf$split==split, 5] = paste(c(freq_country_name_users, " (", perc_country, "%) "), collapse="")
     }
-    print(freq_country_name_domains)
+
     if (is.null(freq_country_name_domains)) {
       ddf[ddf$split==split, 4] <- "No country set (100%)"
     } else {
@@ -211,7 +237,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   
   # income
   print("calculating income")
-  domains <- data.frame(domain=unique(active_monthly$domain))
+  domains <- data.frame(domain=unique(recent_monthly$domain))
   saas_info <- add_col(domains, sf_table, "all_time_income__c", "alltime", "domain", "domain")
   top_doms <- add_col(na.omit(saas_info), domain_table, split_by, "split")
   top_doms <- top_doms[top_doms$alltime > 0 & top_doms$split %in% splits_with_none, ]
@@ -237,7 +263,6 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
     domains <- unique(split_monthly[["domain"]])
     
     alltime_info <- saas_info[saas_info$domain %in% domains & !is.na(saas_info$alltime), ][c("domain", "alltime")]
-    print(alltime_info)
     if (nrow(alltime_info) > 0) {
       top_alltime_domains <- head(alltime_info[order(-alltime_info$alltime), ], 5)
       top_alltime_domains$alltime <- sapply(top_alltime_domains$alltime, round)

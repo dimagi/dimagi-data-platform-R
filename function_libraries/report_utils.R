@@ -58,7 +58,9 @@ add_splitby_col <- function (data_table, domain_table, splitby_var, split_name="
   }
   df <- merge(data_table,splityby_frame,by.x="domain",by.y="name")
   names(df)[names(df) == splitby_var] <- split_name
-#   df[[split_name]] <- sapply(df[[split_name]], as.factor)
+  if (typeof(df[[split_name]]) == "list") {
+    df[[split_name]] <- sapply(df[[split_name]], as.factor) 
+  }
   return(df)
 }
 
@@ -80,6 +82,9 @@ add_col <- function(data_table, subset_table, colvar, colname, dt_join, ss_join)
     colvar <- colnames(subset_frame)[2]
   }
   names(df)[names(df) == colvar] <- colname
+  if (typeof(df[[colname]]) == "list") {
+    df[[colname]] <- sapply(df[[colname]], as.factor) 
+  }
   return(df)
 }
 
