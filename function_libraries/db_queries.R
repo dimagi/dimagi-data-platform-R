@@ -97,7 +97,8 @@ get_salesforce_reportouts <- function (db) {
 }
 
 get_impact123_case_properties <- function(db, domain_name){
-  q <- sprintf("select domain.name as domain_name, users.user_id, form.form_id, form.time_end, cases.case_id, cases.case_type, case_event.id
+  q <- sprintf("select domain.name as domain_name, users.user_id, form.form_id, form.time_end, 
+          cases.case_id, cases.case_type, case_event.id
           from case_event, form, users, cases, domain
           where case_event.case_id = cases.id
           and case_event.form_id = form.id
@@ -140,9 +141,11 @@ get_visit_detail_table <- function (db, limit=-1) {
   total_forms_res <- do_query(con, total_forms_q)
   v <- merge(v,total_forms_res,by.x="id",by.y="id")
   
-  time_since_prev_q <- "select visit.id,  date_part('epoch',time_start - lag(time_end, 1) 
-                      over (partition by visit.user_id order by time_start)) as time_since_previous 
-                      from visit order by visit.user_id, time_start"
+  time_since_prev_q <- "select visit.id,  date_part('epoch',visit.time_start - lag(visit.time_end, 1) 
+                        over (partition by visit.user_id order by visit.time_start)) as time_since_previous_hv
+                        from visit inner join form on (form.visit_id = visit.id)  left join formdef
+                        on (formdef.id = form.formdef_id)
+                        where attributes->'Travel visit' = 'No' order by visit.user_id, visit.time_start"
   time_since_prev_res <- do_query(con, time_since_prev_q)
   v <- merge(v,time_since_prev_res,by.x="id",by.y="id",all.x=T,all.y=F)
   

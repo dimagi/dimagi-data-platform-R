@@ -1,9 +1,71 @@
-#Data for attrition study for Nisha and Reem
+#Final data for attrition study for Nisha and Reem
+#Dec 4, 2014
 #Utilization Ratio study (UR)
+#Using blog data with 60,047 observations
+ur_study <- read.csv(file = "blog_data.csv")
+ur_study$calendar_month <- as.Date(ur_study$calendar_month)
 
-true_domains <- filter(domain_table, Test.Project. == "false")
-facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit, active, Test.Project.)
+#Prepare domain_table for merging
+#Bring in sector information
+sector <- tbl(db, "sector")
+sector <- collect(sector)
+names(sector)[names(sector) == "name"] = "sector_final"
+domain_sector <- tbl(db, "domain_sector")
+domain_sector <- collect(domain_sector)
+domain_sector <- select(domain_sector, domain_id, sector_id)
+domain_table <- merge(domain_table, domain_sector, by.x = "id", by.y = "domain_id", all.x = T)
+domain_table <- merge(domain_table, sector, by.x = "sector_id", by.y = "id", all.x = T)
+#Bring in subsector information
+subsector <- tbl(db, "subsector")
+subsector <- collect(subsector)
+subsector <- select(subsector, id, name)
+subsector <- filter(subsector, !is.na(name))
+subsector <- filter(subsector, name != "")
+names(subsector)[names(subsector) == "name"] = "subsector_final"
+domain_subsector <- tbl(db, "domain_subsector")
+domain_subsector <- collect(domain_subsector)
+domain_subsector <- select(domain_subsector, domain_id, subsector_id)
+domain_table <- merge(domain_table, domain_subsector, by.x = "id", by.y = "domain_id", all.x = T)
+domain_table <- merge(domain_table, subsector, by.x = "subsector_id", by.y = "id", all.x = T)
+#Consolidate country information
+is.na(domain_table$deployment.country) <- domain_table$deployment.country == ""
+is.na(domain_table$country) <- domain_table$country == ""
+domain_table$country_final <- domain_table$deployment.country
+keep_country <- which(is.na(domain_table$deployment.country) & !is.na(domain_table$country))
+domain_table$country_final[keep_country] <- domain_table$country[keep_country]
+#Consolidate Dimagi level of support
+is.na(domain_table$internal.services) <- domain_table$internal.services == ""
+is.na(domain_table$internal.self_started) <- domain_table$internal.self_started == ""
+domain_table$self_start[domain_table$internal.self_started == "True"] <- "self"
+domain_table$dimagi_services <- domain_table$internal.services
+keep_self <- which(is.na(domain_table$internal.services) & !is.na(domain_table$self_start))
+domain_table$dimagi_services[keep_self] <- domain_table$self_start[keep_self]
+
+#Keep only columns of interest
+names(domain_table)[names(domain_table) == "id"] = "domain_id"
+facets_to_merge <- select(domain_table, name, domain_id, country_final, sector_final, 
+                          subsector_final, dimagi_services, test)
+
+#Merge to ur_study
+ur_study <- merge(ur_study, facets_to_merge, by.x = "domain", 
+                  by.y = "name", all.x = T)
+ur_study <- filter(ur_study, sector_final == "Health")
+
+#Exclude domains for EULA
+exclude_domains <- read.csv(file = "can_use_true.csv")
+exclude_domains <- exclude_domains$x 
+exclude_domains <- exclude_domains[-c(2,3,4,13)]
+exclude_domains <- append(as.character(exclude_domains), "ccdt")
+ur_study <- filter(ur_study, !(domain %in% exclude_domains))
+
+write.csv(ur_study, file = "ur_study_12_4_14.csv")
+
+
+
+
+#------------------------------------------------------------------------#
+#Older code
+#------------------------------------------------------------------------#
 
 ur_study <- monthly_table
 ur_study <- ur_study[!(ur_study$user_id =="demo_user"),]

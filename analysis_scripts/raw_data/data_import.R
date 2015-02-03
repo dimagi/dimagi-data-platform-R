@@ -26,6 +26,9 @@ domains_for_run <- get_domains_for_run(domain_table,run_conf)
 # get the monthly table domains to run on
 source(file.path("function_libraries","report_utils.R", fsep = .Platform$file.sep))
 monthly_table <- get_aggregate_table(db, "aggregate_monthly_interactions", domains_for_run)
+#if (run_conf$permitted_data_only != FALSE) {
+#  monthly_table <- monthly_table[monthly_table$domain %in% get_permitted_domains(domain_table),]
+#}
 
 # write to csv
 output_directory <- system_conf$directories$output
