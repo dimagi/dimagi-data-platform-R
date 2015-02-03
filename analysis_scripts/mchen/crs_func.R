@@ -2,7 +2,7 @@
 
 
 # date of data export
-export_date <- c("2014-10-12")
+export_date <- c("2014-11-02") # this should be the date of the most recent data pull
 get_inactive_line <- function(d1, d2) {  # d1 format: YY-MM-DD
   as.Date(d1) - d2
 }
@@ -43,7 +43,7 @@ get_first_visit <- function(dt) {
   library(plyr)
   dt <- dt[order(dt$case_id, dt$time_start),]
   dt1 <- ddply(dt, .(case_id), function(x) x[1,])
-  colnames(dt1)[9] <- c("first_visit")
+  dt1 <- rename(dt1, c("visit_date" = "first_visit"))
   return(dt1)	
 }
 
@@ -53,7 +53,7 @@ get_last_visit <- function(dt) {
   library(plyr)
   dt <- dt[order(dt$case_id, dt$time_start),]
   dt2 <- ddply(dt, .(case_id), function(x) x[nrow(x),])
-  colnames(dt2)[9] <- c("last_visit")
+  dt2 <- rename(dt2, c("visit_date" = "last_visit"))
   return(dt2)
 } 
 
@@ -135,4 +135,10 @@ get_subset_120 <- function(dt, boolean) {
 }
 
 
+# unique cases created by demo_user
+demo_case <- function(data) {
+  demo_data <- data[which(data$user_id == "demo_user"),]
+  demo_ncase <- length(unique(demo_data$case_id))  
+  return(demo_ncase)
+}
 

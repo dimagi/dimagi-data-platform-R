@@ -165,8 +165,9 @@ all_monthly$attrition_event <- !(all_monthly$next_month_active == T | is.na(all_
 all_monthly$continuing <- all_monthly$month_index < all_monthly$months_on_cc
 all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$continuing == T
 is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
+
 #----------------------------------------------------------------------#
-#Random analysis code
+#Random analysis code - not used to generate the main dataset
 #----------------------------------------------------------------------#
 
 # Check # and % of users per domain

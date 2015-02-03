@@ -41,7 +41,7 @@ p1 <- tbl_df(p1)
 # only keep columns that are interesting
 p1 <- p1 %>% select(user_id, calendar_month, month_index, previous_month_active, next_month_active) 
   
-p1$calendar_month   <- as.Date(as.character(p1$calendar_month), format="%Y-%m-%d")
+p1$calendar_month   <- as.Date(as.character(p1$calendar_month), format="%m/%d/%y")
 
 df <- p1
 
@@ -127,6 +127,5 @@ dfc.x <- dfc.x[ order(row.names(dfc.x)),]
   
 cat("input file:", input_file, " output file:", output_file, "\n")
 write.csv(dfc.x, file=output_file, row.names=T)
-
 
 

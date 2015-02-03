@@ -80,4 +80,30 @@ is.na(dag_data$next_month_active) <- dag_data$calendar_month == "2014-08-01"
 
 write.csv(sample_monthly, file="sample_monthly.csv")
 
+#------------------------------------------------------------------------#
+#Create previous/next month active for all_monthly (full) dataset
+#------------------------------------------------------------------------#
 
+#Calculate differences between month_index to calculate next_month_active
+#previous_month_active
+all_monthly <- arrange(all_monthly, domain_numeric, user_pk, calendar_month)
+df <- data.table(all_monthly)
+#Can we setkey by domain and user_id since some user_ids might be the same?
+setkey(df,user_id)
+df[,diff:=c(NA,diff(calendar_month)),by=user_id]  
+all_monthly <- as.data.frame(df)
+all_monthly$previous_month_active <- all_monthly$diff <= 31
+
+users <- unique(all_monthly$user_id)
+next_month_active <- c()
+for (i in users) {
+  single_user <- all_monthly[all_monthly$user_id == i,]
+  next_active <- c()
+  next_active <- append(single_user$previous_month_active[-1], F)
+  next_month_active <- append(next_month_active, next_active)
+}
+all_monthly$next_month_active <- next_month_active
+
+#If calendar_month = 8/1/14 then next_month_active = NA
+#because we don't know if the user will be active in the following month
+is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == "2014-08-01"
