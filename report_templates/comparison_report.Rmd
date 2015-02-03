@@ -1,0 +1,98 @@
+---
+output: 
+  html_document:
+    toc: true
+---
+
+Comparison Report
+========================================================
+
+Split on: **`r split_by`**
+
+Max number of splits: **`r report_options$max_groups`**
+
+Current month: **`r cur_month`**
+
+Running from **`r start_date`** to **`r end_date`**
+
+
+
+### Overview Table by *Users*
+```{r, results='asis', echo=FALSE}
+knitr::kable(udf)
+# xtable(udf, type='html')
+#pander(udf)
+```
+
+### Overview Table by *Domains*
+```{r, results='asis', echo=FALSE}
+knitr::kable(ddf)
+```
+
+
+
+### Active users over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(active_users_table, "active_users", "month")
+```
+
+### Active domains over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(active_domains_table, "active_domains", "month")
+```
+
+### % of Android users over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(android_users_table, "perc_android_users", "month")
+```
+
+### % of Android domains over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(android_domains_table, "perc_android_domains", "month")
+```
+
+### % of self starter users over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(self_start_users_table, "perc_self_started_users", "month")
+```
+
+### % of self starter domains over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(self_start_domains_table, "perc_self_started_domains", "month")
+```
+
+### Top 5 domains by all time revenue
+```{r, results='asis', echo=FALSE}
+knitr::kable(top_domains_df[, c(1,2)])
+```
+
+### Domains by all-time income
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+    top_doms$domain <- factor(top_doms$domain, levels = top_doms$domain[order(-top_doms$alltime)])
+    ggplot(top_doms, aes_string(x="domain", y="alltime", fill=split_by)) + 
+      geom_bar(stat='identity') + 
+      theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+### Median active days over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(active_days_table, "median_active_days", "month")
+```
+
+### Median cases touched over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(cases_touched_table, "median_cases_touched", "month")
+```
+
+### Median visit duration over time
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+  custom_plot(visit_duration_table, "median_visit_duration", "month")
+```
+
+### Breakdown of report-out statuses by split (`r split_by`)
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+      ggplot(ro_breakdown, aes(x=status, y=num_domains)) + 
+        facet_wrap(~split) +
+        geom_bar(aes(fill=status), stat="identity") +
+        scale_fill_manual(values=c("Green" = "green", "Yellow" = "yellow", "Red" = "red"))
+```

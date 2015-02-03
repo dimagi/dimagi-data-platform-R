@@ -48,14 +48,43 @@ merged_monthly_table <- function (domain_names, aggregate_tables_dir) {
 # data_table : the data to add a split_by column to
 # domain_table: the domain table
 # splitby_var: the variable to split by
-add_splitby_col <- function (data_table, domain_table, splitby_var) {
+add_splitby_col <- function (data_table, domain_table, splitby_var, split_name="split_by") {
   if (!(splitby_var %in% names(domain_table))) {
     stop(sprintf ("Domain table has no attribute named %s", splitby_var))
   }
   splityby_frame <- subset(domain_table, select=c("name",splitby_var))
+  if (split_name == "split_by") {
+    splitby_var <- colnames(splityby_frame)[2]
+  }
   df <- merge(data_table,splityby_frame,by.x="domain",by.y="name")
-  names(df)[names(df) == splitby_var] <- 'split_by'
-  df$split_by <- sapply(df$split_by, as.factor)
+  names(df)[names(df) == splitby_var] <- split_name
+  if (typeof(df[[split_name]]) == "list") {
+    df[[split_name]] <- sapply(df[[split_name]], as.factor) 
+  }
+  return(df)
+}
+
+add_col <- function(data_table, subset_table, colvar, colname, dt_join, ss_join) {
+  if (!(colvar %in% names(subset_table))) {
+    stop(sprintf ("Subset table has no attribute named %s", colvar))
+  }
+  if (missing(dt_join)) {
+    dt_join <- "domain"
+  }
+  if (missing(ss_join)) {
+    ss_join <- "name"
+  }
+
+  subset_frame <- subset(subset_table, select=c(ss_join, colvar))
+  df <- merge(data_table, subset_frame, by.x=dt_join, by.y=ss_join, all.x=TRUE)
+  print(colnames(subset_frame))
+  if (colvar == ss_join) {
+    colvar <- colnames(subset_frame)[2]
+  }
+  names(df)[names(df) == colvar] <- colname
+  if (typeof(df[[colname]]) == "list") {
+    df[[colname]] <- sapply(df[[colname]], as.factor) 
+  }
   return(df)
 }
 
