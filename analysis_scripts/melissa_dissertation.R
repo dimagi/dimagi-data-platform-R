@@ -1,5 +1,6 @@
 library(dplyr)
 library(lme4)
+library(influence.ME)
 
 # load config files
 source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
@@ -18,6 +19,10 @@ monthly_table <- read.csv("monthly.csv")
 monthly_table <- monthly_table[monthly_table$domain %in% get_permitted_domains(domain_table),]
 
 monthly_table$month_start<-as.Date(paste0('1 ',monthly_table$month.index), '%d %b %Y')
+
+# remove test projects
+not_test_projects <- domain_table %>% filter(test==F) %>% select(name)
+monthly_table <- monthly_table %>% filter(domain %in% not_test_projects$name)
 
 # remove demo users and NA/NONE users
 monthly_table = monthly_table[!(monthly_table$user_id %in% c("demo_user","NONE","none")),]
@@ -41,7 +46,7 @@ monthly_table <- merge(monthly_table,self_starts,by="domain",all.x=T,all.y=F)
 monthly_table <- monthly_table %>% filter(summary_device_type %in% c('Android','Nokia'))
 
 # tests whether various domain attributes effect retention percentage
-# retention percent is defined as the number of users submitting data in month n who also submit data in month n+diff
+# retention percentage is the number of users submitting data in month n who also submit data in month n+diff
 test_retention_predictors <- function(monthly_table, n_month, diff, end_date) {
   # get month n data only
   month.n.data <- monthly_table %>% filter(numeric_index == n_month)
@@ -52,7 +57,7 @@ test_retention_predictors <- function(monthly_table, n_month, diff, end_date) {
   month.n.data <- merge(month.n.data, dropouts, by=c("domain","user_id"), all.x=T, all.y=F)
   month.n.data[is.na(month.n.data$active_diff),]$active_diff <- T
   
-  # only domains with > n users in month n
+  # only domains with > 3 users in month n
   month.n.domains <- month.n.data %>% group_by(domain) %>% summarise(total_users = length(unique(user_id))) %>%
     filter (total_users > 3)
   month.n.data <- month.n.data %>% filter(domain %in% month.n.domains$domain)
@@ -82,6 +87,75 @@ test_retention_predictors <- function(monthly_table, n_month, diff, end_date) {
   self_started.summary<-month.n.by.domain %>% group_by(self_started) %>% summarise(median(percent_retained), total_domains=n())
   print(self_started.summary)
   
+  
+}
+
+test_output_predictors <- function(monthly_table, month_n){
+  # get month n data only
+  month.n.data <- monthly_table %>% filter(numeric_index == n_month)
+  
+  # only domains with > 3 users in month n
+  month.n.domains <- month.n.data %>% group_by(domain) %>% summarise(total_users = length(unique(user_id))) %>%
+    filter (total_users > 3)
+  month.n.data <- month.n.data %>% filter(domain %in% month.n.domains$domain)
+  
+  # summary tables
+  month.n.by.domain <- month.n.data %>% group_by(domain, self_started) %>% summarise(total_users = length(unique(user_id)),
+                                                                                     median_forms = median(nforms),
+                                                                                     median_visits = median(nvisits),
+                                                                                     percent_android = (length(unique(user_id[summary_device_type=="Android"])) / length(unique(user_id)))*100,
+                                                                                     most_common_device = names(sort(table(summary_device_type),decreasing=TRUE)[1]))
+  month.n.by.domain$self_started <- as.factor(month.n.by.domain$self_started)
+  month.n.by.domain$most_common_device <- as.factor(month.n.by.domain$most_common_device)
+  most_common_device.summary <- month.n.by.domain %>% group_by(most_common_device) %>% 
+    summarise(median(median_visits), median(median_forms), total_domains=n())
+  self_started.summary <- month.n.by.domain %>% group_by(self_started) %>% 
+    summarise(median(median_visits), median(median_forms), total_domains=n())
+  print(self_started.summary)
+  print(kruskal.test(median_visits~self_started,data=month.n.by.domain))
+  print(most_common_device.summary)
+  print(kruskal.test(median_visits~most_common_device,data=month.n.by.domain))
+  
+  # models for nvisits
+  month.n.data$log_visits = log(month.n.data$nvisits)
+  month.n.data <- month.n.data %>% filter(!(domain %in% c("care-ihapc-live","opm")))
+  month.n.data <- month.n.data %>% filter(!(domain %in% c("aarohi","crs-mip","hrt2","nkhozo-project","pci-india","project",
+                                          "ramakrishna","wv-tanzania")))
+  month.n.data <- month.n.data %>% filter(!(domain %in% c("crs-remind","crs-mip")))
+  
+  month.n.data$log_visits = log(month.n.data$nforms)
+  m.visits.null <- lmer(log_visits ~ 1+ (1|domain), data = month.n.data,REML=FALSE)
+  m.visits.self_started <- lmer(log_visits ~ self_started + (1|domain), data = month.n.data,
+                                REML=FALSE)
+  m.visits.device <- lmer(log_visits ~ summary_device_type + (1|domain), data = month.n.data,
+                          REML=FALSE)
+  m.visits.full <- lmer(log_visits ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
+                        REML=FALSE)
+  
+  anova(m.visits.full,m.visits.self_started)
+  anova(m.visits.full,m.visits.device)
+  anova(m.visits.null,m.visits.self_started)
+  anova(m.visits.null,m.visits.device)
+  
+  summary(m.visits.full)
+  
+  plot(fitted(m.visits.full),residuals(m.visits.full))
+  
+  # detecting influential data points
+  estex.m.visits <- influence(m.visits.device, "domain")
+  dfb <- dfbetas(estex.m.visits)
+  cutoff <- 2 / sqrt(length(unique(month.n.data$domain)))
+  plot(estex.m.visits,
+       which="dfbetas",
+       parameters=c(2,3),
+       xlab="DFbetaS",
+       ylab="Domain")
+  
+  # based on DFBETAS, which groups should we remove?
+  dfb$remove2 <- abs(dfb[,2]) > cutoff
+  dfb$remove2[dfb$remove2==T]
+  dfb$remove3 <- abs(dfb[,3]) > cutoff
+  dfb$remove3[dfb$remove3==T]
   
 }
 
