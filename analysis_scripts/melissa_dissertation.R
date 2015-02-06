@@ -1,4 +1,5 @@
 library(dplyr)
+library(zoo)
 library(lme4)
 library(influence.ME)
 
@@ -6,11 +7,11 @@ library(influence.ME)
 source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 system_conf <- get_system_config(file.path("config_system.json"))
 
-db <- get_db_connection(system_conf)
+#db <- get_db_connection(system_conf)
 
 # load domain attributes and monthly aggregate table, but only keep domains where data use is permitted
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-domain_table <- get_domain_table(db)
+domain_table <- read.csv("domain_table.csv")
 domain_table <- domain_table[domain_table$name %in% get_permitted_domains(domain_table),]
 
 
@@ -28,7 +29,8 @@ monthly_table <- monthly_table %>% filter(domain %in% not_test_projects$name)
 monthly_table = monthly_table[!(monthly_table$user_id %in% c("demo_user","NONE","none")),]
 monthly_table = monthly_table[!is.na(monthly_table$user_id),]
 # remove web users
-user_tbl <- get_user_table(db)
+#user_tbl <- get_user_table(db)
+user_tbl <- read.csv("user_table.csv")
 web_user_ids <- user_tbl[user_tbl$user_type=="web",]$user_id
 monthly_table = monthly_table[!(monthly_table$user_id %in% web_user_ids),]
 
@@ -37,13 +39,13 @@ start_date <- as.Date("2010-01-01")
 end_date <- as.Date("2014-12-31")
 monthly_table <- subset(monthly_table, date_first_visit >= start_date & date_last_visit <= end_date)
 
-# add self-start data from domain table
-self_starts <- domain_table[!is.na(domain_table$internal.self_started),c("name","internal.self_started")]
-names(self_starts) <-c("domain","self_started")
-monthly_table <- merge(monthly_table,self_starts,by="domain",all.x=T,all.y=F)
-
 # only Android or Nokia users
 monthly_table <- monthly_table %>% filter(summary_device_type %in% c('Android','Nokia'))
+
+# add self-start and creating user data from domain table
+self_starts <- domain_table %>% select (name, internal.self_started, creating_user)
+names(self_starts) <-c("domain","self_started","creating_user")
+monthly_table <- merge(monthly_table,self_starts,by="domain",all.x=T,all.y=F)
 
 # tests whether various domain attributes effect retention percentage
 # retention percentage is the number of users submitting data in month n who also submit data in month n+diff
@@ -94,6 +96,9 @@ get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
   # get month n data only
   month.n.data <- monthly_table %>% filter(numeric_index == n_month)
   
+  # filter out domains on the exclude list
+  month.n.data <- month.n.data %>% filter(!(domain %in% exclude_names))
+  
   # only domains with > 3 users in month n
   month.n.domains <- month.n.data %>% group_by(domain) %>% summarise(total_users = length(unique(user_id))) %>%
     filter (total_users > 3)
@@ -142,14 +147,16 @@ influential_domains <- function (model){
        ylab="Domain")
   
   # based on DFBETAS, which groups should we remove?
+  dfb <- as.data.frame(dfb)
   dfb$remove2 <- abs(dfb[,2]) > cutoff
-  if (length(dfb$remove2) > 0) { print(dfb$remove2[dfb$remove2==T])}
+  print(sprintf("cutoff is %s",cutoff))
+  if (length(dfb$remove2) > 0) { print(dfb[dfb$remove2==T,])}
   dfb$remove3 <- abs(dfb[,3]) > cutoff
-  if (length(dfb$remove3) > 0) {print(dfb$remove3[dfb$remove3==T])}
+  if (length(dfb$remove3) > 0) {print(dfb[dfb$remove3==T,])}
 }
 
-test_retention_predictors(monthly_table, 2, 3, end_date)
-test_retention_predictors(monthly_table, 6, 3, end_date)
+#test_retention_predictors(monthly_table, 2, 3, end_date)
+#test_retention_predictors(monthly_table, 6, 3, end_date)
 
 
 # visits models for month 6
@@ -157,12 +164,46 @@ m6.models <- get_visits_models(monthly_table,6)
 
 anova(m6.models$full,m6.models$no_device)
 anova(m6.models$full,m6.models$no_self_started)
+summary(m6.models$full)
+
 influential_domains(m6.models$full)
 
-summary(m6.models$full)
-plot(fitted(m.visits.full),residuals(m.visits.full))
+m6.models.rev <- get_visits_models(monthly_table,6,c("crs-mip","m4change","project"))
+anova(m6.models.rev$full,m6.models.rev$no_device)
+anova(m6.models.rev$full,m6.models.rev$no_self_started)
+summary(m6.models.rev$full)
 
+influential_domains(m6.models.rev$full)
 
+# visits models for month 12
+m12.models <- get_visits_models(monthly_table,12)
+
+anova(m12.models$full,m12.models$no_device)
+anova(m12.models$full,m12.models$no_self_started)
+summary(m12.models$full)
+
+influential_domains(m12.models$full)
+
+m12.models.rev <- get_visits_models(monthly_table,12,c("crs-mip","m4change","project","opm","rmf"))
+anova(m12.models.rev$full,m12.models.rev$no_device)
+anova(m12.models.rev$full,m12.models.rev$no_self_started)
+summary(m12.models.rev$full)
+
+influential_domains(m12.models.rev$full)
+
+# visits models for month 18
+
+m18.models <- get_visits_models(monthly_table,18)
+
+anova(m18.models$full,m18.models$no_device)
+anova(m18.models$full,m18.models$no_self_started)
+summary(m18.models$full)
+
+influential_domains(m18.models$full)
+m18.models.rev <- get_visits_models(monthly_table,18,c("crs-mip","project"))
+anova(m18.models.rev$full,m18.models.rev$no_device)
+anova(m18.models.rev$full,m18.models.rev$no_self_started)
+summary(m18.models.rev$full)
 
 
 
