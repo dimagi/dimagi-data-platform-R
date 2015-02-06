@@ -131,6 +131,23 @@ get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
   
 }
 
+influential_domains <- function (model){
+  estex.m.visits <- influence(model, "domain")
+  dfb <- dfbetas(estex.m.visits)
+  cutoff <- 2 / sqrt(length(unique(slot(model, "frame")$domain)))
+  plot(estex.m.visits,
+       which="dfbetas",
+       parameters=c(2,3),
+       xlab="DFbetaS",
+       ylab="Domain")
+  
+  # based on DFBETAS, which groups should we remove?
+  dfb$remove2 <- abs(dfb[,2]) > cutoff
+  if (length(dfb$remove2) > 0) { print(dfb$remove2[dfb$remove2==T])}
+  dfb$remove3 <- abs(dfb[,3]) > cutoff
+  if (length(dfb$remove3) > 0) {print(dfb$remove3[dfb$remove3==T])}
+}
+
 test_retention_predictors(monthly_table, 2, 3, end_date)
 test_retention_predictors(monthly_table, 6, 3, end_date)
 
@@ -140,25 +157,12 @@ m6.models <- get_visits_models(monthly_table,6)
 
 anova(m6.models$full,m6.models$no_device)
 anova(m6.models$full,m6.models$no_self_started)
+influential_domains(m6.models$full)
 
 summary(m6.models$full)
 plot(fitted(m.visits.full),residuals(m.visits.full))
 
-# detecting influential data points
-estex.m.visits <- influence(m6.models$full, "domain")
-dfb <- dfbetas(estex.m.visits)
-cutoff <- 2 / sqrt(length(unique(month.n.data$domain)))
-plot(estex.m.visits,
-     which="dfbetas",
-     parameters=c(2,3),
-     xlab="DFbetaS",
-     ylab="Domain")
 
-# based on DFBETAS, which groups should we remove?
-dfb$remove2 <- abs(dfb[,2]) > cutoff
-dfb$remove2[dfb$remove2==T]
-dfb$remove3 <- abs(dfb[,3]) > cutoff
-dfb$remove3[dfb$remove3==T]
 
 
 
