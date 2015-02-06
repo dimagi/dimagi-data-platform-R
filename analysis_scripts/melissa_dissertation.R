@@ -90,7 +90,7 @@ test_retention_predictors <- function(monthly_table, n_month, diff, end_date) {
   
 }
 
-test_output_predictors <- function(monthly_table, month_n){
+get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
   # get month n data only
   month.n.data <- monthly_table %>% filter(numeric_index == n_month)
   
@@ -112,18 +112,11 @@ test_output_predictors <- function(monthly_table, month_n){
   self_started.summary <- month.n.by.domain %>% group_by(self_started) %>% 
     summarise(median(median_visits), median(median_forms), total_domains=n())
   print(self_started.summary)
-  print(kruskal.test(median_visits~self_started,data=month.n.by.domain))
   print(most_common_device.summary)
-  print(kruskal.test(median_visits~most_common_device,data=month.n.by.domain))
   
   # models for nvisits
   month.n.data$log_visits = log(month.n.data$nvisits)
-  month.n.data <- month.n.data %>% filter(!(domain %in% c("care-ihapc-live","opm")))
-  month.n.data <- month.n.data %>% filter(!(domain %in% c("aarohi","crs-mip","hrt2","nkhozo-project","pci-india","project",
-                                          "ramakrishna","wv-tanzania")))
-  month.n.data <- month.n.data %>% filter(!(domain %in% c("crs-remind","crs-mip")))
   
-  month.n.data$log_visits = log(month.n.data$nforms)
   m.visits.null <- lmer(log_visits ~ 1+ (1|domain), data = month.n.data,REML=FALSE)
   m.visits.self_started <- lmer(log_visits ~ self_started + (1|domain), data = month.n.data,
                                 REML=FALSE)
@@ -132,35 +125,40 @@ test_output_predictors <- function(monthly_table, month_n){
   m.visits.full <- lmer(log_visits ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
                         REML=FALSE)
   
-  anova(m.visits.full,m.visits.self_started)
-  anova(m.visits.full,m.visits.device)
-  anova(m.visits.null,m.visits.self_started)
-  anova(m.visits.null,m.visits.device)
-  
-  summary(m.visits.full)
-  
-  plot(fitted(m.visits.full),residuals(m.visits.full))
-  
-  # detecting influential data points
-  estex.m.visits <- influence(m.visits.device, "domain")
-  dfb <- dfbetas(estex.m.visits)
-  cutoff <- 2 / sqrt(length(unique(month.n.data$domain)))
-  plot(estex.m.visits,
-       which="dfbetas",
-       parameters=c(2,3),
-       xlab="DFbetaS",
-       ylab="Domain")
-  
-  # based on DFBETAS, which groups should we remove?
-  dfb$remove2 <- abs(dfb[,2]) > cutoff
-  dfb$remove2[dfb$remove2==T]
-  dfb$remove3 <- abs(dfb[,3]) > cutoff
-  dfb$remove3[dfb$remove3==T]
+  ret <- c(m.visits.full, m.visits.self_started,m.visits.device,m.visits.null)
+  names(ret) <- c("full","no_device","no_self_started","null")
+  return (ret)
   
 }
 
 test_retention_predictors(monthly_table, 2, 3, end_date)
 test_retention_predictors(monthly_table, 6, 3, end_date)
+
+
+# visits models for month 6
+m6.models <- get_visits_models(monthly_table,6)
+
+anova(m6.models$full,m6.models$no_device)
+anova(m6.models$full,m6.models$no_self_started)
+
+summary(m6.models$full)
+plot(fitted(m.visits.full),residuals(m.visits.full))
+
+# detecting influential data points
+estex.m.visits <- influence(m6.models$full, "domain")
+dfb <- dfbetas(estex.m.visits)
+cutoff <- 2 / sqrt(length(unique(month.n.data$domain)))
+plot(estex.m.visits,
+     which="dfbetas",
+     parameters=c(2,3),
+     xlab="DFbetaS",
+     ylab="Domain")
+
+# based on DFBETAS, which groups should we remove?
+dfb$remove2 <- abs(dfb[,2]) > cutoff
+dfb$remove2[dfb$remove2==T]
+dfb$remove3 <- abs(dfb[,3]) > cutoff
+dfb$remove3[dfb$remove3==T]
 
 
 
