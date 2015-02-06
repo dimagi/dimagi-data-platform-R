@@ -18,7 +18,6 @@ get_data_source <- function (db, table_name, limit=-1) {
 }
 
 get_visit_detail <- function(db, limit=-1){
-  source(file.path("aggregate_tables", "lifetime_func.R", fsep=.Platform$file.sep))
   print(paste('Fetching visit detail table, limit is ', limit))
   dat <- get_visit_detail_table(db, limit)
   user_start_dates <- dat %.% group_by (domain,user_id) %.% summarise(user_start_date = min(time_start) )

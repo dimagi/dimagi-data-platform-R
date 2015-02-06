@@ -15,6 +15,6 @@ median_visit_duration <- function(x) as.numeric(median((x$time_end - x$time_star
 time_using_cc <- function(x) sum(x$form_duration, na.rm = T)  
 
 nvisits_travel <- function(x) sum(x$home_visit, na.rm=T)
-nvisits_travel_batch <- function(x) sum(x$time_since_previous/60<10, na.rm = T)  
+nvisits_travel_batch <- function(x) sum(x$time_since_previous_hv/60<10, na.rm = T)  
 travel_batch_percent <- function(x) (nvisits_travel_batch(x) / nvisits_travel(x))*100 
 
