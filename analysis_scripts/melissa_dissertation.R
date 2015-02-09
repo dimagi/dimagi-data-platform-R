@@ -7,6 +7,9 @@ source("mer-utils.R")
 
 library(ggplot2)
 
+start_date <- as.Date("2010-01-01")
+end_date <- as.Date("2014-12-31")
+
 add_domain_month_index<-function(monthly_table){
   domain_start_dates <- monthly_table %>% group_by (domain) %>% summarise(domain_start_date = min(month_start) )
   monthly_table <- merge(monthly_table,domain_start_dates,by=c("domain"))
@@ -56,8 +59,6 @@ clean_monthly_table <- function(monthly_table,domain_table,user_table) {
   monthly_table = monthly_table[!(monthly_table$user_id %in% web_user_ids),]
   
   # specify date range
-  start_date <- as.Date("2010-01-01")
-  end_date <- as.Date("2014-12-31")
   monthly_table <- subset(monthly_table, date_first_visit >= start_date & date_last_visit <= end_date)
   
   # only Android or Nokia users
@@ -141,8 +142,7 @@ get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
                                                                                      percent_android = (length(unique(user_id[summary_device_type=="Android"])) / length(unique(user_id)))*100,
                                                                                      most_common_device = names(sort(table(summary_device_type),decreasing=TRUE)[1]))
   
-  print (month.n.by.domain)
-  ggplot(month.n.by.domain,aes(x=domain,y=mean_visits,color=self_started,shape=most_common_device)) +
+  #ggplot(month.n.by.domain,aes(x=domain,y=mean_visits,color=self_started,shape=most_common_device)) +
     geom_point(size=5) 
   
   month.n.by.domain$self_started <- as.factor(month.n.by.domain$self_started)
@@ -168,6 +168,39 @@ get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
   names(ret) <- c("full","no_device","no_self_started","null")
   return (ret)
   
+}
+
+get_retention_models <- function(monthly_table, n_month, diff, exclude_names = list()){
+  # get month n data only
+  month.n.data <- monthly_table %>% filter(numeric_index == n_month)
+  
+  # get which users active in month n were active in month n+diff
+  mdiff_active_users <- monthly_table %>% filter(numeric_index == n_month+diff) %>% select(domain,user_id)
+  dropouts <- anti_join(month.n.data,mdiff_active_users,by=c("domain","user_id")) %>% select(domain,user_id)
+  dropouts$active_diff <- 0
+  month.n.data <- merge(month.n.data, dropouts, by=c("domain","user_id"), all.x=T, all.y=F)
+  month.n.data[is.na(month.n.data$active_diff),]$active_diff <- 1
+  
+  # take out users that are less than n+diff months old
+  cutoff <- as.Date(as.yearmon(end_date) -((n_month+diff-1)/12), frac = 0)
+  user_start_dates <- month.n.data %>% group_by(user_id,domain) %>% 
+    summarise(first_month_start = min(month_start)) %>%
+    select(user_id,domain,first_month_start)    
+  month.n.data <- merge(month.n.data, user_start_dates,by=c("domain","user_id"),all.x=T,all.y=F)
+  month.n.data <- month.n.data %>% filter(first_month_start <= cutoff)
+  
+  # models for retention
+  m.retention.null <- glmer(active_diff ~ 1+ (1|domain), data = month.n.data, family=binomial)
+  m.retention.self_started <- glmer(active_diff ~ self_started + (1|domain), data = month.n.data, 
+                                    family=binomial)
+  m.retention.device <- glmer(active_diff ~ summary_device_type + (1|domain), data = month.n.data,
+                             family=binomial)
+  m.retention.full <- glmer(active_diff ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
+                           family=binomial)
+  
+  ret <- c(m.retention.full, m.retention.self_started,m.retention.device,m.retention.null)
+  names(ret) <- c("full","no_device","no_self_started","null")
+  return (ret)
 }
 
 influential_domains <- function (model){
@@ -233,7 +266,7 @@ anova(m12.models.rev$full,m12.models.rev$no_device)
 anova(m12.models.rev$full,m12.models.rev$no_self_started)
 summary(m12.models.rev$full)
 exp(fixef(m12.models.rev$full))
-exp(confint(m12.models.rev$full, level = 0.95, method="boot"))
+exp(confint(m12.models.rev$full, level = 0.95, method="profile"))
 
 influential_domains(m12.models.rev$full)
 vif.mer(m12.models.rev$full)
@@ -253,11 +286,23 @@ anova(m18.models.rev$full,m18.models.rev$no_device)
 anova(m18.models.rev$full,m18.models.rev$no_self_started)
 summary(m18.models.rev$full)
 exp(fixef(m18.models.rev$full))
-exp(confint(m18.models.rev$full, level = 0.95, method="boot"))
+exp(confint(m18.models.rev$full, level = 0.95, method="profile"))
 
 vif.mer(m18.models.rev$full)
 
 anova(m18.models.rev$full, ddf = "Kenward-Roger")
 
+# retention for month 6 (users still active at month 9)
+m6.ret.models <- get_retention_models(monthly_table,6,9)
+anova(m6.ret.models$full,m6.ret.models$no_device)
+anova(m6.ret.models$full,m6.ret.models$no_self_started)
+influential_domains(m6.ret.models$full)
+
+m6.ret.models.rev <- get_retention_models(monthly_table,6,9,c("m4change","project"))
+anova(m6.ret.models.rev$full,m6.ret.models.rev$no_device)
+anova(m6.ret.models.rev$full,m6.ret.models.rev$no_self_started)
+
+summary(m6.ret.models.rev$no_device)
+confint(m6.ret.models.rev$no_device,method="boot")
 
 
