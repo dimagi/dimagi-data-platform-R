@@ -1,8 +1,63 @@
 #This code is to get 100% alignment between DP and HQ, especially in terms 
 #(1) number of active users per month, (2) user type, (3) general # of forms.
 #Number of forms might be difficult to get 100% alignment on. 
-#1/9/2015
 
+# 2/4/15
+hq <- read.csv(file="hq_nov_2014.csv")
+dp <- read.csv(file="dp_nov_2014.csv")
+
+hq$dup_id <- duplicated(hq$user_id) | duplicated(hq$user_id, fromLast=T)
+dp$dup_id <- duplicated(dp$user_id) | duplicated(dp$user_id, fromLast=T)
+
+dp_unique <- dp[dp$dup_id == F,]
+test <- data.frame(unique(dp$user_id[duplicated(dp$user_id)]))
+
+summary(dp_unique$user_id %in% hq$user_id)
+summary(hq$user_id %in% dp_unique$user_id)
+test <- data.frame(unique(dp_unique$user_id[!(dp_unique$user_id %in% hq$user_id)]))
+test <- data.frame(unique(hq$user_id[!(hq$user_id %in% dp_unique$user_id)]))
+test <- dp_unique[!(dp_unique$user_id %in% hq$user_id),]
+test <- hq[!(hq$user_id %in% dp_unique$user_id),]
+
+#Change column names as needed
+names(dp_unique)[names(dp_unique) == "domain"] = "domain_dp"
+names(dp_unique)[names(dp_unique) == "user_type"] = "user_type_dp"
+names(dp_unique)[names(dp_unique) == "is_test"] = "is_test_dp"
+names(dp_unique)[names(dp_unique) == "nforms"] = "nforms_dp"
+names(dp_unique)[names(dp_unique) == "ncases_touched"] = "ncases_dp"
+names(hq)[names(hq) == "domain"] = "domain_hq"
+names(hq)[names(hq) == "user_type"] = "user_type_hq"
+names(hq)[names(hq) == "is_test"] = "is_test_hq"
+names(hq)[names(hq) == "nforms"] = "nforms_hq"
+names(hq)[names(hq) == "ncase"] = "ncases_hq"
+
+#Merge two tables
+hq_dp <- merge(hq, dp_unique, by = "user_id", all.x = F)
+
+#Check domains
+hq_dp$domain_dp <- as.character(hq_dp$domain_dp)
+hq_dp$domain_hq <- as.character(hq_dp$domain_hq)
+summary(hq_dp$domain_dp == hq_dp$domain_hq)
+test <- hq_dp[!(hq_dp$domain_dp == hq_dp$domain_hq),]
+test <- select(test, user_id)
+
+#Check user_type
+test <- filter(hq_dp, user_type_dp == "web")
+
+#Check test domains
+hq_dp$is_test_hq <- as.character(hq_dp$is_test_hq)
+hq_dp$is_test_dp <- as.character(hq_dp$is_test_dp)
+hq_dp$is_test_hq[hq_dp$is_test_hq == ""] <- "none" 
+hq_dp$is_test_hq[hq_dp$is_test_hq == "FALSE"] <- "false"
+hq_dp$is_test_hq[hq_dp$is_test_hq == "TRUE"] <- "true"
+summary(hq_dp$is_test_hq == hq_dp$is_test_dp)
+test <- hq_dp[!(hq_dp$is_test_hq == hq_dp$is_test_dp),]
+
+#Check # forms and # cases 
+summary(hq_dp$nforms_dp == hq_dp$nforms_hq)
+summary(hq_dp$ncases_dp == hq_dp$ncases_hq)
+
+#1/9/2015
 #First import monthly_table for all domains
 #Set permitted_data_only = false
 source(file.path("analysis_scripts","raw_data","data_import.R", fsep = .Platform$file.sep))

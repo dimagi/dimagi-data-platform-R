@@ -16,37 +16,26 @@ library(ggplot2)
 #DATA MANAGEMENT
 #------------------------------------------------------------------------#
 
-#Import mobile and web user lists
-#Note that we need to merge/select by user_id instead of user_pk for now because we 
-#don't currently have complete/correct user_pk for all user_ids. Melissa will be changing this.
-#The mobile user table has duplicate user_ids only for demo_user, ntest, etc.
-#Otherwise, all user_ids are unique. Dedup this anyway.
-mobile_users <- read.csv(file = "mobile_users.csv", na.strings = "") 
-mobile_users <- unique(mobile_users)
+# Load system config file
+source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+source(file.path("data_sources.R"))
+system_conf <- get_system_config(file.path("config_system.json"))
 
-#The web_user table does have duplicate user_ids, but since user_pk is different for those users
-#(even though we know they are the same users), we need to exclude user_pk and dedup web_users
-web_users <- read.csv(file = "web_users1.csv", na.strings = "")
-web_users <- select(web_users, user_id, username, is_dimagi)
-web_users <- unique(web_users)
+# Get db connection
+# db <- get_db_connection(system_conf)
 
-summary(mobile_users$user_id %in% web_users$user_id)
-summary(all_monthly$user_id %in% web_users$user_id)
-summary(all_monthly$user_id %in% mobile_users$user_id)
-
-#All users in mobile_users are true mobile users
-mobile_users$user_type <- "mobile"
-
-#All users in web_users are web | dimagi users
-web_users$user_type[web_users$is_dimagi == "t"] <- "dimagi"
-web_users$user_type[web_users$is_dimagi == "f"] <- "web"
-web_users <- select(web_users, user_id, username, user_type)
-
-#Combine into one dataset
-user_type <- rbind(mobile_users, web_users)
+#List of users by user_type, keeping only mobile users
+#Get user_type table from db (mobile, web, superuser, etc.)
+user_type <- get_user_type_table(db)
+user_type <- filter(user_type, user_type == "mobile")
+user_type <- select(user_type, user_pk, user_type)
 
 #Create aggregate monthly data set
 all_monthly <- monthly_table
+
+#Merge these two lists together, keeping only mobile users
+all_monthly <- merge(all_monthly, user_type, by = "user_pk", all.x = T)
+all_monthly <- filter(all_monthly, user_type == "mobile")
 
 #Set report_options
 report = run_conf$reports$modules$name
@@ -65,29 +54,77 @@ start_date = as.Date(report_options$start_date)
 end_date = as.Date(report_options$end_date)
 all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
                      & all_monthly$date_last_visit <= end_date)
+report_end_date <- as.Date(report_options$end_date)
+end_month <- as.yearmon(report_end_date)
+end_month <- parse_date_time(paste('01', end_month), '%d %b %Y!')
+end_month <- as.Date(end_month)
+
+#Bring in domain_numeric
+#domain <- tbl(db, "domain")
+#domain <- collect(domain)
+#domain <- select(domain, id, name)
+#write.csv(domain, file = "domain_master_list.csv")
+
+#Merge domain ID into all_monthly table
+#all_monthly <- merge(all_monthly, domain, by.x = "domain", 
+#                     by.y = "name", all.x = T)
+
+#Merge domain facets into all_monthly table
+#Prepare domain_table for merging in domain facets
+#Bring in sector information
+sector <- tbl(db, "sector")
+sector <- collect(sector)
+names(sector)[names(sector) == "name"] = "sector_final"
+domain_sector <- tbl(db, "domain_sector")
+domain_sector <- collect(domain_sector)
+domain_sector <- select(domain_sector, domain_id, sector_id)
+domain_table <- merge(domain_table, domain_sector, by.x = "id", by.y = "domain_id", all.x = T)
+domain_table <- merge(domain_table, sector, by.x = "sector_id", by.y = "id", all.x = T)
+#Bring in subsector information
+subsector <- tbl(db, "subsector")
+subsector <- collect(subsector)
+subsector <- select(subsector, id, name)
+subsector <- filter(subsector, !is.na(name))
+subsector <- filter(subsector, name != "")
+names(subsector)[names(subsector) == "name"] = "subsector_final"
+domain_subsector <- tbl(db, "domain_subsector")
+domain_subsector <- collect(domain_subsector)
+domain_subsector <- select(domain_subsector, domain_id, subsector_id)
+domain_table <- merge(domain_table, domain_subsector, by.x = "id", by.y = "domain_id", all.x = T)
+domain_table <- merge(domain_table, subsector, by.x = "subsector_id", by.y = "id", all.x = T)
+#Consolidate country information
+is.na(domain_table$deployment.country) <- domain_table$deployment.country == ""
+is.na(domain_table$country) <- domain_table$country == ""
+domain_table$country_final <- domain_table$deployment.country
+keep_country <- which(is.na(domain_table$deployment.country) & !is.na(domain_table$country))
+domain_table$country_final[keep_country] <- domain_table$country[keep_country]
+#Consolidate Dimagi level of support
+is.na(domain_table$internal.services) <- domain_table$internal.services == ""
+is.na(domain_table$internal.self_started) <- domain_table$internal.self_started == ""
+domain_table$self_start[domain_table$internal.self_started == "True"] <- "self"
+domain_table$dimagi_services <- domain_table$internal.services
+keep_self <- which(is.na(domain_table$internal.services) & !is.na(domain_table$self_start))
+domain_table$dimagi_services[keep_self] <- domain_table$self_start[keep_self]
+
+#Keep only columns of interest
+names(domain_table)[names(domain_table) == "id"] = "domain_id"
+facets_to_merge <- select(domain_table, name, domain_id, country_final, sector_final, 
+                          subsector_final, dimagi_services, test)
+
+#Merge domain facets from domain table into all_monthly table
+all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
+                     by.y = "name", all.x = T)
 
 #Change column names as needed
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names (all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
-
-#Modify relevant variables
-all_monthly$domain_numeric = as.numeric(as.factor(all_monthly$domain))
-
-#Merge domain facets from domain table into all_monthly table
-facets_to_merge <- select(domain_table, name, country, Sector, Sub.Sector,
-                          business_unit, active, Test.Project.)
-all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
-                     by.y = "name", all.x = T)
+#names (all_monthly)[names(all_monthly) == "id"] = "domain_numeric"
+names(all_monthly)[names(all_monthly) == "domain_id"] = "domain_numeric"
 
 #Convert calendar month to actual date
 all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
 all_monthly$calendar_month <- as.Date(all_monthly$calendar_month)
 all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
-
-#Keep only mobile/unknown users
-all_monthly <- merge(all_monthly, user_type, by = "user_id", all.x = T)
-all_monthly$user_type[is.na(all_monthly$user_type)] <- "unknown"
-all_monthly <- filter(all_monthly, user_type == "mobile" | user_type == "unknown")
 
 #Exclude any users who logged > 100 visits in any month
 #These are probably atypical users
@@ -96,7 +133,6 @@ user_ge_100 <- all_monthly %.%
   group_by(user_id) %.%
   summarise(ge_100 = sum(visits_ge_100))
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
-#696 users have only <= 100 visits per month
 all_monthly <- all_monthly[all_monthly$user_id %in% user_le_100$user_id, ]
 
 #Calculate differences between month_index to calculate next_month_active and 
@@ -110,6 +146,8 @@ all_monthly$previous_month_active <- all_monthly$diff_days <= 31
 all_monthly$previous_two_months_active <- all_monthly$diff_days <= 62
 all_monthly$previous_three_months_active <- all_monthly$diff_days <= 93
 
+#Need to change this so that we are working with user_pk/domain combination since user_pk
+#might not be unique across domains. A single user_pk can submit to multiple domains. 
 users <- unique(all_monthly$user_pk)
 
 next_month_active <- c()
@@ -139,11 +177,11 @@ for (i in users) {
 }
 all_monthly$next_three_months_active <- next_three_months_active
 
-#If calendar_month = 10/1/14 then next_month_active = NA
-#because we don't know if the user will be active in the following month
-is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == "2014-10-01"
-is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= "2014-09-01"
-is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= "2014-08-01"
+#Based on the end_month in our dataset, we don't know if the user will be active in any of
+#the months following end_month. Must change all those attrition values to NA. 
+is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == end_month
+is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= end_month - months(1) 
+is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= end_month - months(2)
 
 #Get lifetime table for total nunique_followups, active_months per user
 lifetime_table <- get_aggregate_table(db, "aggregate_lifetime_interactions", domains_for_run)
@@ -155,9 +193,13 @@ names(lifetime_table)[names(lifetime_table) == "nunique_followups"] = "lifetime_
 names(lifetime_table)[names(lifetime_table) == "calendar_month_on_cc"] = "months_on_cc"
 all_monthly <- merge(all_monthly, lifetime_table, by = "user_pk", all.x = T)
 
-#Exclude a sample of 1241 users from pathfinder-moz-fp-test so that each domain contributes only 
+#Exclude a samples of users (from pradan-mis-dev?) so that each domain contributes only 
 #< 5% of the total users
-exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pathfinder-moz-fp-test"]), 1241)
+nusers <- all_monthly %>% group_by(domain) %>% summarise(nusers = length(unique(user_pk)))
+nusers <- arrange(nusers, desc(nusers))
+nusers$total_users <- sum(nusers$nusers)
+nusers$per_users <- (nusers$nusers/nusers$total_users)*100
+exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pradan-mis-dev"]), 299)
 all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude_users_pathfinder),]
 
 #Was the user ever active again after an attrition event (defined as next_month_active == F)?
@@ -166,9 +208,48 @@ all_monthly$continuing <- all_monthly$month_index < all_monthly$months_on_cc
 all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$continuing == T
 is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
 
+all_monthly <- select(all_monthly, -c(user_id, domain, test, visits_ge_100, diff_days))
+#write.csv(all_monthly, file = "blog_data_2_2_15.csv")
+
 #----------------------------------------------------------------------#
-#Random analysis code - not used to generate the main dataset
+#Older code - not used to create future blog datasets
 #----------------------------------------------------------------------#
+
+#Import mobile and web user lists
+#Note that we need to merge/select by user_id instead of user_pk for now because we 
+#don't currently have complete/correct user_pk for all user_ids. Melissa will be changing this.
+#The mobile user table has duplicate user_ids only for demo_user, ntest, etc.
+#Otherwise, all user_ids are unique. Dedup this anyway.
+mobile_users <- read.csv(file = "mobile_users.csv", na.strings = "") 
+mobile_users <- unique(mobile_users)
+
+#The web_user table does have duplicate user_ids, but since user_pk is different for those users
+#(even though we know they are the same users), we need to exclude user_pk and dedup web_users
+web_users <- read.csv(file = "web_users1.csv", na.strings = "")
+web_users <- select(web_users, user_id, username, is_dimagi)
+web_users <- unique(web_users)
+
+summary(mobile_users$user_id %in% web_users$user_id)
+summary(all_monthly$user_id %in% web_users$user_id)
+summary(all_monthly$user_id %in% mobile_users$user_id)
+
+#All users in mobile_users are true mobile users
+mobile_users$user_type <- "mobile"
+
+#All users in web_users are web | dimagi users
+web_users$user_type[web_users$is_dimagi == "t"] <- "dimagi"
+web_users$user_type[web_users$is_dimagi == "f"] <- "web"
+web_users <- select(web_users, user_id, username, user_type)
+
+#Combine into one dataset
+user_type <- rbind(mobile_users, web_users)
+
+all_monthly$domain_numeric = as.numeric(as.factor(all_monthly$domain))
+
+#Keep only mobile/unknown users
+all_monthly <- merge(all_monthly, user_type, by = "user_id", all.x = T)
+all_monthly$user_type[is.na(all_monthly$user_type)] <- "unknown"
+all_monthly <- filter(all_monthly, user_type == "mobile" | user_type == "unknown")
 
 # Check # and % of users per domain
 nusers <- all_monthly %>% group_by(domain) %>% summarise(n_users = length(unique(user_pk)))

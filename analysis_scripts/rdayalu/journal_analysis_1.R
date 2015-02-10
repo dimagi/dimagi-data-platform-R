@@ -233,11 +233,11 @@ for (i in users) {
 }
 all_monthly$next_three_months_active <- next_three_months_active
 
-#If calendar_month = 11/1/14 then next_month_active = NA
-#because we don't know if the user will be active in the following month
-is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == "2014-11-01"
-is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= "2014-10-01"
-is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= "2014-09-01"
+#Based on the end_month in our dataset, we don't know if the user will be active in any of
+#the months following end_month. Must change all those attrition values to NA. 
+is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == end_month
+is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= end_month - months(1) 
+is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= end_month - months(2)
 
 #Was the user ever active again after an attrition event (defined as next_month_active == F)?
 all_monthly$attrition_event <- !(all_monthly$next_month_active == T | is.na(all_monthly$next_month_active))
