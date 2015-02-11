@@ -4,6 +4,7 @@ library(lme4)
 library(influence.ME)
 library(lmerTest)
 source("mer-utils.R")
+library(MuMIn)
 
 library(ggplot2)
 
@@ -121,9 +122,13 @@ test_retention_predictors <- function(monthly_table, n_month, diff, end_date) {
   
 }
 
-get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
+get_visits_models <- function(monthly_table, n_month, exclude_names=list(),exclude_na = T){
   # get month n data only
-  month.n.data <- monthly_table %>% filter(numeric_index == n_month)
+  month.n.data <- monthly_table %>% filter(numeric_index == n_month)%>% 
+    select(domain,nvisits,self_started,summary_device_type)
+  
+  # remove rows where any value is NA
+  if (exclude_na==T) {month.n.data <- na.omit(month.n.data)}
   
   # filter out domains on the exclude list
   month.n.data <- month.n.data %>% filter(!(domain %in% exclude_names))
@@ -164,15 +169,21 @@ get_visits_models <- function(monthly_table, n_month, exclude_names=list()){
   m.visits.full <- lmer(log_visits ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
                         REML=T)
   
+  drop1( m.visits.full)
+  
   ret <- c(m.visits.full, m.visits.self_started,m.visits.device,m.visits.null)
   names(ret) <- c("full","no_device","no_self_started","null")
   return (ret)
   
 }
 
-get_retention_models <- function(monthly_table, n_month, diff, exclude_names = list()){
+get_retention_models <- function(monthly_table, n_month, diff, exclude_names = list(),exclude_na = T){
   # get month n data only
-  month.n.data <- monthly_table %>% filter(numeric_index == n_month)
+  month.n.data <- monthly_table %>% filter(numeric_index == n_month) %>% 
+  select(domain,user_id,month.index, month_start,self_started,summary_device_type)
+  
+  # remove rows where any value is NA
+  if (exclude_na==T) {month.n.data <- na.omit(month.n.data)}
   
   # get which users active in month n were active in month n+diff
   mdiff_active_users <- monthly_table %>% filter(numeric_index == n_month+diff) %>% select(domain,user_id)
@@ -190,36 +201,37 @@ get_retention_models <- function(monthly_table, n_month, diff, exclude_names = l
   month.n.data <- month.n.data %>% filter(first_month_start <= cutoff)
   
   # models for retention
-  m.retention.null <- glmer(active_diff ~ 1+ (1|domain), data = month.n.data, family=binomial)
+  m.retention.null <- glmer(active_diff ~ 1+ (1|domain), data = month.n.data, family=binomial(link=logit),
+                            glmerControl(optimizer = "bobyqa"))
   m.retention.self_started <- glmer(active_diff ~ self_started + (1|domain), data = month.n.data, 
-                                    family=binomial)
+                                    family=binomial(link=logit),glmerControl(optimizer = "bobyqa"))
   m.retention.device <- glmer(active_diff ~ summary_device_type + (1|domain), data = month.n.data,
-                             family=binomial)
+                             family=binomial(link=logit),glmerControl(optimizer = "bobyqa"))
   m.retention.full <- glmer(active_diff ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
-                           family=binomial)
+                           family=binomial(link=logit),glmerControl(optimizer = "bobyqa"))
   
   ret <- c(m.retention.full, m.retention.self_started,m.retention.device,m.retention.null)
   names(ret) <- c("full","no_device","no_self_started","null")
   return (ret)
 }
 
-influential_domains <- function (model){
+influential_domains <- function (model, parameters=c(2,3)){
   estex.m.visits <- influence(model, "domain")
   dfb <- dfbetas(estex.m.visits)
   cutoff <- 2 / sqrt(length(unique(slot(model, "frame")$domain)))
   plot(estex.m.visits,
        which="dfbetas",
-       parameters=c(2,3),
+       parameters=parameters,
        xlab="DFbetaS",
        ylab="Domain")
   
   # based on DFBETAS, which groups should we remove?
   dfb <- as.data.frame(dfb)
-  dfb$remove2 <- abs(dfb[,2]) > cutoff
-  print(sprintf("cutoff is %s",cutoff))
-  if (length(dfb$remove2) > 0) { print(dfb[dfb$remove2==T,])}
-  dfb$remove3 <- abs(dfb[,3]) > cutoff
-  if (length(dfb$remove3) > 0) {print(dfb[dfb$remove3==T,])}
+  for (i in parameters) {
+    dfb$remove <- abs(dfb[,i]) > cutoff
+    print(sprintf("cutoff is %s",cutoff))
+    if (length(dfb$remove) > 0) { print(dfb[dfb$remove2==T,])}
+  }
 }
 
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
@@ -235,42 +247,32 @@ m6.models <- get_visits_models(monthly_table,6)
 
 anova(m6.models$full,m6.models$no_device)
 anova(m6.models$full,m6.models$no_self_started)
-summary(m6.models$full)
-anova(m6.models$full)
 
-influential_domains(m6.models$full)
+influential_domains(m6.models$no_self_started,parameters=c(2))
 
 m6.models.rev <- get_visits_models(monthly_table,6,c("crs-mip","m4change","project"))
 anova(m6.models.rev$full,m6.models.rev$no_device)
 anova(m6.models.rev$no_self_started,m6.models.rev$full)
-anova(m6.models.rev$full, ddf = "Kenward-Roger")
 
-summary(m6.models.rev$full)
-exp(fixef(m6.models.rev$full))
-exp(confint(m6.models.rev$full, level = 0.95, method="profile"))
-vif.mer(m6.models.rev$full)
+influential_domains(m6.models.rev$no_self_started,parameters=c(2))
 
-influential_domains(m6.models.rev$full)
+summary(m6.models.rev$no_self_started)
+exp(fixef(m6.models.rev$no_self_started))
+exp(confint(m6.models.rev$no_self_started, level = 0.95, method="profile"))
+r.squaredGLMM(m6.models.rev$no_self_started)
 
 # visits models for month 12
 m12.models <- get_visits_models(monthly_table,12)
 
 anova(m12.models$full,m12.models$no_device)
 anova(m12.models$full,m12.models$no_self_started)
-summary(m12.models$full)
 
-influential_domains(m12.models$full)
+influential_domains(m12.models$no_self_started, parameters=c(2))
 
-m12.models.rev <- get_visits_models(monthly_table,12,c("crs-mip","rmf","m4change","project","opm"))
-anova(m12.models.rev$full,m12.models.rev$no_device)
-anova(m12.models.rev$full,m12.models.rev$no_self_started)
-summary(m12.models.rev$full)
-exp(fixef(m12.models.rev$full))
-exp(confint(m12.models.rev$full, level = 0.95, method="profile"))
-
-influential_domains(m12.models.rev$full)
-vif.mer(m12.models.rev$full)
-anova(m12.models.rev$full, ddf = "Kenward-Roger")
+summary(m12.models$no_self_started)
+exp(fixef(m12.models$no_self_started))
+exp(confint(m12.models.rev$no_self_started, level = 0.95, method="profile"))
+r.squaredGLMM(m12.models$no_self_started)
 
 # visits models for month 18
 
@@ -278,31 +280,39 @@ m18.models <- get_visits_models(monthly_table,18)
 
 anova(m18.models$full,m18.models$no_device)
 anova(m18.models$full,m18.models$no_self_started)
-summary(m18.models$full)
+influential_domains(m18.models$no_self_started,parameters=c(2))
 
-influential_domains(m18.models$full)
-m18.models.rev <- get_visits_models(monthly_table,18,c("crs-mip","project"))
-anova(m18.models.rev$full,m18.models.rev$no_device)
-anova(m18.models.rev$full,m18.models.rev$no_self_started)
-summary(m18.models.rev$full)
-exp(fixef(m18.models.rev$full))
-exp(confint(m18.models.rev$full, level = 0.95, method="profile"))
+summary(m18.models$no_self_started)
+exp(fixef(m18.models$no_self_started))
+exp(confint(m18.models$no_self_started, level = 0.95, method="profile"))
+r.squaredGLMM(m18.models$no_self_started)
 
-vif.mer(m18.models.rev$full)
-
-anova(m18.models.rev$full, ddf = "Kenward-Roger")
 
 # retention for month 6 (users still active at month 9)
-m6.ret.models <- get_retention_models(monthly_table,6,9)
+prob <- function(x) {return (exp(x)/(1+exp(x)))}
+m6.ret.models <- get_retention_models(monthly_table,6,3)
 anova(m6.ret.models$full,m6.ret.models$no_device)
 anova(m6.ret.models$full,m6.ret.models$no_self_started)
-influential_domains(m6.ret.models$full)
+influential_domains(m6.ret.models$no_device, parameters=c(2))
 
-m6.ret.models.rev <- get_retention_models(monthly_table,6,9,c("m4change","project"))
-anova(m6.ret.models.rev$full,m6.ret.models.rev$no_device)
-anova(m6.ret.models.rev$full,m6.ret.models.rev$no_self_started)
+summary(m6.ret.models$no_device)
+r.squaredGLMM(m6.ret.models$no_device)
 
-summary(m6.ret.models.rev$no_device)
-confint(m6.ret.models.rev$no_device,method="boot")
+# retention for month 2 (users still active at month 5)
+m2.ret.models <- get_retention_models(monthly_table,2,3)
+anova(m2.ret.models$full,m2.ret.models$no_device)
+anova(m2.ret.models$full,m2.ret.models$no_self_started)
+summary(m2.ret.models$no_self_started)
+influential_domains(m2.ret.models$no_self_started, parameters=c(2))
+
+# plots
+library(sjPlot)
+sjp.lmer(m6.models$no_self_started)
+sjp.glmer(m6.models$no_self_started, type = "re.qq")
+
+sjp.glmer(m6.ret.models$no_device, type = "fe.pc")
+sjp.glmer(m6.ret.models$no_device,
+          type = "ri.pc",
+          facet.grid = FALSE)
 
 
