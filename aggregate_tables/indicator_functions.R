@@ -16,7 +16,11 @@ time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
 median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
 nvisits_travel <- function(x) sum(x$home_visit, na.rm=T)
 nvisits_travel_batch <- function(x) sum(x$time_since_previous_hv/60<10, na.rm = T)  
-travel_batch_percent <- function(x) (nvisits_travel_batch(x) / nvisits_travel(x))*100 
+travel_batch_percent <- function(x) {
+  travel_vis <- nvisits_travel(x)
+  batch_vis <- nvisits_travel_batch(x)
+  if (travel_vis==0) return (0) else return ((batch_vis/travel_vis )*100)
+}
 
 # Proportion of visits by time of day
 morning <- function(x) mean(x$visit_time == 'morning')*100

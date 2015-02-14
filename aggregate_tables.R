@@ -29,26 +29,28 @@ drop_tables <- function(file) {
 
 write_tables <- function(file, debug) {
     config <- fromJSON(file=file)
-
+    db <- get_db_connection()
     for (table.info in config) {
-        print(paste('Writing', table.info$table, 'indicator table.'))
-        df <- compute_indicators(table.info, debug)
-        db <- get_db_connection()
+        print(paste('Computing indicators for ', table.info$table, 'indicator table.'))
+        df <- compute_indicators(table.info, db, debug)
+        print(paste('Writing ', table.info$table, 'indicator table.'))
         dbRemoveTable(db$con, name=table.info$table)
         copy_to(db, df=df, name=table.info$table, temporary=FALSE)
     }
 }
 
-compute_indicators <- function(info, debug) {
+compute_indicators <- function(info, db, debug) {
   debug <- as.logical(debug)
   if (debug == T) {limit = 5000} else {limit = -1}
     dfs <- lapply(info$components, function(component) {
-        db <- get_db_connection()
+        print(paste('Getting data source ', component$table))
         source.data <- get_data_source(db, component$table, limit)
         group.by.str <- paste(info$by, collapse=', ')
+        print(paste('Grouping and aggregating', component$table))
         df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
         return(df)
     })
+    print('merging...')
     merged <- Reduce(function(...) merge(..., all.x=TRUE, all.y=TRUE, by=info$by), dfs)
     return(merged)
 }
