@@ -1,6 +1,7 @@
 library(dplyr)
 library(DBI)
 library(rjson)
+library(parallel)
 
 source('s_dplyr.R')
 source('aggregate_tables/indicator_functions.R')
@@ -42,16 +43,27 @@ write_tables <- function(file, debug) {
 compute_indicators <- function(info, db, debug) {
   debug <- as.logical(debug)
   if (debug == T) {limit = 5000} else {limit = -1}
-    dfs <- lapply(info$components, function(component) {
+  
+  cl <- makeCluster(getOption('cl.cores', 3))
+  clusterExport(cl,varlist=c('info','db','debug','limit'),envir=environment())
+  clusterExport(cl,varlist=c('get_data_source','s_group_by','aggregate','get_db_connection','fromJSON'))
+  
+  dfs <- parLapply(cl,info$components, function(component) {
         print(paste('Getting data source ', component$table))
+        source('s_dplyr.R')
+        source('aggregate_tables/indicator_functions.R')
+        source('data_sources.R')
+        db <- get_db_connection()
         source.data <- get_data_source(db, component$table, limit)
         group.by.str <- paste(info$by, collapse=', ')
         print(paste('Grouping and aggregating', component$table))
         df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
         return(df)
     })
+  
     print('merging...')
     merged <- Reduce(function(...) merge(..., all.x=TRUE, all.y=TRUE, by=info$by), dfs)
+    stopCluster(cl)
     return(merged)
 }
 
