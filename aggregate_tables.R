@@ -18,6 +18,11 @@ get_db_connection <- function(system_config_path='config_system.json') {
     return(db)
 }
 
+get_cores <- function(system_config_path='config_system.json') {
+  config <- fromJSON(file=system_config_path)[['data_platform']]
+  if ('parallel' %in% names(config)) {return(config[['parallel']][['cores']])} else {return (1)}
+}
+
 drop_tables <- function(file) {
   config <- fromJSON(file=file)
   
@@ -33,19 +38,19 @@ write_tables <- function(file, debug) {
     db <- get_db_connection()
     for (table.info in config) {
         print(paste('Computing indicators for ', table.info$table, 'indicator table.'))
-        df <- compute_indicators(table.info, db, debug)
+        df <- compute_indicators(table.info, debug)
         print(paste('Writing ', table.info$table, 'indicator table.'))
         dbRemoveTable(db$con, name=table.info$table)
         copy_to(db, df=df, name=table.info$table, temporary=FALSE)
     }
 }
 
-compute_indicators <- function(info, db, debug) {
+compute_indicators <- function(info, debug) {
   debug <- as.logical(debug)
   if (debug == T) {limit = 5000} else {limit = -1}
-  
-  cl <- makeCluster(getOption('cl.cores', 3))
-  clusterExport(cl,varlist=c('info','db','debug','limit'),envir=environment())
+  cores <- get_cores()
+  cl <- makeCluster(cores)
+  clusterExport(cl,varlist=c('info','limit'),envir=environment())
   clusterExport(cl,varlist=c('get_data_source','s_group_by','aggregate','get_db_connection','fromJSON'))
   
   dfs <- parLapply(cl,info$components, function(component) {
