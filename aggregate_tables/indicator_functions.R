@@ -8,7 +8,7 @@ library(zoo)
 date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
 active_days <- function(x) length(unique(x$visit_date))
-active_day_percent <- function(x) (active_days(x) / days_in_month(date_first_visit(x)))*100
+active_day_percent <- function(x) (active_days(x) / days_in_month(date_first_visit(x)))*100 # post-processing
 nvisits <- function(x) NROW(x)
 nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
 median_visit_duration <- function(x) round(as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE)), digits = 1)
@@ -20,7 +20,7 @@ travel_batch_percent <- function(x) {
   travel_vis <- nvisits_travel(x)
   batch_vis <- nvisits_travel_batch(x)
   if (travel_vis==0) return (0) else return ((batch_vis/travel_vis )*100)
-}
+} # post-processing
 
 # Proportion of visits by time of day
 morning <- function(x) mean(x$visit_time == 'morning')*100
@@ -40,20 +40,20 @@ numeric_index <- function (x) {
   
   total_months <- length(seq(from=start_month, to=this_month, by='month'))
   return (total_months)
-}
+} # post-processing
 
 ## The next indicators are only applicable for the lifetime table.
-days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1
-days_visit_last <- function(x) as.numeric(Sys.Date() - date_last_visit(x))
-active_user <- function(x) ifelse(days_visit_last(x) <= 30, 1, 0)
+days_on_cc <- function(x) as.numeric(date_last_visit(x) - date_first_visit(x)) + 1 # post-processing
+days_visit_last <- function(x) as.numeric(Sys.Date() - date_last_visit(x)) # post-processing
+active_user <- function(x) ifelse(days_visit_last(x) <= 30, 1, 0) # post-processing
 calendar_month_on_cc <- function(x) {
   first.month <- as.yearmon(date_first_visit(x))
   last.month <- as.yearmon(date_last_visit(x))
   nmonths <- 12 * as.numeric(last.month - first.month) + 1
   return(nmonths)
-}
+} # post-processing
 active_months <- function(x) length(unique(as.yearmon(x$visit_date)))
-active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x)
+active_month_percent <- function(x) active_months(x) / calendar_month_on_cc(x) # post-processing
 median_visits_per_month <- function(x) median(as.numeric(table(as.yearmon(x$visit_date))), na.rm=TRUE)
 
 # INTERACTION TABLE INDICATORS:
