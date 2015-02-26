@@ -38,7 +38,7 @@ all_monthly <- merge(all_monthly, user_type, by = "user_pk", all.x = T)
 all_monthly <- filter(all_monthly, user_type == "mobile")
 
 #Set report_options
-report = run_conf$reports$modules$name
+report <- run_conf$reports$modules$name
 report_options <- get_report_options(run_conf,report)
 
 #Remove demo users and NA/NONE users
@@ -146,34 +146,35 @@ all_monthly$previous_month_active <- all_monthly$diff_days <= 31
 all_monthly$previous_two_months_active <- all_monthly$diff_days <= 62
 all_monthly$previous_three_months_active <- all_monthly$diff_days <= 93
 
-#Need to change this so that we are working with user_pk/domain combination since user_pk
+#We are working with user_pk/domain combination since user_pk
 #might not be unique across domains. A single user_pk can submit to multiple domains. 
-users <- unique(all_monthly$user_pk)
+all_monthly$domain_user <- paste(all_monthly$domain, all_monthly$user_pk, sep = "_") 
+users <- unique(all_monthly$domain_user)
 
 next_month_active <- c()
 for (i in users) {
-  single_user <- all_monthly[all_monthly$user_pk == i,]
+  single_user <- all_monthly[all_monthly$domain_user == i,]
   next_active <- c()
-  next_active <- append(single_user$previous_month_active[-1], F)
-  next_month_active <- append(next_month_active, next_active)
+  next_active <- c(single_user$previous_month_active[-1], F)
+  next_month_active <- c(next_month_active, next_active)
 }
 all_monthly$next_month_active <- next_month_active
 
 next_two_months_active <- c()
 for (i in users) {
-  single_user <- all_monthly[all_monthly$user_pk == i,]
+  single_user <- all_monthly[all_monthly$domain_user == i,]
   next_active <- c()
-  next_active <- append(single_user$previous_two_months_active[-1], F)
-  next_two_months_active <- append(next_two_months_active, next_active)
+  next_active <- c(single_user$previous_two_months_active[-1], F)
+  next_two_months_active <- c(next_two_months_active, next_active)
 }
 all_monthly$next_two_months_active <- next_two_months_active
 
 next_three_months_active <- c()
 for (i in users) {
-  single_user <- all_monthly[all_monthly$user_pk == i,]
+  single_user <- all_monthly[all_monthly$domain_user == i,]
   next_active <- c()
-  next_active <- append(single_user$previous_three_months_active[-1], F)
-  next_three_months_active <- append(next_three_months_active, next_active)
+  next_active <- c(single_user$previous_three_months_active[-1], F)
+  next_three_months_active <- c(next_three_months_active, next_active)
 }
 all_monthly$next_three_months_active <- next_three_months_active
 
@@ -193,6 +194,17 @@ names(lifetime_table)[names(lifetime_table) == "nunique_followups"] = "lifetime_
 names(lifetime_table)[names(lifetime_table) == "calendar_month_on_cc"] = "months_on_cc"
 all_monthly <- merge(all_monthly, lifetime_table, by = "user_pk", all.x = T)
 
+#Lifetime aggregate table is not available on the db as of 2/17/15.
+#I will calculate months_on_cc, active_months here until the lifetime table is available.
+total_months_cc <- all_monthly %>% group_by(domain_user) %>% 
+  summarise(first_month = min(calendar_month),
+            last_month = max(calendar_month), 
+            active_months = length(unique(calendar_month)))
+total_months_cc$months_on_cc <- (interval(total_months_cc$first_month, 
+                                          total_months_cc$last_month) %/% months(1))+1
+total_months_cc <- select(total_months_cc, domain_user, active_months, months_on_cc)
+all_monthly <- merge(all_monthly, total_months_cc, by = "domain_user", all.x = T)
+
 #Exclude a samples of users (from pradan-mis-dev?) so that each domain contributes only 
 #< 5% of the total users
 nusers <- all_monthly %>% group_by(domain) %>% summarise(nusers = length(unique(user_pk)))
@@ -209,7 +221,26 @@ all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$
 is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
 
 all_monthly <- select(all_monthly, -c(user_id, domain, test, visits_ge_100, diff_days))
-#write.csv(all_monthly, file = "blog_data_2_2_15.csv")
+
+#Flag users from typical FLW domains
+#Note that it's better to flag at the user level (based on apps) in the future as 
+#opposed to flagging on the domain level as I am doing here. 
+typical_flw_domains <- 
+c("aaharsneha", "aarohi", "acf", "aed-hth", "arogyasarita", "care-ecd",
+  "chasssmt-moz", "crc-intervention", "crhp", "crs-catch", "crs-remind",
+  "crs-senegal", "dtree-familyplanning", "engender-ethiopia-pilot", "icap-tb", 
+  "kawok-malaria-p", "keiskamma", "kgvk", "maternalznz", "nutritionmeast", "opm", 
+  "pasmo-nicaragua-dmg", "pci-india", "project", "puami-tsf-mnch-myanmar", "rdi-hiht", 
+  "savethechildren", "savethechildren-nepal", "slttc", "ssqh-cs", "teba-hbc", 
+  "tulasalud", "world-renew", "wvindia", "wvindia-nutrition", "wvindia2",
+  "wvindonesia", "wvug", "yonsei-emco")
+
+blog <- merge(all_monthly, domain_master_list, by.x = "domain_numeric", 
+                     by.y = "id", all.x = T)
+blog$typical_flw <- blog$name %in% typical_flw_domains
+blog <- select(blog, -name)
+
+#write.csv(blog, file = "blog_data_2_13_15.csv")
 
 #----------------------------------------------------------------------#
 #Older code - not used to create future blog datasets

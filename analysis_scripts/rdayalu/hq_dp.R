@@ -2,6 +2,17 @@
 #(1) number of active users per month, (2) user type, (3) general # of forms.
 #Number of forms might be difficult to get 100% alignment on. 
 
+# 2/16/15
+
+form_table$form_date <- substr(form_table$time_start, 1, 10)
+form_table$form_date <- as.Date(form_table$form_date)
+form_table$form_date_received <- substr(form_table$received_on, 1, 10)
+form_table$form_date_received <- as.Date(form_table$form_date_received)
+forms_nov <- filter(form_table, form_date >= "2014-11-01" & form_date <= "2014-11-30")
+dp_domain_pk_with_forms <- data.frame(unique(form_table$domain_id))
+write.csv(dp_domain_pk_with_forms, file = "dp_domain_pk_with_forms.csv")
+test <- filter(all_monthly, user_id == "1b9883444260f98aa44c2bc397dc9a9a")
+
 # 2/4/15
 hq <- read.csv(file="hq_nov_2014.csv")
 dp <- read.csv(file="dp_nov_2014.csv")
