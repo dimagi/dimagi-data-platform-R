@@ -15,9 +15,9 @@ domain_facets$country_final[keep_country] <- domain_facets$country[keep_country]
 is.na(domain_facets$internal.self_started) <- domain_facets$internal.self_started == ""
 
 #Using just deployment.country
-domain_facets <- domain_table
-is.na(domain_facets$deployment.country) <- domain_facets$deployment.country == ""
-domain_facets$country_final <- domain_facets$deployment.country
+#domain_facets <- domain_table
+#is.na(domain_facets$deployment.country) <- domain_facets$deployment.country == ""
+#domain_facets$country_final <- domain_facets$deployment.country
 
 #Keep only columns of interest from domain_table
 names(domain_facets)[names(domain_facets) == "id"] = "domain_id"
