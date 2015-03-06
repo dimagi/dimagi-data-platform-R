@@ -49,7 +49,7 @@ compute_indicators <- function(info, debug) {
   debug <- as.logical(debug)
   if (debug == T) {limit = 5000} else {limit = -1}
   cores <- get_cores()
-  cl <- makeCluster(cores)
+  cl <- makeCluster(cores, outfile='/tmp/aggregation.log', type="FORK")
   clusterExport(cl,varlist=c('info','limit'),envir=environment())
   clusterExport(cl,varlist=c('get_data_source','s_group_by','aggregate','get_db_connection','fromJSON'))
   
@@ -63,6 +63,7 @@ compute_indicators <- function(info, debug) {
         group.by.str <- paste(info$by, collapse=', ')
         print(paste('Grouping and aggregating', component$table))
         df <- source.data %.% s_group_by(group.by.str) %.% aggregate(component$columns)
+        print(paste('Returning aggregated data from ', component$table))
         return(df)
     })
   
