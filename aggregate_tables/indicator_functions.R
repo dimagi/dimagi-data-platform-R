@@ -10,7 +10,6 @@ date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
 active_days <- function(x) length(unique(x$visit_date))
 active_day_percent <- function(x) (active_days(x) / days_in_month(date_first_visit(x)))*100 # post-processing
 nvisits <- function(x) NROW(x)
-nforms <- function(x) sum(x$total_forms, na.rm=TRUE)
 median_visit_duration <- function(x) round(as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE)), digits = 1)
 time_using_cc <- function(x) sum(x$form_duration, na.rm = T)
 median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
@@ -85,6 +84,7 @@ summary_device_type <- function (x) {
     return ('Multi')
   }
 }
+nforms <- function (x) NROW(x)
 
 # DEVICE LOG TABLE INDICATORS:
 total_logs <-function(x) sum(x$num_logs)
