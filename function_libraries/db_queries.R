@@ -145,7 +145,7 @@ get_visit_detail_table <- function (db, limit=-1) {
                         over (partition by visit.user_id order by visit.time_start)) as time_since_previous_hv
                         from visit inner join form on (form.visit_id = visit.id)  left join formdef
                         on (formdef.id = form.formdef_id)
-                        where attributes->'Travel visit' = 'No' order by visit.user_id, visit.time_start"
+                        where attributes->'Travel visit' = 'Yes' order by visit.user_id, visit.time_start"
   time_since_prev_res <- do_query(con, time_since_prev_q)
   v <- merge(v,time_since_prev_res,by.x="id",by.y="id",all.x=T,all.y=F)
   
