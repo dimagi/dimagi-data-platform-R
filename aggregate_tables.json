@@ -21,7 +21,6 @@
                "active_month_percent":"active_month_percent",
                "active_days":"active_days",
                "active_day_percent":"active_day_percent",
-               "nforms":"nforms",
                "median_visit_duration":"median_visit_duration",
                "median_visits_per_day":"median_visits_per_day",
                "median_visits_per_month":"median_visits_per_month",
@@ -49,7 +48,8 @@
          {
             "table":"device_type",
             "columns":{
-               "summary_device_type":"summary_device_type"
+               "summary_device_type":"summary_device_type",
+               "nforms": "nforms"
             }
          },
          {
