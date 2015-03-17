@@ -13,14 +13,7 @@
                "date_first_visit":"date_first_visit",
                "date_last_visit":"date_last_visit",
                "nvisits":"nvisits",
-               "days_on_cc":"days_on_cc",
-               "days_visit_last":"days_visit_last",
-               "active_user":"active_user",
                "calendar_month_on_cc":"calendar_month_on_cc",
-               "active_months":"active_months",
-               "active_month_percent":"active_month_percent",
-               "active_days":"active_days",
-               "active_day_percent":"active_day_percent",
                "nforms":"nforms",
                "median_visit_duration":"median_visit_duration",
                "median_visits_per_day":"median_visits_per_day",
@@ -31,8 +24,7 @@
                "night":"night",
                "time_using_cc":"time_using_cc",
                "nvisits_travel":"nvisits_travel",
-               "nvisits_travel_batch":"nvisits_travel_batch",
-               "travel_batch_percent":"travel_batch_percent"
+               "nvisits_travel_batch":"nvisits_travel_batch"
             }
          },
          {
@@ -49,7 +41,11 @@
          {
             "table":"device_type",
             "columns":{
-               "summary_device_type":"summary_device_type"
+               "summary_device_type":"summary_device_type",
+               "nforms": "nforms",
+               "active_days":"active_days",
+               "active_months":"active_months"
+
             }
          },
          {
@@ -77,9 +73,6 @@
                "date_first_visit":"date_first_visit",
                "date_last_visit":"date_last_visit",
                "nvisits":"nvisits",
-               "active_days":"active_days",
-               "active_day_percent":"active_day_percent",
-               "nforms":"nforms",
                "median_visit_duration":"median_visit_duration",
                "median_visits_per_day":"median_visits_per_day",
                "morning":"morning",
@@ -89,8 +82,7 @@
                "numeric_index":"numeric_index",
                "time_using_cc":"time_using_cc",
                "nvisits_travel":"nvisits_travel",
-               "nvisits_travel_batch":"nvisits_travel_batch",
-               "travel_batch_percent":"travel_batch_percent"
+               "nvisits_travel_batch":"nvisits_travel_batch"
             }
          },
          {
@@ -107,7 +99,9 @@
          {
             "table":"device_type",
             "columns":{
-               "summary_device_type":"summary_device_type"
+               "summary_device_type":"summary_device_type",
+               "nforms": "nforms",
+               "active_days":"active_days"
             }
          },
          {
