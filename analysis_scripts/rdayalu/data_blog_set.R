@@ -220,7 +220,7 @@ all_monthly$continuing <- all_monthly$month_index < all_monthly$months_on_cc
 all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$continuing == T
 is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
 
-all_monthly <- select(all_monthly, -c(user_id, domain, test, visits_ge_100, diff_days))
+all_monthly <- select(all_monthly, -c(user_id, domain, test, visits_ge_100))
 
 #Flag users from typical FLW domains
 #Note that it's better to flag at the user level (based on apps) in the future as 
@@ -235,10 +235,9 @@ c("aaharsneha", "aarohi", "acf", "aed-hth", "arogyasarita", "care-ecd",
   "tulasalud", "world-renew", "wvindia", "wvindia-nutrition", "wvindia2",
   "wvindonesia", "wvug", "yonsei-emco")
 
-blog <- merge(all_monthly, domain_master_list, by.x = "domain_numeric", 
-                     by.y = "id", all.x = T)
-blog$typical_flw <- blog$name %in% typical_flw_domains
-blog <- select(blog, -name)
+blog <- merge(all_monthly, domain_master_list, by = "domain_numeric", all.x = T)
+blog$typical_flw <- blog$domain %in% typical_flw_domains
+blog <- select(blog, -domain)
 
 #write.csv(blog, file = "blog_data_2_13_15.csv")
 
