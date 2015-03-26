@@ -4,7 +4,11 @@ library("reshape2")
 library('gridExtra')
 library('ggplot2')
 library('xtable')
-
+elapsed_months <- function(end_date, start_date) {
+  ed <- as.POSIXlt(end_date)
+  sd <- as.POSIXlt(start_date)
+  12 * (ed$year - sd$year) + (ed$mon - sd$mon)
+}
 
 render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   split_by <- report_options$split_by
@@ -30,13 +34,14 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   active_monthly = active_monthly[!(all_monthly$user_id =="demo_user"),]
   
   #Remove any dates before report start_date and after report end_date
-  names (active_monthly)[names(active_monthly) == "first_visit_date.x"] = "first_visit_date"
-  active_monthly$date_first_visit = as.Date(active_monthly$date_first_visit, origin="1970-01-01")
-  active_monthly$date_last_visit = as.Date(active_monthly$date_last_visit, origin="1970-01-01")
-  start_date = as.Date(report_options$start_date)
-  end_date = as.Date(report_options$end_date)
-  active_monthly = subset(active_monthly, active_monthly$date_first_visit >= start_date
-                          & active_monthly$date_last_visit <= end_date)
+  start_first <- as.Date(as.yearmon(as.Date(report_options$start_date)))
+  end_first <- as.Date(as.yearmon(as.Date(report_options$end_date)))
+  num_months <- elapsed_months(end_first, start_first)
+  month_list <- as.yearmon(seq(start_first, length = num_months + 1, by = "+1 months"))
+  old_am <- active_monthly
+  active_monthly = active_monthly[active_monthly$calendar_month %in% as.factor(month_list), ]
+
+
   
   #add countries
   active_monthly <- add_splitby_col(active_monthly, domain_table, "deployment.country", "country")
