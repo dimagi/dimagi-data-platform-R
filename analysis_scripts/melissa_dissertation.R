@@ -77,13 +77,19 @@ clean_monthly_table <- function(monthly_table,domain_table,user_table) {
   names(self_starts) <-c("domain","self_started","creating_user")
   monthly_table <- merge(monthly_table,self_starts,by="domain",all.x=T,all.y=F)
   
+  # add organization
+  get_org <- function (domain_name) {
+    if (grepl('-',domain_name)) return (unlist(strsplit(domain_name,'-'))[1]) else return (domain_name)
+  }
+  monthly_table$org <- sapply(as.character(monthly_table$domain), get_org)
+  
   return(monthly_table)
 }
 
 get_visits_data <- function(monthly_table, n_month, exclude_names=list(),exclude_na = T){
   # get month n data only
   month.n.data <- monthly_table %>% filter(numeric_index == n_month)%>% 
-    select(domain,user_id,nvisits,self_started,summary_device_type)
+    select(domain,org,user_id,nvisits,self_started,summary_device_type)
   
   # remove rows where any value is NA
   if (exclude_na==T) {month.n.data <- na.omit(month.n.data)}
@@ -116,7 +122,7 @@ get_visits_models <- function(visits_data) {
 get_retention_data <- function(monthly_table, n_month, diff, exclude_names = list(),exclude_na = T){
   # get month n data only
   month.n.data <- monthly_table %>% filter(numeric_index == n_month) %>% 
-    select(domain,user_id,month.index, month_start,self_started,summary_device_type)
+    select(domain,org,user_id,month.index, month_start,self_started,summary_device_type)
   
   # remove rows where any value is NA
   if (exclude_na==T) {month.n.data <- na.omit(month.n.data)}
