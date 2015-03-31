@@ -106,11 +106,11 @@ get_visits_models <- function(visits_data) {
   
   month.n.data <- visits_data
 
-  m.visits.null <- lmer(log_visits ~ 1+ (1|domain), data = month.n.data, REML=T)
-  m.visits.self_started <- lmer(log_visits ~ self_started + (1|domain), data = month.n.data, REML=T)
-  m.visits.device <- lmer(log_visits ~ summary_device_type + (1|domain), data = month.n.data,
+  m.visits.null <- lmer(log_visits ~ 1+ (1|domain) + (1|org), data = month.n.data, REML=T)
+  m.visits.self_started <- lmer(log_visits ~ self_started + (1|domain) + (1|org), data = month.n.data, REML=T)
+  m.visits.device <- lmer(log_visits ~ summary_device_type + (1|domain) + (1|org), data = month.n.data,
                           REML=T)
-  m.visits.full <- lmer(log_visits ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
+  m.visits.full <- lmer(log_visits ~ summary_device_type + self_started+ (1|domain) + (1|org), data = month.n.data,
                         REML=T)
   
   ret <- c(m.visits.full, m.visits.self_started,m.visits.device,m.visits.null)
@@ -150,13 +150,13 @@ get_retention_models <- function(retention_data){
   month.n.data <- retention_data
   
   # models for retention
-  m.retention.null <- glmer(active_diff ~ 1+ (1|domain), data = month.n.data, family=binomial(link=logit),
+  m.retention.null <- glmer(active_diff ~ 1+ (1|domain)+ (1|org), data = month.n.data, family=binomial(link=logit),
                             glmerControl(optimizer = "bobyqa"))
-  m.retention.self_started <- glmer(active_diff ~ self_started + (1|domain), data = month.n.data, 
+  m.retention.self_started <- glmer(active_diff ~ self_started + (1|domain)+ (1|org), data = month.n.data, 
                                     family=binomial(link=logit),glmerControl(optimizer = "bobyqa"))
-  m.retention.device <- glmer(active_diff ~ summary_device_type + (1|domain), data = month.n.data,
+  m.retention.device <- glmer(active_diff ~ summary_device_type + (1|domain)+ (1|org), data = month.n.data,
                              family=binomial(link=logit),glmerControl(optimizer = "bobyqa"))
-  m.retention.full <- glmer(active_diff ~ summary_device_type + self_started+ (1|domain), data = month.n.data,
+  m.retention.full <- glmer(active_diff ~ summary_device_type + self_started+ (1|domain)+ (1|org), data = month.n.data,
                            family=binomial(link=logit),glmerControl(optimizer = "bobyqa"))
   
   ret <- c(m.retention.full, m.retention.self_started,m.retention.device,m.retention.null)
@@ -199,17 +199,10 @@ anova(m6.models$full,m6.models$no_self_started)
 
 influential_domains(m6.models$no_self_started,parameters=c(2))
 
-m6.data.rev <- get_visits_data(monthly_table,6,c("crs-mip","m4change","project"))
-m6.models.rev <- get_visits_models(m6.data.rev)
-anova(m6.models.rev$full,m6.models.rev$no_device)
-anova(m6.models.rev$no_self_started,m6.models.rev$full)
-
-influential_domains(m6.models.rev$no_self_started,parameters=c(2))
-
-summary(m6.models.rev$no_self_started)
-exp(fixef(m6.models.rev$no_self_started))
-exp(confint(m6.models.rev$no_self_started, level = 0.95, method="profile"))
-r.squaredGLMM(m6.models.rev$no_self_started)
+summary(m6.models$no_self_started)
+exp(fixef(m6.models$no_self_started))
+exp(confint(m6.models$no_self_started, level = 0.95, method="profile"))
+r.squaredGLMM(m6.models$no_self_started)
 
 # visits models for month 12
 m12.data <- get_visits_data(monthly_table,12)
@@ -231,35 +224,32 @@ m18.models <- get_visits_models(m18.data)
 
 anova(m18.models$full,m18.models$no_device)
 anova(m18.models$full,m18.models$no_self_started)
-influential_domains(m18.models$no_self_started,parameters=c(2))
+anova(m18.models$full,m18.models$null)
 
-summary(m18.models$no_self_started)
-exp(fixef(m18.models$no_self_started))
-exp(confint(m18.models$no_self_started, level = 0.95, method="profile"))
-r.squaredGLMM(m18.models$no_self_started)
+summary(m18.models$null)
+r.squaredGLMM(m18.models$null)
 
 # retention for month 6 (users still active at month 12)
 m6.ret.data <- get_retention_data(monthly_table,6,6)
 m6.ret.models <- get_retention_models(m6.ret.data)
 anova(m6.ret.models$full,m6.ret.models$no_device)
 anova(m6.ret.models$full,m6.ret.models$no_self_started)
-influential_domains(m6.ret.models$no_device, parameters=c(2))
+anova(m6.ret.models$full,m6.ret.models$null)
 
-summary(m6.ret.models$no_device)
-exp(confint(m6.ret.models$no_device, level = 0.95, method="boot"))
-r.squaredGLMM(m6.ret.models$no_device)
+summary(m6.ret.models$null)
+r.squaredGLMM(m6.ret.models$null)
 
 # retention for month 2 (users still active at month 5)
 m2.ret.data <- get_retention_data(monthly_table,2,3)
 m2.ret.models <- get_retention_models(m2.ret.data)
 anova(m2.ret.models$full,m2.ret.models$no_device)
 anova(m2.ret.models$full,m2.ret.models$no_self_started)
-influential_domains(m2.ret.models$no_self_started, parameters=c(2))
+influential_domains(m2.ret.models$full, parameters=c(2))
 
-summary(m2.ret.models$no_self_started)
-exp(confint(m2.ret.models$no_self_started, level = 0.95, method="boot"))
-exp(fixef(m2.ret.models$no_self_started))
-r.squaredGLMM(m2.ret.models$no_self_started)
+summary(m2.ret.models$full)
+exp(confint(m2.ret.models$full, level = 0.95, method="boot"))
+exp(fixef(m2.ret.models$full))
+r.squaredGLMM(m2.ret.models$full)
 
 # plots
 cbPalette <- c("#56B4E9", "#D55E00")
@@ -338,8 +328,22 @@ m18.plot<-ggplot(m18.by.domain,aes(x=domain,y=median_visits,color=most_common_de
   theme(axis.text.x = element_blank())
 
 
+# org mapping debug
+org_mapping <- unique(monthly_table[monthly_table$domain != monthly_table$org,c('domain','org')])
+org_mapping$multi <- org_mapping$org %in% org_mapping$org[duplicated(org_mapping$org)]
+m6.orgs<-m6.data[m6.data$org %in% org_mapping[org_mapping$multi==T,c('org')],]
 
+ggplot(m6.orgs,aes(x=domain,y=nvisits,color=org,shape=summary_device_type)) +
+  geom_point() +
+  labs(x = "Project", y = "Number of visits", color="Organisation", shape="Device Type") +
+  theme(axis.text.x = element_blank())
 
+m6.orgs.summary <- m6.orgs %>% group_by(org,domain) %>% summarize(median_visits = median(nvisits))
+
+ggplot(m6.orgs.summary,aes(x=domain,y=median_visits,fill=org)) +
+  geom_bar(stat="identity") +
+  labs(x = "Project", y = "Median visits", color="Organisation") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
 
