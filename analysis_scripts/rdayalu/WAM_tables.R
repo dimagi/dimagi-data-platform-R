@@ -3,13 +3,18 @@
 #First we need to add three variables to each row of the monthly table:
 #wam_eligible, wam_experienced, wam_using
 #From this table, we will calculate the WAM overview table (Table 1) and
-#the WAM data table (Table 2) as described in the google doc.
+#the WAM data table (Table 2), and the WAM/PAM annotation stats (Table 3) 
+#as described in the google doc.
 
 #------------------------------------------------------------------------#
 #Import data
 #------------------------------------------------------------------------#
 
 library(dplyr)
+library(data.table)
+library(zoo)
+library(lubridate)
+
 # Load system config file
 source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 source(file.path("data_sources.R"))
@@ -115,6 +120,8 @@ app_amplifies$amplifies_workers[grep("_amplifies_workers_=>_yes_", app_amplifies
                                      fixed=T)] <- T
 app_amplifies$amplifies_workers[grep("_amplifies_workers_=>_no_", app_amplifies$attributes, 
                                      fixed=T)] <- F
+#Manually tag mvp domains
+app_amplifies$amplifies_workers[app_amplifies$id %in% test2$application_id] <- T
 
 #amplifies_project
 app_amplifies$amplifies_project <- NA
@@ -122,6 +129,8 @@ app_amplifies$amplifies_project[grep("_amplifies_project_=>_yes_", app_amplifies
                                      fixed=T)] <- T
 app_amplifies$amplifies_project[grep("_amplifies_project_=>_no_", app_amplifies$attributes, 
                                      fixed=T)] <- F
+#Manually tag mvp domains
+app_amplifies$amplifies_project[app_amplifies$id %in% test2$application_id] <- T
 
 #Add amplifies_workers to form_table by app_pk
 form_table <- merge(form_table, 
@@ -225,7 +234,8 @@ all_monthly_multiple$amp_w_na <- all_monthly_multiple$user_pk %in%
   form_table[is.na(form_table$amplifies_workers),]$user_pk
 
 #Multiple app users, wam_eligible == T
-#This will be true if a user submitted data through an amplifies_workers app at any point in time
+#This will be true if a user submitted data through an amplifies_workers app at 
+#any point in time
 all_monthly_multiple$wam_eligible <- all_monthly_multiple$user_pk %in% 
   all_monthly_multiple[all_monthly_multiple$amp_w_true == T,]$user_pk
 
@@ -266,77 +276,81 @@ all_monthly$wam_experienced <- all_monthly$previous_active_months_rolling >= 3
 #wam_using == T if the user met our criteria this month for sufficient usage of the app. 
 #Specifically, they submitted forms on at least 4 different days. That is, they have at
 #least for active days in the month in question.
+all_monthly$active_days <- as.numeric(all_monthly$active_days)
 all_monthly$wam_using <- all_monthly$active_days >= 4
 
 #------------------------------------------------------------------------#
 #Table 1: WAM OVERVIEW
 #------------------------------------------------------------------------#
 
-#We have 18 combinations for of wam_eligible(T/F/NA), wam_experienced(T/F) 
-#and wam_using(T/F/NA)
+#We have 12 combinations for of wam_eligible(T/F/NA), wam_experienced(T/F) 
+#and wam_using(T/F)
 all_monthly$elig_exp_using <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == T & 
   all_monthly$wam_using == T
 all_monthly$elig_exp_notusing <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == T & 
   all_monthly$wam_using == F
-all_monthly$elig_exp_na <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == T & 
-  is.na(all_monthly$wam_using)
+#all_monthly$elig_exp_na <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == T & 
+#  is.na(all_monthly$wam_using)
 
 all_monthly$notelig_exp_using <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == T & 
   all_monthly$wam_using == T
 all_monthly$notelig_exp_notusing <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == T & 
   all_monthly$wam_using == F
-all_monthly$notelig_exp_na <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == T & 
-  is.na(all_monthly$wam_using)
+#all_monthly$notelig_exp_na <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == T & 
+#  is.na(all_monthly$wam_using)
 
 all_monthly$na_exp_using <- is.na(all_monthly$wam_eligible)& all_monthly$wam_experienced == T & 
   all_monthly$wam_using == T
 all_monthly$na_exp_notusing <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == T & 
   all_monthly$wam_using == F
-all_monthly$na_exp_na <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == T & 
-  is.na(all_monthly$wam_using)
+#all_monthly$na_exp_na <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == T & 
+#  is.na(all_monthly$wam_using)
 
 all_monthly$elig_notexp_using <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == F & 
   all_monthly$wam_using == T
 all_monthly$elig_notexp_notusing <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == F & 
   all_monthly$wam_using == F
-all_monthly$elig_notexp_na <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == F & 
-  is.na(all_monthly$wam_using)
+#all_monthly$elig_notexp_na <- all_monthly$wam_eligible == T & all_monthly$wam_experienced == F & 
+#  is.na(all_monthly$wam_using)
 
 all_monthly$notelig_notexp_using <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == F & 
   all_monthly$wam_using == T
 all_monthly$notelig_notexp_notusing <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == F & 
   all_monthly$wam_using == F
-all_monthly$notelig_notexp_na <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == F & 
-  is.na(all_monthly$wam_using)
+#all_monthly$notelig_notexp_na <- all_monthly$wam_eligible == F & all_monthly$wam_experienced == F & 
+#  is.na(all_monthly$wam_using)
 
 all_monthly$na_notexp_using <- is.na(all_monthly$wam_eligible)& all_monthly$wam_experienced == F & 
   all_monthly$wam_using == T
 all_monthly$na_notexp_notusing <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == F & 
   all_monthly$wam_using == F
-all_monthly$na_notexp_na <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == F & 
-  is.na(all_monthly$wam_using)
+#all_monthly$na_notexp_na <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == F & 
+#  is.na(all_monthly$wam_using)
 
 #Create Table 1
 table_1_wam <- all_monthly %>% group_by(calendar_month) %>% 
   summarise(nusers = length(unique(user_pk)),
             elig_exp_using_nusers = sum(elig_exp_using, na.rm=T),
             elig_exp_notusing_nusers = sum(elig_exp_notusing, na.rm=T),               
-            elig_exp_na_nusers = sum(elig_exp_na, na.rm=T),
+            #elig_exp_na_nusers = sum(elig_exp_na, na.rm=T),
             notelig_exp_using_nusers = sum(notelig_exp_using, na.rm=T),
             notelig_exp_notusing_nusers = sum(notelig_exp_notusing, na.rm=T),
-            notelig_exp_na_nusers = sum(notelig_exp_na, na.rm=T),
+            #notelig_exp_na_nusers = sum(notelig_exp_na, na.rm=T),
             na_exp_using_nusers = sum(na_exp_using, na.rm=T),
             na_exp_notusing_nusers = sum(na_exp_notusing, na.rm=T), 
-            na_exp_na_nusers = sum(na_exp_na, na.rm=T), 
+            #na_exp_na_nusers = sum(na_exp_na, na.rm=T), 
             elig_notexp_using_nusers = sum(elig_notexp_using, na.rm=T), 
             elig_notexp_notusing_nusers = sum(elig_notexp_notusing, na.rm=T), 
-            elig_notexp_na_nusers = sum(elig_notexp_na, na.rm=T),
+            #elig_notexp_na_nusers = sum(elig_notexp_na, na.rm=T),
             notelig_notexp_using_nusers = sum(notelig_notexp_using, na.rm=T), 
             notelig_notexp_notusing_nusers = sum(notelig_notexp_notusing, na.rm=T), 
-            notelig_notexp_na_nusers = sum(notelig_notexp_na, na.rm=T), 
+            #notelig_notexp_na_nusers = sum(notelig_notexp_na, na.rm=T), 
             na_notexp_using_nusers = sum(na_notexp_using, na.rm=T),
-            na_notexp_notusing_nusers = sum(na_notexp_notusing, na.rm=T), 
-            na_notexp_na_nusers = sum(na_notexp_na, na.rm=T))
+            na_notexp_notusing_nusers = sum(na_notexp_notusing, na.rm=T)) 
+            #na_notexp_na_nusers = sum(na_notexp_na, na.rm=T))
+
+#Filter table_1
+table_1_wam <- filter(table_1_wam, calendar_month >= "2013-01-01", calendar_month <= "2015-02-01")
 
 write.csv(table_1_wam, file = "table_1_wam.csv")
 
@@ -352,16 +366,15 @@ facets_to_merge <- select(domain, name, domain_id, country_final, sector_final,
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 names(all_monthly)[names(all_monthly) == "domain_id"] = "domain_numeric"
-all_monthly$start_month <- as.Date("2014-10-01")
-all_monthly$end_month <- as.Date("2014-12-01") 
+all_monthly$start_month <- as.Date("2015-01-01")
+all_monthly$end_month <- as.Date("2015-01-01") 
 
 all_monthly_table2 <- filter(all_monthly, calendar_month >= start_month, 
                              calendar_month <= end_month)
 all_monthly_table2$unique_number <- 1:nrow(all_monthly_table2)
 
 table_2_wam <- all_monthly_table2 %>% group_by(domain) %>% 
-  summarise(domain_name = unique(domain),
-            start_month = unique(start_month),
+  summarise(start_month = unique(start_month),
             end_month = unique(end_month),
             country = unique(country_final),
             sector = unique(sector_final),
@@ -372,24 +385,24 @@ table_2_wam <- all_monthly_table2 %>% group_by(domain) %>%
             nuser_months = length(unique(unique_number)),
             elig_exp_using_nusers = sum(elig_exp_using, na.rm=T),
             elig_exp_notusing_nusers = sum(elig_exp_notusing, na.rm=T),               
-            elig_exp_na_nusers = sum(elig_exp_na, na.rm=T),
+            #elig_exp_na_nusers = sum(elig_exp_na, na.rm=T),
             notelig_exp_using_nusers = sum(notelig_exp_using, na.rm=T),
             notelig_exp_notusing_nusers = sum(notelig_exp_notusing, na.rm=T),
-            notelig_exp_na_nusers = sum(notelig_exp_na, na.rm=T),
+            #notelig_exp_na_nusers = sum(notelig_exp_na, na.rm=T),
             na_exp_using_nusers = sum(na_exp_using, na.rm=T),
             na_exp_notusing_nusers = sum(na_exp_notusing, na.rm=T), 
-            na_exp_na_nusers = sum(na_exp_na, na.rm=T), 
+            #na_exp_na_nusers = sum(na_exp_na, na.rm=T), 
             elig_notexp_using_nusers = sum(elig_notexp_using, na.rm=T), 
             elig_notexp_notusing_nusers = sum(elig_notexp_notusing, na.rm=T), 
-            elig_notexp_na_nusers = sum(elig_notexp_na, na.rm=T),
+            #elig_notexp_na_nusers = sum(elig_notexp_na, na.rm=T),
             notelig_notexp_using_nusers = sum(notelig_notexp_using, na.rm=T), 
             notelig_notexp_notusing_nusers = sum(notelig_notexp_notusing, na.rm=T), 
-            notelig_notexp_na_nusers = sum(notelig_notexp_na, na.rm=T), 
+            #notelig_notexp_na_nusers = sum(notelig_notexp_na, na.rm=T), 
             na_notexp_using_nusers = sum(na_notexp_using, na.rm=T),
-            na_notexp_notusing_nusers = sum(na_notexp_notusing, na.rm=T), 
-            na_notexp_na_nusers = sum(na_notexp_na, na.rm=T))
+            na_notexp_notusing_nusers = sum(na_notexp_notusing, na.rm=T))
+            #na_notexp_na_nusers = sum(na_notexp_na, na.rm=T))
 
-write.csv(table_2_wam, file = "table_2_wam.csv")
+write.csv(table_2_wam, file = "table_2_wam_nov_2014.csv")
 
 #------------------------------------------------------------------------#
 #Table 3: ANNOTATION STATS
@@ -402,6 +415,18 @@ write.csv(table_3_wam, file = "table_3_wam.csv")
 #------------------------------------------------------------------------#
 #Old code
 #------------------------------------------------------------------------#
+
+form_table$form_date <- substr(form_table$time_start, 1, 10)
+form_table$form_date <- as.Date(form_table$form_date)
+test <- filter(form_table, amplifies_workers == T)
+test <- filter(form_table, amplifies_workers == T & form_date >= "2015-01-01")
+
+test2 <- app_amplifies[!(app_amplifies$id %in% test$application_id),]
+test2 <- filter(test2, amplifies_workers == T)
+test2 <- merge(test2, select(domain, domain_id, name), by = "domain_id", all.x = T)
+test2 <- select(test2, domain_id, app_name, name)
+
+crs <- filter(form_table, application_id == 428)
 
 #Import amplifies_worker data for each app
 #DUMMY CODE START#####################################
