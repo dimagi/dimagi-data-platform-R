@@ -9,8 +9,7 @@ system_conf <- get_system_config(file.path("config_system.json"))
 
 source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
 db <- get_db_connection(system_conf)
-domain_table <- get_domain_table(db)
-domain_table <- add_nbu_col(domain_table)
+domain_table <- get_post_processed_domain_table(db)
 domains_for_run <- get_domains_for_run(domain_table,run_conf)
 
 if (length(domains_for_run) == 0) {
