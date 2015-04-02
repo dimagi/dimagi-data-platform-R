@@ -14,7 +14,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   split_by <- report_options$split_by
   print(paste(c("split on: ", split_by)))
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(db)
+  domain_table <- get_post_processed_domain_table(db)
   
   source(file.path("data_sources.R", fsep = .Platform$file.sep))
   sf_table <- get_salesforce_contract_table(db)
@@ -44,7 +44,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
 
   
   #add countries
-  active_monthly <- add_splitby_col(active_monthly, domain_table, "deployment.country", "country")
+  active_monthly <- add_splitby_col(active_monthly, domain_table, "country_final", "country")
   #add self starters
   active_monthly <- add_splitby_col(active_monthly, domain_table, "internal.self_started", "self_started")
   

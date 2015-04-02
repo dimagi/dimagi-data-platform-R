@@ -147,7 +147,17 @@ replace.df <- function(x,y,by,cols=NULL){
   x
 }
 
-add_nbu_col <- function(domain_table) {
+add_country_final <- function(domain_table) {
+  #Consolidate country information
+  is.na(domain_table$deployment.country) <- domain_table$deployment.country == ""
+  is.na(domain_table$country) <- domain_table$country == ""
+  domain_table$country_final <- domain_table$deployment.country
+  keep_country <- which(is.na(domain_table$deployment.country) & !is.na(domain_table$country))
+  domain_table$country_final[keep_country] <- domain_table$country[keep_country]
+  return(domain_table)
+}
+
+add_nbu_col <- function(domain_table, country_var_name='deployment.country') {
   inc_list <- c("California", "Canada", "United Kingdom", "United States", "United States of America", "Wales", "France", "france", "Spain", "US", "USA")
   dsi_list <- c("Afghanistan", "Bangladesh", "Burma", "India", "Indonesia", "Laos", "Myanmar", "Nepal", "Pakistan", "Philippines", "Philippines", "Thailand", "bangladesh", "india")
   dsa_list <- c("Angola", "Burundi", "Ethiopia", "Kenya", "Lesotho", "Madagascar", "Malawi", "Rwanda", "South Africa", "South Sudan", "Tanzania", "Uganda", "Zambia", "Zimbabwe", "ethiopia", "kenya", "malawi", "south africa", "south africa ", "Sri Lanka")
@@ -168,6 +178,13 @@ add_nbu_col <- function(domain_table) {
     return(business_unit)
   }
   
-  domain_table[["new_business_unit"]] <- mapply(set_unit, domain_table$business_unit, domain_table$deployment.country)
+  domain_table[["new_business_unit"]] <- mapply(set_unit, domain_table$business_unit, domain_table[[country_var_name]])
+  return(domain_table)
+}
+
+get_post_processed_domain_table <- function(db) {
+  domain_table <- get_domain_table(db)
+  domain_table <- add_country_final(domain_table)
+  domain_table <- add_nbu_col(domain_table, "country_final")
   return(domain_table)
 }
