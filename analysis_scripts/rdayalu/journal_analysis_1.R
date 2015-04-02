@@ -59,22 +59,24 @@ library(zoo)
 detach("package:lubridate")
 library(lubridate)
 library(ggplot2)
+library(gridExtra)
 
 #Keep only the "typical FLW" domains. There are 39 of these domains
 #I set the config_run to "permitted_data_only" : false otherwise tulasalud 
 #will be excluded, which isn't correct.
 #However, keiskamma and ssqh-cs have opted out per EULA, so we shouldn't include those?
-#TALK TO NEAL ABOUT THIS. These domains have 352 users (out of 2779 users) 
-#that contribute 1162 monthly rows. ssqh has not actually 
-#opted out per Sheel's knowledge
+#These domains eventually have 16 and 9 users respectively, but ssqh-cs has not actually 
+#opted out per Sheel's knowledge.
+#Excluding those two domains for now because I haven't received information otherwise.
+#Keeping 37 domains for the journal article
 typical_FLW_domains <- c("aaharsneha", "aarohi", "acf", "aed-hth", "arogyasarita",
                          "care-ecd", "chasssmt-moz", "crc-intervention", "crhp", 
                          "crs-catch", "crs-remind", "crs-senegal", "dtree-familyplanning", 
-                         "engender-ethiopia-pilot", "icap-tb", "kawok-malaria-p", 
-                         "keiskamma", "kgvk", "maternalznz", "nutritionmeast", "opm", 
+                         "engender-ethiopia-pilot", "icap-tb", "kawok-malaria-p",
+                         "kgvk", "maternalznz", "nutritionmeast", "opm", 
                          "pasmo-nicaragua-dmg", "pci-india", "project", "puami-tsf-mnch-myanmar", 
                          "rdi-hiht", "savethechildren", "savethechildren-nepal", 
-                         "slttc", "ssqh-cs", "teba-hbc", "tulasalud", "world-renew", 
+                         "slttc", "teba-hbc", "tulasalud", "world-renew", 
                          "wvindia", "wvindia-nutrition", "wvindia2", "wvindonesia", 
                          "wvug", "yonsei-emco")
 all_monthly <- all_monthly[all_monthly$domain %in% typical_FLW_domains,]
@@ -87,7 +89,7 @@ report <- run_conf$reports$modules$name
 report_options <- get_report_options(run_conf,report)
 
 #Keep rows only from 1/1/10 - 11/30/14 (based on config run file)
-#This leaves us with 2746 FLWs
+#This leaves us with 2397 FLWs
 all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
 all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
 start_date = as.Date(report_options$start_date)
@@ -96,7 +98,7 @@ all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
                      & all_monthly$date_last_visit <= end_date)
 
 #Remove demo users and NA/NONE users
-#This does not exclude any FLWs, so we still have 2746 FLWs
+#This does not exclude any FLWs, so we still have 2397 FLWs
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
@@ -105,6 +107,9 @@ all_monthly = all_monthly[!is.na(all_monthly$user_id),]
 #Change column names as needed
 names(all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names(all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
+
+#Convert time_using_cc to minutes
+all_monthly$time_using_cc <- all_monthly$time_using_cc/60
 
 #Prepare domain_table for merging in domain facets
 #Bring in sector information
@@ -160,7 +165,7 @@ all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 #Exclude any users who logged > 100 visits in any month
 #These are probably atypical users
 #We lose one domain because of this step (crc-intervention)
-#We are left with 2461 FLWs that have only <= 100 visits per month
+#We are left with 2149 FLWs that have only <= 100 visits per month
 all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
 user_ge_100 <- all_monthly %.%
   group_by(user_pk) %.%
@@ -228,11 +233,11 @@ for (i in users) {
 }
 all_monthly$next_three_months_active <- next_three_months_active
 
-#If calendar_month = 11/1/14 then next_month_active = NA
-#because we don't know if the user will be active in the following month
-is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == "2014-11-01"
-is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= "2014-10-01"
-is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= "2014-09-01"
+#Based on the end_month in our dataset, we don't know if the user will be active in any of
+#the months following end_month. Must change all those attrition values to NA. 
+is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == end_month
+is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= end_month - months(1) 
+is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= end_month - months(2)
 
 #Was the user ever active again after an attrition event (defined as next_month_active == F)?
 all_monthly$attrition_event <- !(all_monthly$next_month_active == T | is.na(all_monthly$next_month_active))
@@ -240,62 +245,37 @@ all_monthly$continuing <- all_monthly$month_index < all_monthly$months_on_cc
 all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$continuing == T
 is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
 
-training_typical <- all_monthly
-
 #Exclude any users that don't have a month_index = 1
 #These users have months that started outside our data range for this dataset
 #so we shouldn't include them. There are 3 of these users.
-training_typical$has_index_1 <- training_typical$month_index == 1
-user_index_1 <- training_typical %.%
+#Keep users that have a month_index = 1. We now have 2146 users
+all_monthly$has_index_1 <- all_monthly$month_index == 1
+user_index_1 <- all_monthly %.%
   group_by(user_pk) %.%
   summarise(keep_user = sum(has_index_1))
 user_index_1 <- filter(user_index_1, keep_user != 0)
-#Keep users that have a month_index = 1. We now have 2458 users
-training_typical <- 
-  training_typical[training_typical$user_pk %in% user_index_1$user_pk, ]
-
-#In the blog, I only kept users who have been active for 
-#at least 6 mos and I only counted their rows from month 6 onwards 
-#See this document for further details:
-#https://docs.google.com/a/dimagi.com/spreadsheets/d/1weMI03KGQPffWHM3y2AR1VbSVCZIbJEEXiFd_0jRL7A/edit#gid=0
-#Excluded rows before the 6th month on CC AND users with < 6 active months on CC
-#We now have 962 users
-training_typical <- filter(training_typical, month_index >= 6)
-training_typical <- filter(training_typical, active_months >= 6)
-
-#Check number of users/domain for sampling purposes
-n_chw <- training_typical %>% group_by(domain) %>% 
-  summarise(nusers = length(unique(user_pk)))
-n_chw <- arrange(n_chw, desc(nusers))
-n_chw$total_users <- sum(n_chw$nusers)
-n_chw$per_users <- (n_chw$nusers/n_chw$total_users)*100
-
-#Exclude a sample of 54 users from crs-remind and 3 users from maternalznz 
-#so that each domain contributes <= 20% of the total users
-#We are left with 905 users
-exclude_users <- c(sample(unique(training_typical$user_pk[training_typical$domain == "crs-remind"]), 54),
-                            sample(unique(training_typical$user_pk[training_typical$domain == "maternalznz"]), 3))
-training_typical <- training_typical[!(training_typical$user_pk %in% exclude_users),]
+all_monthly <- 
+  all_monthly[all_monthly$user_pk %in% user_index_1$user_pk, ]
 
 #Add sample_increase variable and sample_decrease variables
-training_typical <- arrange(training_typical, user_pk, calendar_month)
-users <- unique(training_typical$user_pk)
+all_monthly <- arrange(all_monthly, user_pk, calendar_month)
+users <- unique(all_monthly$user_pk)
 sample_increase <- c()
 sample_decrease <- c()
 for (i in users) {
-  single_user <- training_typical[training_typical$user_pk == i,]
+  single_user <- all_monthly[all_monthly$user_pk == i,]
   sample_increase <- append(sample_increase, cumsum(sample(1:5, nrow(single_user), replace=T)))
   sample_decrease <- append(sample_decrease, rev(cumsum(sample(1:5, nrow(single_user), replace=T))))
 }
-training_typical$sample_increase <- sample_increase
-training_typical$sample_decrease <- sample_decrease
+all_monthly$sample_increase <- sample_increase
+all_monthly$sample_decrease <- sample_decrease
 
 #Calculate differences between month_index to calculate next_month_active and 
 #previous_month_active variables
 #Also want differences between indicators for each user from one month to the next
-#Differences in indicators will be used for tests 1a/b
-training_typical <- arrange(training_typical, user_pk, calendar_month)
-df <- data.table(training_typical)
+#Differences in indicators will be used for test 1a
+all_monthly <- arrange(all_monthly, user_pk, calendar_month)
+df <- data.table(all_monthly)
 setkey(df,user_pk)
 df[,diff_nvisits:=c(NA,diff(nvisits)),by=user_pk]
 df[,diff_active_day_percent:=c(NA,diff(active_day_percent)),by=user_pk]
@@ -311,8 +291,47 @@ df[,diff_ncases_touched:=c(NA,diff(ncases_touched)),by=user_pk]
 df[,diff_nunique_followups:=c(NA,diff(nunique_followups)),by=user_pk]
 df[,diff_sample_increase:=c(NA,diff(sample_increase)),by=user_pk]
 df[,diff_sample_decrease:=c(NA,diff(sample_decrease)),by=user_pk]
-training_typical <- as.data.frame(df)
+all_monthly <- as.data.frame(df)
 
+#In the blog, I only kept users who have been active for 
+#at least 6 mos and I only counted their rows from month 6 onwards 
+#See this document for further details:
+#https://docs.google.com/a/dimagi.com/spreadsheets/d/1weMI03KGQPffWHM3y2AR1VbSVCZIbJEEXiFd_0jRL7A/edit#gid=0
+#Excluded rows before the 6th month on CC AND users with < 6 active months on CC
+#We now have 937 users and 30 domains
+all_monthly <- filter(all_monthly, month_index >= 6)
+all_monthly <- filter(all_monthly, active_months >= 6)
+
+#write.csv(all_monthly, file = "all_monthly.csv")
+
+training_typical <- all_monthly
+fullset <- all_monthly
+
+#------------------------------------------------------------------------#
+#HYPOTHESIS TESTING
+#------------------------------------------------------------------------#
+
+#Create test dataset
+#Remove training set domains
+training_domains <- c("afguinea", "nsf-lifefirst", "yonsei-emco", "keiskamma",
+                    "image-sa", "ictwomenhealth", "fenway", "tulasalud") 
+training_typical <- training_typical[!(training_typical$domain %in% training_domains),]
+
+#Check number of users/domain for sampling purposes
+n_chw <- training_typical %>% group_by(domain) %>% 
+  summarise(nusers = length(unique(user_pk)))
+n_chw <- arrange(n_chw, desc(nusers))
+n_chw$total_users <- sum(n_chw$nusers)
+n_chw$per_users <- (n_chw$nusers/n_chw$total_users)*100
+
+#Exclude a sample of 103 users from crs-remind and 59 users from maternalznz 
+#so that each domain contributes <= 20% of the total users
+#We are left with 663 users
+exclude_users <- c(sample(unique(training_typical$user_pk[training_typical$domain == "crs-remind"]), 103),
+                            sample(unique(training_typical$user_pk[training_typical$domain == "maternalznz"]), 59))
+training_typical <- training_typical[!(training_typical$user_pk %in% exclude_users),]
+
+#Indicators to evaluate
 indicators <- c("nvisits", "active_day_percent", "nforms", 
                 "median_visit_duration", "median_visits_per_day", 
                 "time_using_cc", "ninteractions", "ncases_registered", 
@@ -327,7 +346,8 @@ indicators <- c("nvisits", "active_day_percent", "nforms",
 # This isn't for truly consecutive months, so later on, 
 # we will only use rows with previous_month_active == T
 #This will be used for test 1b
-source(file.path("analysis_scripts","rdayalu","test_1b_journal.R", fsep = .Platform$file.sep))
+#source(file.path("analysis_scripts","rdayalu","test_1b_journal.R", fsep = .Platform$file.sep))
+#Not running test 1b for the paper
 
 #Must only include rows with previous_month_active == T. Exclude F & NA 
 training_consec <- filter(training_typical, previous_month_active == T)
@@ -336,7 +356,8 @@ training_consec$concat <- paste(training_consec$user_pk, training_consec$calenda
 
 
 #Exclude domain calendar_months with nusers < 5 for that domain
-#Use this dataset only for test 1a/1b
+#Use this dataset only for test 1a because we don't want to calculate medians 
+#for <= 5 users/month
 nusers <- training_consec %>% 
   group_by(domain, calendar_month) %>% 
   summarise(nusers = length(unique(user_pk)))
@@ -353,9 +374,9 @@ source(file.path("analysis_scripts","rdayalu","test_1a_journal.R", fsep = .Platf
 
 #Domain median PERCENTAGE change per user per calendar month, 
 #excluding each user from the domain median for that user's row
-source(file.path("analysis_scripts","rdayalu","test_1b_2_journal.R", fsep = .Platform$file.sep))
+#source(file.path("analysis_scripts","rdayalu","test_1b_2_journal.R", fsep = .Platform$file.sep))
 
-names(training_consec)
+#names(training_consec)
 
 test_1a <- 
   c(cor(training_consec$med_nvisits_1a, training_consec$diff_nvisits, use = "complete.obs"),
@@ -373,24 +394,10 @@ test_1a <-
     cor(training_consec$med_sample_increase_1a, training_consec$diff_sample_increase, use = "complete.obs"),
     cor(training_consec$med_sample_decrease_1a, training_consec$diff_sample_decrease, use = "complete.obs"))
 names(test_1a) <- indicators
+#test_1a <- data.frame(test_1a)
 
-test_1b <- 
-  c(cor(training_consec$med_nvisits_1b, training_consec$per_diff_nvisits, use = "complete.obs"),
-    cor(training_consec$med_active_day_percent_1b, training_consec$per_diff_active_day_percent, use = "complete.obs"),
-    cor(training_consec$med_nforms_1b, training_consec$per_diff_nforms, use = "complete.obs"),
-    cor(training_consec$med_median_visit_duration_1b, training_consec$per_diff_median_visit_duration, use = "complete.obs"),
-    cor(training_consec$med_median_visits_per_day_1b, training_consec$per_diff_median_visits_per_day, use = "complete.obs"),
-    cor(training_consec$med_time_using_cc_1b, training_consec$per_diff_time_using_cc, use = "complete.obs"),
-    cor(training_consec$med_ninteractions_1b, training_consec$per_diff_ninteractions, use = "complete.obs"),
-    cor(training_consec$med_ncases_registered_1b, training_consec$per_diff_ncases_registered, use = "complete.obs"),
-    cor(training_consec$med_register_followup_1b, training_consec$per_diff_register_followup, use = "complete.obs"),
-    cor(training_consec$med_case_register_followup_rate_1b, training_consec$per_diff_case_register_followup_rate, use = "complete.obs"),
-    cor(training_consec$med_ncases_touched_1b, training_consec$per_diff_ncases_touched, use = "complete.obs"),
-    cor(training_consec$med_nunique_followups_1b, training_consec$per_diff_nunique_followups, use = "complete.obs"),
-    cor(training_consec$med_sample_increase_1b, training_consec$per_diff_sample_increase, use = "complete.obs"),
-    cor(training_consec$med_sample_decrease_1b, training_consec$per_diff_sample_decrease, use = "complete.obs"))
-names(test_1b) <- indicators
-
+test1_data <- training_consec
+write.csv(test1_data, file = "test1_data.csv")
 #------------------------------------------------------------------------#
 #Code for Test 2
 #------------------------------------------------------------------------#
@@ -411,7 +418,9 @@ training_typical$prev_nunique_followups <- training_typical$nunique_followups - 
 training_typical$prev_sample_increase <- training_typical$sample_increase - training_typical$diff_sample_increase
 training_typical$prev_sample_decrease <- training_typical$sample_decrease - training_typical$diff_sample_decrease
 
-test2_data <- training_typical[training_typical$previous_month_active == T,]
+#Must only include rows with previous_month_active == T. Exclude F & NA 
+training_typical <- training_typical[training_typical$previous_month_active == T,]
+test2_data <- training_typical
 
 test_2a <- 
   c(cor(training_typical$prev_nvisits, training_typical$nvisits, use = "complete.obs"),
@@ -429,12 +438,224 @@ test_2a <-
     cor(training_typical$prev_sample_increase, training_typical$sample_increase, use = "complete.obs"), 
     cor(training_typical$prev_sample_decrease, training_typical$sample_decrease, use = "complete.obs"))
 names(test_2a) <- indicators
+#test_2a <- data.frame(test_2a)
 
-g <- ggplot(training_typical, aes(x=prev_nunique_followups, y=nunique_followups )) +
-  geom_point(shape=1) +
-  scale_x_continuous(limits=c(0,100)) +
-  scale_y_continuous(limits=c(0,100)) +
-  geom_smooth(method=lm)
+write.csv(test2_data, file = "test2_data.csv")
 
-test <- data.frame(cbind(test_1a, test_1b, test_2a))
+test <- data.frame(cbind(test_1a, test_2a))
+test$sum <- test$test_1a + test$test_2a
 write.csv(test, file = "journal_set_results.csv")
+
+#------------------------------------------------------------------------#
+#TABLE 2 - country and subsector
+#------------------------------------------------------------------------#
+
+table(fullset$subsector_final, useNA = "always")
+
+program <- fullset %>% group_by(domain) %>% 
+  summarise(country = unique(country_final), 
+            subsector = unique(subsector_final),
+            nusers = length(unique(user_pk)),
+            nforms = sum(nforms))
+program$subsector[program$domain == "care-ecd"] <- "Maternal, Newborn, & Child Health"
+program$country[program$domain == "puami-tsf-mnch-myanmar"] <- "Myanmar"
+
+users <- fullset %>% group_by(domain, user_pk) %>% 
+  summarise(country = unique(country_final), 
+            subsector = unique(subsector_final))
+users$subsector[users$domain == "care-ecd"] <- "Maternal, Newborn, & Child Health"
+users$country[users$domain == "puami-tsf-mnch-myanmar"] <- "Myanmar"
+
+forms <- fullset %>% group_by(subsector_final) %>% 
+  summarise(nforms = sum(nforms))
+forms$subsector_final[is.na(forms$subsector_final)] <- "Maternal, Newborn, & Child Health"
+
+forms <- fullset %>% group_by(country_final) %>% 
+  summarise(nforms = sum(nforms))
+forms$country_final[is.na(forms$country_final)] <- "Myanmar"
+
+table(users$country, useNA = "always")
+
+#------------------------------------------------------------------------#
+#TABLE 3 - Univariate summary table
+#------------------------------------------------------------------------#
+
+library(pastecs)
+indicators_table <- cbind(fullset$nvisits, fullset$active_day_percent, fullset$nforms, 
+                          fullset$median_visit_duration, fullset$median_visits_per_day, 
+                          fullset$time_using_cc, fullset$ninteractions, 
+                          fullset$ncases_registered, fullset$register_followup, 
+                          fullset$case_register_followup_rate, fullset$ncases_touched, 
+                          fullset$nunique_followups)
+colnames(indicators_table) <- indicators[1:12]
+
+options(scipen=100)
+options(digits=2)
+summary_stats <- as.matrix(stat.desc(indicators_table))
+
+#Number of active months per CHW
+n_months <- fullset %>% group_by(user_pk) %>% 
+  summarise(nmonths = length(calendar_month))
+
+#Vector of medians for all 12 usage indicators
+indicator_medians <- as.vector(apply(indicators_table, 2, FUN = median)) 
+names(indicator_medians) <- indicators[1:12]
+
+#How many CHWs were active for their all their first 6 mos on CC?
+test <- monthly_table
+test <- test[test$user_pk %in% fullset$user_pk, ]
+names(test)[names(test) == "numeric_index"] = "month_index"
+test <- filter(test, month_index <= 6)
+active_6_mos <- test %>% group_by(user_pk) %>% 
+  summarise(nmos = length(month.index))
+
+#------------------------------------------------------------------------#
+# M & E questions
+#------------------------------------------------------------------------#
+
+#Seasonal/monthly activity: use fullset
+#We are going to filter India to make seasonal/holiday comparisons more applicable
+# % days active and # forms
+test <- filter(fullset, country_final == "India")
+season <- test %>% group_by(month_abbr) %>% 
+  summarise(med_forms = median(nforms),
+            med_active_days = median(active_day_percent))
+season <- data.frame(rep(season$month_abbr,2), 
+                     c(season$med_forms, season$med_active_days))
+season$indicator <- c(rep("# forms", 12), rep("% active days", 12))
+names(season) <- c("month", "median_metric", "metric")
+
+#normalized metrics
+season <- test %>% group_by(month_abbr) %>% 
+  summarise(med_nvisits = median(nvisits),
+            med_median_visit_duration = median(median_visit_duration), 
+            med_median_visits_per_day = median(median_visits_per_day),
+            med_time_using_cc = median(time_using_cc),
+            med_ninteractions = median(ninteractions),
+            med_ncases_registered = median(ncases_registered),
+            med_register_followup = median(register_followup),
+            med_case_register_followup_rate = median(case_register_followup_rate),
+            med_ncases_touched = median(ncases_touched),
+            med_nunique_followups = median(nunique_followups))
+season <- data.frame(rep(season$month_abbr,10), 
+                     c(season$med_nvisits, season$med_median_visit_duration, season$med_median_visits_per_day,
+                       season$med_time_using_cc, season$med_ninteractions, season$med_ncases_registered, 
+                       season$med_register_followup, season$med_case_register_followup_rate,
+                       season$med_ncases_touched, season$med_nunique_followups))
+season$indicator <- c(rep("# visits", 12), rep("median visit duration", 12), rep("median visits per day", 12), 
+                      rep("total duration using CC", 12), rep("# interactions", 12),
+                      rep("# cases registered", 12), rep("# follow-up visits", 12), 
+                      rep("% follow-up visits", 12), rep("# cases", 12), 
+                      rep("# cases followed-up", 12))
+names(season) <- c("month", "median_metric", "metric")
+season$overall_max <- c(rep(max(test$nvisits), 12), rep(max(test$median_visit_duration), 12), 
+                        rep(max(test$median_visits_per_day), 12), rep(max(test$time_using_cc), 12), 
+                        rep(max(test$ninteractions), 12), rep(max(test$ncases_registered), 12), 
+                        rep(max(test$register_followup), 12), rep(max(test$case_register_followup_rate), 12), 
+                        rep(max(test$ncases_touched), 12), rep(max(test$nunique_followups), 12))
+season$normalized_median <- (season$median_metric/season$overall_max)*100
+
+#Activity by device type
+#Only include users with a single device type
+users_device_count <- fullset %>% group_by(user_pk) %>% 
+  summarise(ndevice_type = length(unique(summary_device_type)))
+table(users_device_count$ndevice_type, useNA = "always")
+#918 users have only one device type
+#Keep only these users
+users_device_count <- filter(users_device_count, ndevice_type == 1)
+monthly_single_device <- fullset[fullset$user_pk %in% users_device_count$user_pk,]
+#Exclude users who have device type = None. We are left with 831 users
+monthly_single_device <- filter(monthly_single_device, summary_device_type != "None")
+#191 android users
+android <- filter(monthly_single_device, summary_device_type == "Android") 
+#640 feature phone users
+feature <- filter(monthly_single_device, summary_device_type == "Nokia") 
+
+#Median metrics
+android_median <- c(median(android$nvisits), median(android$active_day_percent),
+ median(android$nforms), median(android$median_visit_duration), median(android$median_visits_per_day),
+ median(android$time_using_cc), median(android$ninteractions), median(android$ncases_registered),
+ median(android$register_followup), median(android$case_register_followup_rate), 
+ median(android$ncases_touched), median(android$nunique_followups))
+
+feature_median <- c(median(feature$nvisits), median(feature$active_day_percent),
+                    median(feature$nforms), median(feature$median_visit_duration), median(feature$median_visits_per_day),
+                    median(feature$time_using_cc), median(feature$ninteractions), median(feature$ncases_registered),
+                    median(feature$register_followup), median(feature$case_register_followup_rate), 
+                    median(feature$ncases_touched), median(feature$nunique_followups))
+
+median_metric <- c(android_median, feature_median)
+
+device_metrics <- c("# visits", "% active days", "# forms", 
+                    "median visit duration", "median visits per day", 
+                     "total duration using CC", "# interactions",
+                     "# cases registered", "# follow-up visits", 
+                     "% follow-up visits", "# cases", 
+                      "# cases followed-up")
+
+device_data <- data.frame(cbind(rep(c("Android", "Feature"), each=12), rep(device_metrics, 2), 
+                                median_metric))
+names(device_data) <- c("device", "metric", "median_metric")
+device_data$median_metric <- as.numeric(levels(device_data$median_metric))[device_data$median_metric]
+
+# percent active days and # forms
+device_eval <- filter(device_data, metric == "% active days" | metric == "# forms")
+g_dev_eval <- ggplot(device_eval, aes(x = metric, y = median_metric, fill = device)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  xlab("Usage metric") +
+  ylab("Median metric") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) + 
+  theme(axis.text=element_text(size=9), 
+        axis.title=element_text(size=9))
+
+# Remaining 10 metrics
+device_eval <- filter(device_data, metric != "% active days" & metric != "# forms")
+device_eval$overall_max <- rep(c(max(fullset$nvisits), max(fullset$median_visit_duration), 
+                                max(fullset$median_visits_per_day), max(fullset$time_using_cc), 
+                                max(fullset$ninteractions), max(fullset$ncases_registered), 
+                                max(fullset$register_followup), max(fullset$case_register_followup_rate), 
+                                max(fullset$ncases_touched), max(fullset$nunique_followups)), 2)
+device_eval$normalized_median <- (device_eval$median_metric/device_eval$overall_max)*100
+
+g_dev_overall <- ggplot(device_eval, aes(x = metric, y = normalized_median, fill = device)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_brewer(palette = "Set2") +
+  xlab("Usage metric") +
+  ylab("Normalized median (% of overall metric maximum)") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  theme(axis.text.x=element_blank(), 
+        axis.title.x=element_blank()) +
+  theme(axis.text.y=element_text(size=9), 
+        axis.title.y=element_text(size=9)) + 
+  theme(legend.title=element_text(size=8), 
+        legend.text=element_text(size=8))
+
+device_eval <- filter(device_eval, metric != "% active days" & metric != "# forms" & 
+                        metric != "% follow-up visits")
+g_dev_zoom <- ggplot(device_eval, aes(x = metric, y = normalized_median, fill = device)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits=c(0,25)) +
+  xlab("Usage metric") +
+  ylab("Normalized median (% of overall metric maximum)") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  theme(axis.text.x=element_blank(), 
+        axis.title.x=element_blank()) +
+  theme(axis.text.y=element_text(size=9), 
+        axis.title.y=element_text(size=9)) + 
+  theme(legend.title=element_text(size=8), 
+        legend.text=element_text(size=8))
+
+pdf("device_eval.pdf", width=8, height=4)
+grid.arrange(g_dev_eval)
+dev.off()
+
+pdf("dev_overall.pdf")
+grid.arrange(g_dev_overall, g_dev_zoom, nrow = 2, ncol=1)
+dev.off()

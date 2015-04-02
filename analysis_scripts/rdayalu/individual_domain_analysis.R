@@ -1,0 +1,10 @@
+form_table <- tbl(db, "form")
+form_table <- collect(form_table)
+domain <- tbl(db, "domain")
+domain <- collect(domain)
+test <- filter(domain, name == "slab-tanzania")
+forms <- filter(form_table, domain_id == 4926)
+
+forms$form_date <- as.Date(substr(forms$time_start, 1, 10))
+summary(forms$form_date)
+forms <- arrange(forms, desc(form_date))

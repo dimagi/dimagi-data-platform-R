@@ -14,7 +14,7 @@ library(lubridate) #Need to install this after data.table otherwise we will lose
 all_monthly <- monthly_table
 
 #Set report_options
-#Format data variables
+#Format date variables
 all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
 all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
 report = run_conf$reports$modules$name
