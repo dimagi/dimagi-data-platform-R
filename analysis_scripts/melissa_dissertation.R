@@ -107,14 +107,15 @@ get_visits_models <- function(visits_data) {
   month.n.data <- visits_data
 
   m.visits.null <- lmer(log_visits ~ 1+ (1|domain) + (1|org), data = month.n.data, REML=T)
+  m.visits.domain_only <- lmer(log_visits ~ 1+ (1|domain), data = month.n.data, REML=T)
   m.visits.self_started <- lmer(log_visits ~ self_started + (1|domain) + (1|org), data = month.n.data, REML=T)
   m.visits.device <- lmer(log_visits ~ summary_device_type + (1|domain) + (1|org), data = month.n.data,
                           REML=T)
   m.visits.full <- lmer(log_visits ~ summary_device_type + self_started+ (1|domain) + (1|org), data = month.n.data,
                         REML=T)
   
-  ret <- c(m.visits.full, m.visits.self_started,m.visits.device,m.visits.null)
-  names(ret) <- c("full","no_device","no_self_started","null")
+  ret <- c(m.visits.full, m.visits.self_started,m.visits.device,m.visits.null, m.visits.domain_only)
+  names(ret) <- c("full","no_device","no_self_started","null","domain_only")
   return (ret)
   
 }
@@ -193,7 +194,6 @@ monthly_table <- clean_monthly_table(monthly_table,domain_table,user_table)
 # visits models for month 6
 m6.data <- get_visits_data(monthly_table,6)
 m6.models <- get_visits_models(m6.data)
-
 anova(m6.models$full,m6.models$no_device)
 anova(m6.models$full,m6.models$no_self_started)
 
@@ -332,6 +332,13 @@ m18.plot<-ggplot(m18.by.domain,aes(x=domain,y=median_visits,color=most_common_de
 org_mapping <- unique(monthly_table[monthly_table$domain != monthly_table$org,c('domain','org')])
 org_mapping$multi <- org_mapping$org %in% org_mapping$org[duplicated(org_mapping$org)]
 m6.orgs<-m6.data[m6.data$org %in% org_mapping[org_mapping$multi==T,c('org')],]
+
+m6.data <- get_visits_data(monthly_table,6)
+m6.data.no_mvp <- m6.data[m6.data$org != 'mvp',] 
+m6.models.no_mvp <- get_visits_models(m6.data.no_mvp)
+anova(m6.models.no_mvp$domain_only,m6.models.no_mvp$null)
+anova(m6.models.no_mvp$full,m6.models.no_mvp$no_device)
+anova(m6.models.no_mvp$full,m6.models.no_mvp$no_self_started)
 
 ggplot(m6.orgs,aes(x=domain,y=nvisits,color=org,shape=summary_device_type)) +
   geom_point() +
