@@ -84,6 +84,7 @@ clean_monthly_table <- function(monthly_table,domain_table,user_table) {
   monthly_table$org <- sapply(as.character(monthly_table$domain), get_org)
   
   return(monthly_table)
+
 }
 
 get_visits_data <- function(monthly_table, n_month, exclude_names=list(),exclude_na = T){
@@ -215,7 +216,7 @@ influential_domains(m12.models$no_self_started, parameters=c(2))
 
 summary(m12.models$no_self_started)
 exp(fixef(m12.models$no_self_started))
-exp(confint(m12.models.rev$no_self_started, level = 0.95, method="profile"))
+exp(confint(m12.models$no_self_started, level = 0.95, method="profile"))
 r.squaredGLMM(m12.models$no_self_started)
 
 # visits models for month 18
@@ -265,13 +266,13 @@ ggplot(m2.ret.by.domain,aes(x=domain,y=retention_percent,color=most_common_devic
   scale_colour_manual(values=cbPalette) +
   theme(axis.text.x = element_blank())
 
-m6.ret.by.domain <- m6.ret.data %>% group_by(domain, self_started) %>% 
+m6.ret.by.domain <- m6.ret.data %>% group_by(domain) %>% 
   summarise(retention_percent = (sum(active_diff)/n()*100),
             nusers = n(),
             most_common_device = names(sort(table(summary_device_type),decreasing=TRUE)[1]))
-ggplot(m6.ret.by.domain,aes(x=domain,y=retention_percent,color=self_started)) +
+ggplot(m6.ret.by.domain,aes(x=domain,y=retention_percent,color=most_common_device)) +
   geom_point(aes(size=nusers)) + labs(x = "Project", y = "Percent of users retained", 
-                                      size="Total users", color = "Self-started?") +
+                                      size="Total users", color = "Device Type") +
   scale_size(trans="log10") +
   scale_colour_manual(values=cbPalette2) +
   theme(axis.text.x = element_blank())
@@ -282,7 +283,7 @@ ggplot(m6.data,aes(x=domain,y=nvisits,color=summary_device_type)) +
   scale_colour_manual(values=cbPalette) +
   theme(axis.text.x = element_blank())
 
-m6.by.domain<- m6.data.rev %>% group_by(domain, self_started) %>% 
+m6.by.domain<- m6.data %>% group_by(domain, self_started) %>% 
   summarise(total_users = length(unique(user_id)),
             median_visits = median(nvisits),
             mean_visits = mean(nvisits),
@@ -343,14 +344,98 @@ anova(m6.models.no_mvp$full,m6.models.no_mvp$no_self_started)
 ggplot(m6.orgs,aes(x=domain,y=nvisits,color=org,shape=summary_device_type)) +
   geom_point() +
   labs(x = "Project", y = "Number of visits", color="Organisation", shape="Device Type") +
-  theme(axis.text.x = element_blank())
+  theme(axis.text.x = element_blank()) +
+  guides(color=FALSE)
 
 m6.orgs.summary <- m6.orgs %>% group_by(org,domain) %>% summarize(median_visits = median(nvisits))
 
 ggplot(m6.orgs.summary,aes(x=domain,y=median_visits,fill=org)) +
   geom_bar(stat="identity") +
   labs(x = "Project", y = "Median visits", color="Organisation") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(axis.text.x = element_blank()) +
+  guides(fill=FALSE)
+
+# descriptives
+print_descriptives <- function(model_data) {
+  print(length(unique(as.character(model_data$user_id))))
+  print(length(unique(as.character(model_data$domain))))
+  print(length(unique(as.character(model_data$org))))
+  print(table (model_data$summary_device_type))
+  print(model_data %>% group_by(self_started) %>% summarise (nprojects = length(unique(domain))))
+  
+}
+print_descriptives(m6.ret.data)
+
+m6.visits.summary <- m6.data %>% group_by (org, domain) %>% 
+  summarize(median_visits = median(nvisits),
+            mean_visits = mean(nvisits),
+            stderr_visits  = sd(nvisits)/sqrt(length(nvisits)))
+
+ggplot(m6.visits.summary, aes(x=domain, y=mean_visits, fill=org)) + 
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(ymin=mean_visits-stderr_visits, ymax=mean_visits+stderr_visits),
+                width=.2,                    # Width of the error bars
+                position=position_dodge(.9))+
+  labs(x = "Project", y = "Mean visits", color="Organisation") +
+  theme(axis.text.x = element_blank()) +
+  guides(fill=FALSE)
+
+m12.visits.summary <- m12.data %>% group_by (org, domain) %>% 
+  summarize(median_visits = median(nvisits),
+            mean_visits = mean(nvisits),
+            stderr_visits  = sd(nvisits)/sqrt(length(nvisits)))
+
+ggplot(m12.visits.summary, aes(x=domain, y=mean_visits, fill=org)) + 
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(ymin=mean_visits-stderr_visits, ymax=mean_visits+stderr_visits),
+                width=.2,                    # Width of the error bars
+                position=position_dodge(.9))+
+  labs(x = "Project", y = "Mean visits", color="Organisation") +
+  theme(axis.text.x = element_blank()) +
+  guides(fill=FALSE)
+
+m18.visits.summary <- m18.data %>% group_by (org, domain) %>% 
+  summarize(median_visits = median(nvisits),
+            mean_visits = mean(nvisits),
+            stderr_visits  = sd(nvisits)/sqrt(length(nvisits)))
+
+ggplot(m18.visits.summary, aes(x=domain, y=mean_visits, fill=org)) + 
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_errorbar(aes(ymin=mean_visits-stderr_visits, ymax=mean_visits+stderr_visits),
+                width=.2,                    # Width of the error bars
+                position=position_dodge(.9))+
+  labs(x = "Project", y = "Mean visits", color="Organisation") +
+  theme(axis.text.x = element_blank()) +
+  guides(fill=FALSE)
 
 
+m2.ret.by.domain <- m2.ret.data %>% group_by(domain, self_started) %>% 
+  summarise(retention_percent = (sum(active_diff)/n()*100),
+            nusers = n(),
+            most_common_device = names(sort(table(summary_device_type),decreasing=TRUE)[1]))
+ggplot(m2.ret.by.domain,aes(x=domain,y=retention_percent,color=most_common_device)) +
+  geom_point(aes(size=nusers)) + labs(x = "Project", y = "Percent of users retained", 
+                                      size="Total users", color = "Device type") +
+  scale_size(trans="log10") +
+  scale_colour_manual(values=cbPalette) +
+  theme(axis.text.x = element_blank())
 
+m6.ret.by.domain <- m6.ret.data %>% group_by(domain, org) %>% 
+  summarise(retention_percent = (sum(active_diff)/n()*100),
+            nusers = n(),
+            most_common_device = names(sort(table(summary_device_type),decreasing=TRUE)[1]))
+ggplot(m6.ret.by.domain, aes(x=domain, y=retention_percent, fill=org)) + 
+  geom_bar(position=position_dodge(), stat="identity") +
+  labs(x = "Project", y = "Percent users retained (long-term)", color="Organisation") +
+  theme(axis.text.x = element_blank()) +
+  guides(fill=FALSE)
+
+m2.ret.by.domain <- m2.ret.data %>% group_by(domain, org) %>% 
+  summarise(retention_percent = (sum(active_diff)/n()*100),
+            nusers = n(),
+            most_common_device = names(sort(table(summary_device_type),decreasing=TRUE)[1]))
+ggplot(m2.ret.by.domain, aes(x=domain, y=retention_percent, fill=org)) + 
+  geom_bar(position=position_dodge(), stat="identity") +
+  labs(x = "Project", y = "Percent users retained (short-term)", color="Organisation") +
+  theme(axis.text.x = element_blank()) +
+  guides(fill=FALSE)
