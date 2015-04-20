@@ -1,0 +1,231 @@
+---
+output: html_document
+---
+# DIV2 USER RATING DATA ANALYSIS
+
+*** 
+
+In the analysis of the data we will study the extent to which supervisor-perceived overall performance and ability to use commcare as an FLW are associated with the active measures we have defined and computed from HQ log data In this process we will test various hypotheses of complete and partial independence.    
+
+Of all flw rating sheets (~50) we sent out to our DIV2 partners, we got 13 responses that rated 120 users. However 2 of them were not having any data from DP. Thus for this analysis we included the rest 188 users.  
+
+Time period of the analysis: 2012-12-01 to 2015-01-01
+
+***
+ 
+```{r results='hide', message=FALSE, warning=FALSE, echo=FALSE}
+library(MASS) # loading MASS after dplyr would make select function crash
+library(dplyr)
+library(lattice)
+library(gridExtra)
+library(ggplot2)
+library(reshape)
+library(zoo)
+library(corrplot)
+library(vcd)
+library(ca)
+library(corrgram)
+library(mvtsplot)
+suppressPackageStartupMessages(library(googleVis))
+```
+
+```{r dat, message=FALSE, echo=FALSE}
+domain_size = perf_score_long %>%
+        group_by(domain_numeric) %>%
+    		summarise(tot_users = sum(nusers))
+domain_size$dsize = ifelse(domain_size$tot_users >= 10, "big", "small")
+wd_6 = left_join(wd_5, domain_size)
+odat = select(wd_6, domain_numeric, user_pk, median_ad, dsize,
+  			overall_performance_as_an_flw, 
+				overall_performance_as_an_flw_n, 
+				ability_to_use_commcare,
+				ability_to_use_commcare_n)
+odat$perf = ifelse(as.numeric(odat$overall_performance_as_an_flw_n) <= 2, "Not good enough", "Good enough")
+odat$ability = ifelse(as.numeric(odat$ability_to_use_commcare_n) <= 2, "Not good enough", "Good enough" )
+odat$active = ifelse(odat$median_ad >= 3, "More active", "Less active")
+```
+
+> **Time series plot of monthly active days of all users**
+
+```{r mvts, message=FALSE, echo=FALSE}
+# multivariate time series plot
+  # create a matrix of users and calendar months
+d = select(working_data_1, user_pk, month.index, active_days)
+dlist = split(d, d$user_pk)
+m = c(min(d$month.index), max(d$month.index))
+d2 = data.frame(seq(m[1],m[2],by="month"))
+names(d2) = c("month.index")
+d2 = tbl_df(d2)
+d_user = expand.grid(user_pk=unique(d$user_pk),month.index=d2$month.index)
+d_full = tbl_df(left_join(d_user,d,by=c("month.index","user_pk"),all=TRUE)) # already ordered 
+d_full = arrange(d_full, month.index, user_pk)
+
+  # d_full should be used to construct the matrix for mtvs plot
+dmat = matrix(d_full$active_days, 
+              nrow=nrow(d2),ncol=n_distinct(d$user_pk),
+              byrow=TRUE,
+              dimnames=list(as.character(unique(d_full$month.index)),
+                              unique(d_full$user_pk)))
+dmat_ts = mvtsplot(dmat, norm="internal")
+```
+
+* ##### **Notes on the time series plot**
+    + Each line represents a distinct user. Blank cells indicate inactive gap months.
+    + Each color represents the user's activity level (internal, not at a global level). Green is assigned to high values, grey to medium values, and purple to low values. Data is divided into tertiles with roughly an equal number of points in each.
+    + On the right hand side panel displays boxplots of the data on median active days of each user. 
+    + On the bottom panel are median values across all users for each month.
+
+> **Data Tables**
+
+* ##### **Frequency Table**
+```{r freq1, message=FALSE, echo=FALSE}
+f1 = table(odat$overall_performance_as_an_flw, dnn = c("Overall Performance"))
+f2 = table(odat$ability_to_use_commcare, dnn = c("Ability to Use CommCare"))
+df1 = as.data.frame(f1)
+df2 = as.data.frame(f2)
+names(df1) = c("categories", "overall performance")
+names(df2) = c("categories", "user ability")
+df3 = tbl_df(merge(df1, df2))
+df3 = arrange(df3, categories)
+df3
+```
+***
+
+> **Motion Chart: Domain-level activity**
+
+```{r setOptions, message=FALSE}
+library(googleVis)
+op <- options(gvis.plot.tag='chart')
+```
+
+```{r, mchart1Data, message=FALSE, echo=FALSE}
+tsData = select(working_data_1, 
+                  user_pk, 
+                  domain_numeric,
+                  ncases_touched,
+                  active_days,
+                  month.index)
+tsData = na.omit(tsData)
+tsData_1 = tsData %>%
+              group_by(domain_numeric, month.index) %>%
+              summarise_each(funs(sum)) %>%
+              select(., domain_numeric, month.index, ncases_touched, active_days)
+tsData_2 = tsData %>%
+            group_by(domain_numeric, month.index) %>%
+            summarise(nusers_active = n_distinct(user_pk))
+tsData_1 = inner_join(tsData_1, tsData_2, by=c("domain_numeric", "month.index"))
+```
+
+```{r results='asis'}
+M = gvisMotionChart(tsData_1, "domain_numeric", "month.index")
+#str(M)
+print(M, 'chart')
+```
+
+
+> **Overall Performance vs. Domain Size**  
+
+* ##### **Two-way contingency table of Overall Performance and Domain Size**
+```{r test, message=FALSE, echo=FALSE}
+temp1 = select(odat, overall_performance_as_an_flw, dsize)
+ftemp1 = ftable(temp1)
+ftemp1
+```
+***
+
+* ##### **Same information displayed as a mosaic plot**
+    + The width of the rectangles represent the proportion of FLWs at each level of overall performance and their heights represent the proportion of FLWs at each performance level within big (>10users) and small domains. 
+    + The area of each rectangle is proportional to the frequency of each combined overall performance and user ability group. In other words, the areas represent the numbers in the body of the contingency table.
+    + Aside from FLWs rated as "Unknown" in overall performance, it seems the perceived overall performance level is independent of project size. 
+
+```{r m_dsize, message=FALSE, echo=FALSE}
+mosaicplot(ftemp1, main=NULL, shade=TRUE)
+```
+***
+
+> **Overall Performance vs. Median Active Days**    
+
+* ##### **Two-way contingency table of Overall Performance and User Ability**
+```{r tab1, echo=FALSE}
+c1 = table(odat$median_ad, 
+    	odat$overall_performance_as_an_flw, dnn = c("Median active days", "Overall Performance"))
+c1
+
+tbl_odat = table(odat$perf, odat$ability, odat$active)
+op_oa = margin.table(tbl_odat, c(3,1))  
+test = chisq.test(op_oa, correct=F)  
+likelihood_test = op_oa[2]/margin.table(op_oa, 1)[2] / (op_oa[1]/margin.table(op_oa, 1)[1])
+
+cat(paste("Users who have been active for more than 3 days in a month are ", round(likelihood_test, digits=2), " times as likely to be rated Good/Very Good. A Pearson Chi-square test on this contingency table with the p-value of ", round(test$p.value, digits=2), " indicated that supervisor-perceived FLW overall performance is independent from median active days.", sep=""))
+```
+
+* ##### **Same information displayed as a correlation**
+```{r cor, echo=FALSE}
+corr_dat = select(odat, median_ad, overall_performance_as_an_flw, ability_to_use_commcare)
+corr_dat$overall_performance_as_an_flw = as.numeric(corr_dat$overall_performance_as_an_flw)
+corr_dat$ability_to_use_commcare = as.numeric(corr_dat$ability_to_use_commcare)
+cor = corrgram(corr_dat, order = TRUE,
+               lower.panel = panel.ellipse,
+               upper.panel = panel.pts,
+               text.panel = panel.txt,
+               diag.panel = panel.minmax)
+cor
+```
+
+* ##### **Same information displayed as a barplot**  
+    + We are interested in knowing if overall performance level is related or can be predicted by median active days. It seems at each median active day, there are more FLWs rated as Good rather than the other three levels
+    + There does not seem to be a clear and strong relation between median active days and overall performance level    
+    
+```{r g1, echo=FALSE}
+c1
+barplot(t(c1), beside=TRUE, 
+    			horiz=TRUE, 
+					legend=rownames(t(c1)), 
+					col=c("blue","magenta","yellow","gray"),
+          main=NULL,
+          xlab="Number of FLW",
+          ylab="Median active days",
+					xlim=c(0,max(c1)))	
+
+fit_1 = ca(c1)
+plot(fit_1)
+```
+***
+
+  
+> **Overall Performance vs. User Ability**  
+
+* ##### **Two-way contingency table of Overall Performance and User Ability**
+```{r tab2, echo=FALSE}
+c2 = table(odat$ability_to_use_commcare,
+      odat$overall_performance_as_an_flw, dnn = c("Ability to use CommCare", "Overall Performance"))
+c2 
+
+op_ab = margin.table(tbl_odat, c(2,1))
+test_2 = round(chisq.test(op_ab)$p.value, digits=2)
+likelihood_test_2 = op_ab[1]/margin.table(op_ab, 1)[1] / (op_ab[2]/margin.table(op_ab, 1)[2])
+
+cat(paste("Users who have are rated Good/Very Good in their ability to use CommCare are ", round(likelihood_test_2,digits=2), " times as likely to be rated Good/Very Good in their overall performance. A Pearson Chi-square test on this contingency table with the p-value of ", test_2, "indicates a strong positive association between these two variables.", sep=""))
+```
+***
+
+* ##### **Same information displayed as a mosaic plot**
+    + The width of the rectangles represent the proportion of FLWs at each level of overall performance and their heights represent the proportion of FLWs at each performance level within each user ability group.
+    + It seems that overall performance and user ability are significantly corresponding to each other.
+    
+```{r g0, fig.height=8, fig.width=8, echo=FALSE}
+mosaicplot(t(c2),main=NULL,shade=TRUE)
+fit_2 = ca(c2)
+plot(fit_2)
+```
+
+
+
+```{r dist, message=FALSE, echo=FALSE}
+#mad_tab = table(odat$median_ad)
+#mad_fit = goodfit(mad_tab, type = "poisson", method = "ML")
+#summary(mad_fit)
+#plot(mad_fit) # cannot change the color of expected frequencies
+#cat(paste("This hanging rootogram shows that the distribution of median active days per month differs systematically from a Poisson."))
+```
+
