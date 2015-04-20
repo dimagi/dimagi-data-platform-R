@@ -4,6 +4,8 @@
 #fullset.csv:
 #test1_data.csv:
 #test2_data.csv:
+#Look at corr_matrix.R for correlation matrix code
+#Look at journal_attrition.R for attrition code and visuals
 
 #Number of active users: use fullset
 overall <- fullset %>% group_by(calendar_month) %>% 

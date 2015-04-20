@@ -26,6 +26,7 @@ form_table <- tbl(db, "form")
 form_table <- get_data_source(db, "form", 1000) #limited number of forms
 form_table <- collect(form_table)
 
+visit <- get_data_source(db, "visit", 1000)
 app <- tbl(db, "application")
 device_log <- tbl(db, "device_log")
 domain <- tbl(db, "domain")
