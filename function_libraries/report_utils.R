@@ -7,10 +7,19 @@
 # db: the database to use (connection through dplyr src_postgres)
 # table_name: the name of the aggregate table to fetch
 # domain_names: a list of domain names to filter the aggregate table by
-get_aggregate_table <- function (db,table_name, domain_names) {
+get_aggregate_table <- function (db,table_name, domain_names, numeric_conversion=TRUE) {
   agg_table <- tbl(db, table_name)
   agg_table <- filter(agg_table, domain %in% domain_names)
-  return(collect(agg_table))
+  ret_table = collect(agg_table)
+  if (numeric_conversion) {
+    if (NROW(ret_table$active_days) > 0) {
+      ret_table$active_days <- as.numeric(ret_table$active_days)
+    }
+    if (NROW(ret_table$nforms) > 0) {
+      ret_table$nforms <- as.numeric(ret_table$nforms)
+    }
+  }
+  return(ret_table)
 }
 
 # FUNCTION merged_monthly_table
