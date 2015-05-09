@@ -31,7 +31,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
-  active_monthly = active_monthly[!(all_monthly$user_id =="demo_user"),]
+  active_monthly = active_monthly[!(active_monthly$user_id =="demo_user"),]
   
   #Remove any dates before report start_date and after report end_date
   start_first <- as.Date(as.yearmon(as.Date(report_options$start_date)))
@@ -49,7 +49,7 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   active_monthly <- add_splitby_col(active_monthly, domain_table, "internal.self_started", "self_started")
   
   cur_month = as.yearmon(Sys.Date())
-  cur_month <- "Jan 2015"
+  cur_month <- "Mar 2015"
   recent_monthly <- active_monthly[active_monthly$calendar_month==cur_month & !is.na(active_monthly$calendar_month), ]  
   
   splits = unique(recent_monthly[, "split_by"])
