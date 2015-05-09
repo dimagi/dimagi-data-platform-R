@@ -103,14 +103,6 @@
                "nforms": "nforms",
                "active_days":"active_days"
             }
-         },
-         {
-            "table":"device_log_types_by_user",
-            "columns":{
-               "total_logs":"total_logs",
-               "audio_plays":"audio_plays",
-               "network_warnings":"network_warnings"
-            }
          }
       ]
    }
