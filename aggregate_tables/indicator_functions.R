@@ -78,5 +78,17 @@ active_months <- function(x) length(unique(x$month.index))
 
 # DEVICE LOG TABLE INDICATORS:
 total_logs <-function(x) sum(x$num_logs)
-audio_plays <-function(x) if (NROW(x[x$log_type=='audio',]) > 0) sum(x[x$log_type=='audio',c('num_logs')]) else 0
+old_audio_plays <-function(x) if (NROW(x[x$log_type=='audio',]) > 0) sum(x[x$log_type=='audio',c('num_logs')]) else 0
 network_warnings <-function(x) if (NROW(x[x$log_type=='warning-network',]) > 0) sum(x[x$log_type=='warning-network',c('num_logs')]) else 0
+
+plays <- function(filetype) {
+  function(x) {
+    if (NROW(x[x$log_type=="media" & grepl("start", x$msg) & grepl(filetype, x$msg), ]) > 0) {
+      sum(x[x$log_type=="media" & grepl("start", x$msg) & grepl(filetype, x$msg), c('num_logs')])
+    } else {
+      0
+    }  
+  }
+}
+audio_plays <- plays(".mp3")
+video_plays <- function(x) plays(".3gp")(x) + plays(".mp4")(x)

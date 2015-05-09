@@ -108,8 +108,10 @@
             "table":"device_log_types_by_user",
             "columns":{
                "total_logs":"total_logs",
+               "old_audio_plays":"old_audio_plays",
+               "network_warnings":"network_warnings",
                "audio_plays":"audio_plays",
-               "network_warnings":"network_warnings"
+               "video_plays":"video_plays"
             }
          }
       ]
