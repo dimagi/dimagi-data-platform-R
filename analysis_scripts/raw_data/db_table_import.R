@@ -39,20 +39,7 @@ user_type <- get_user_type_table(db)
 #Get visit_detail data source
 #First run functions in data_sources.R
 visit_detail <- get_visit_detail(db, 1000)
-#------------------------------------------------------------------------#
-#Calculations on DB tables
-#------------------------------------------------------------------------#
 
-#Use collect() to bring these results into a dataframe
-# Count forms per app_id
-sum_forms <- 
-    form_table %.% 
-    group_by(app_id) %.%
-    summarise(form_total = count(form_id))
-
-summary(sum_forms)
-dim(sum_forms)
-head(sum_forms$select)
 
 
 

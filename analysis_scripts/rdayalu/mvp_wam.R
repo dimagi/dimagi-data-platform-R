@@ -1,4 +1,7 @@
+# This code is to check which MVP apps with significant volumes of forms
+# have amplifies_workers/project set to yes
 
+names(domain)[names(domain) == "id"] = "domain_id"
 test <- domain
 test$mvp <- NA
 test$mvp[grep("mvp", test$name, fixed = T)] <- T
@@ -18,5 +21,5 @@ test2 <- filter(test2, nforms >= 10000)
 test2 <- merge(test2, select(app_amplifies, id, app_id), by.x = "application_id", 
                by.y = "id", all.x = T)
 
-#MVP apps with >10K forms submissions
-test2 <- filter(test2, nforms >= 10000)
+#Check app table in DP to see if these apps have been correctly annotated
+mvp_apps <- filter(app_amplifies, app_amplifies$id %in% test2$application_id)

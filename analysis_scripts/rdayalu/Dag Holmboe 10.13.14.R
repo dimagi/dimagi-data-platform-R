@@ -107,3 +107,24 @@ all_monthly$next_month_active <- next_month_active
 #If calendar_month = 8/1/14 then next_month_active = NA
 #because we don't know if the user will be active in the following month
 is.na(all_monthly$next_month_active) <- all_monthly$calendar_month == "2014-08-01"
+
+#------------------------------------------------------------------------#
+# 4/28/15: Research for domain with domain_numeric = 60
+#------------------------------------------------------------------------#
+#Get user_pks for list of user_ids supplied by Jolani
+#These user_ids are nurse users who Dag will look at further
+
+jolani_user_ids <- c("d7f5386a997c4f8396ca56f93189a4b2",
+                     "d7f5386a997c4f8396ca56f931899c83",
+                     "d7f5386a997c4f8396ca56f93189a7f9",
+                     "d7f5386a997c4f8396ca56f93189d6a4",
+                     "d7f5386a997c4f8396ca56f93189cfa7",
+                     "d7f5386a997c4f8396ca56f93189c923",
+                     "d7f5386a997c4f8396ca56f93189b113",
+                     "add6e1de5a30188238f8a6dd1a74e4da",
+                     "d7f5386a997c4f8396ca56f93189c401",
+                     "d7f5386a997c4f8396ca56f93189bd44")
+
+jolani_user_pk <- data.frame(filter(user_type, user_id %in% jolani_user_ids)$user_pk)
+write.csv(jolani_user_pk, file = "nurse_user_pk_domain_60.csv")
+
