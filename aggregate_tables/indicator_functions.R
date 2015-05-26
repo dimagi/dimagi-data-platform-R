@@ -8,8 +8,18 @@ library(zoo)
 date_first_visit <- function(x) min(x$visit_date, na.rm=TRUE)
 date_last_visit <- function(x) max(x$visit_date, na.rm=TRUE)
 nvisits <- function(x) NROW(x)
-median_visit_duration <- function(x) round(as.numeric(median((x$time_end - x$time_start)/ 60, na.rm=TRUE)), digits = 1)
-time_using_cc <- function(x) sum(x$form_duration, na.rm = T)/60
+
+get_visit_duration <- function(start, end) {
+  dur <- as.numeric(end - start, units="mins") 
+  if (is.na(dur)) return(NA)
+  if (dur < 0) return(0)
+  if (dur > 30) return(30)
+  return(dur)
+}
+durations <- function(x) na.omit(mapply(get_visit_duration, x$time_start, x$time_end))
+median_visit_duration <- function(x) round(as.numeric(median(durations(x))), digits = 1)
+time_using_cc <- function(x) sum(durations(x), na.rm = T)
+
 median_visits_per_day <- function(x) median(as.numeric(table(x$visit_date)), na.rm=TRUE)
 nvisits_travel <- function(x) sum(x$home_visit, na.rm=T)
 nvisits_travel_batch <- function(x) sum(x$time_since_previous_hv/60<10, na.rm = T)

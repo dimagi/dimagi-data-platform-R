@@ -13,7 +13,7 @@ Max number of splits: **`r report_options$max_groups`**
 
 Current month: **`r cur_month`**
 
-Running from **`r start_date`** to **`r end_date`**
+Running from **`r report_options$start_date`** to **`r report_options$end_date`**
 
 
 
