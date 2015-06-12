@@ -5,6 +5,7 @@
 # https://docs.google.com/document/d/1udyW-YO5d2sdVDAKC-pE2b44tORsDjfLZShJJwlF9MI/edit
 
 library(ggplot2)
+library(scales)
 
 # Import visit table
 visit <- tbl(db, "visit")
@@ -84,16 +85,83 @@ visit$batch_visit <- visit$time_to_next_visit < 10 | visit$time_from_prev_visit 
 
 # A basic box plot
 visit$cond <- 1
-test <- filter(visit, visit_duration >= 0 & visit_duration <= 30)
-ggplot(test, aes(x=cond, y=visit_duration)) + 
+visits_valid_duration <- filter(visit, visit_duration >= 0 & visit_duration <= 30)
+ggplot(visits_valid_duration, aes(x=cond, y=visit_duration)) + 
   geom_boxplot()
 
 #duration_ge_5min
 #duration_ge_1min_lt_5min
 #duration_lt_1min
-test2 <- filter(test, batch_visit == T & duration_lt_1min == T & nighttime == T)
+test2 <- filter(visits_valid_duration, batch_visit == T & duration_lt_1min == T & nighttime == T)
 length(unique(test2$domain_id))
 
+#-----------------------------------------------------------------------------------------#
 
 #Look at DSA domains
 test <- filter(monthly_table, nvisits_travel > 0)
+
+#Import form_annotations from S3 server
+form_annotations <- read.csv(file = "form_annotations.csv")
+form_annotations$travel_form <- form_annotations$Travel.visit == "Yes"
+domains_travel_yes <- form_annotations %>% group_by(Domain.name) %>% 
+  summarise(nforms_travel = sum(Travel.visit == "yes"))
+domains_travel <- form_annotations %>% group_by(Domain.name) %>% 
+  summarise(nforms_travel = sum(travel_form))
+domains_travel <- filter(domains_travel, nforms_travel > 0)
+
+monthly_travel <- filter(monthly_table, domain %in% domains_travel$Domain.name)
+monthly_travel_yes <- filter(monthly_table, domain %in% 
+                               domains_travel_yes$Domain.name[domains_travel_yes$nforms_travel > 0])
+
+monthly_travel <- merge(monthly_travel, select(domains, name, id), by.x = "domain", 
+                        by.y = "name", all.x = T)
+names(monthly_travel)[names(monthly_travel) == "id"] = "domain_id"
+monthly_travel <- filter(monthly_travel, nvisits_travel > 0)
+monthly_travel$batch_travel_percent <- (monthly_travel$nvisits_travel_batch/monthly_travel$nvisits_travel)*100
+monthly_travel$unique_row <- 1:nrow(monthly_travel)
+domain_month_batch_travel_median <- monthly_travel %>% group_by(domain) %>% 
+  summarise(nuser_months_travel = length(unique(unique_row)), 
+            batch_travel_percent_user_month_median = median(batch_travel_percent, na.rm=T))
+
+
+
+visits_domain_travel <- filter(visits_valid_duration, domain_id %in% monthly_travel$domain_id)
+visits_domain_travel$visit_month <- floor_date(visits_domain_travel$visit_date, "month")
+monthly_travel_manual <- visits_domain_travel %>% group_by(domain_id, user_id, visit_month) %>% 
+  summarise(nvisits = length(unique(id)), 
+            nvisits_batch = sum(batch_visit, na.rm=T))
+monthly_travel_manual$batch_percent <- (monthly_travel_manual$nvisits_batch/monthly_travel_manual$nvisits)*100
+monthly_travel_manual$unique_row <- 1:nrow(monthly_travel_manual)
+
+domain_month_batch_median <- monthly_travel_manual %>% group_by(domain_id) %>% 
+  summarise(nuser_months = length(unique(unique_row)), 
+            batch_percent_user_month_median = median(batch_percent, na.rm=T))
+domain_month_batch_median <- merge(domain_month_batch_median, select(domains, name, id), by.x = "domain_id", 
+                        by.y = "id", all.x = T)
+
+domain_month_batch <- merge(domain_month_batch_median, domain_month_batch_travel_median, by.x = "name", 
+                                   by.y = "domain", all.x = T)
+domain_month_batch <- select(domain_month_batch, -domain_id)
+
+write.csv(domain_month_batch, file = "domain_month_batch.csv")
+
+domain_month_batch <- filter(domain_month_batch, batch_percent_user_month_median > 0)
+domain_month_batch$program <- 1:nrow(domain_month_batch)
+batch_graph <- select(domain_month_batch, batch_percent_user_month_median, program)
+batch_graph$visit_type <- "All visits"
+names(batch_graph)[names(batch_graph) == "batch_percent_user_month_median"] = "batch_percent"
+batch_graph2 <- select(domain_month_batch, batch_travel_percent_user_month_median, program)
+batch_graph2$visit_type <- "Travel visits"
+names(batch_graph2)[names(batch_graph2) == "batch_travel_percent_user_month_median"] = "batch_percent"
+summary(names(batch_graph) == names(batch_graph2))
+batch_graph <- rbind(batch_graph, batch_graph2)
+
+ggplot(batch_graph, aes(x = program, y = batch_percent, colour = visit_type)) + 
+  geom_line()
+
+ggplot(batch_graph, aes(x = program, y = batch_percent, fill = visit_type)) + 
+  geom_bar(stat = "identity", position=position_dodge()) + 
+  scale_x_continuous(breaks= pretty_breaks(9)) + 
+  xlab("Program") +
+  ylab("% Batch Visits") +
+  labs(fill = "Visit type")

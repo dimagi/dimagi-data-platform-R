@@ -190,7 +190,8 @@ form_table <- merge(form_table,
                     by.x = "application_id", by.y = "id", all.x = T)
 
 #Filter form_table by multiple_app users
-#Create form_date and concat with user_pk
+#Create form_month and concat with user_pk
+#USE received_on instead of time_start??
 forms_users_multiple_apps <- filter(form_table, user_pk %in% all_monthly_multiple$user_pk)
 forms_users_multiple_apps$form_date <- as.Date(substr(forms_users_multiple_apps$time_start, 1, 10))
 forms_users_multiple_apps$form_month <- floor_date(forms_users_multiple_apps$form_date, "month")

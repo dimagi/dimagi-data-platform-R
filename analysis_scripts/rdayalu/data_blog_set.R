@@ -2,6 +2,7 @@
 #the "Under the Data Tree" data blog series
 
 #First import monthly_table for all test = F domains then run the following code
+#permitted_data_only = true
 #Be sure to set config_run first
 source(file.path("analysis_scripts","raw_data","data_import.R", fsep = .Platform$file.sep))
 
@@ -71,6 +72,7 @@ end_month <- as.Date(end_month)
 
 #Merge domain facets into all_monthly table
 #Prepare domain_table for merging in domain facets
+
 #Bring in sector information
 sector <- tbl(db, "sector")
 sector <- collect(sector)
@@ -80,6 +82,7 @@ domain_sector <- collect(domain_sector)
 domain_sector <- select(domain_sector, domain_id, sector_id)
 domain_table <- merge(domain_table, domain_sector, by.x = "id", by.y = "domain_id", all.x = T)
 domain_table <- merge(domain_table, sector, by.x = "sector_id", by.y = "id", all.x = T)
+
 #Bring in subsector information
 subsector <- tbl(db, "subsector")
 subsector <- collect(subsector)
@@ -92,12 +95,18 @@ domain_subsector <- collect(domain_subsector)
 domain_subsector <- select(domain_subsector, domain_id, subsector_id)
 domain_table <- merge(domain_table, domain_subsector, by.x = "id", by.y = "domain_id", all.x = T)
 domain_table <- merge(domain_table, subsector, by.x = "subsector_id", by.y = "id", all.x = T)
+
 #Consolidate country information
+#Remove all double quotes from inside countries string.
+domain_table$countries <- gsub('"', "", domain_table$countries)
 is.na(domain_table$deployment.country) <- domain_table$deployment.country == ""
-is.na(domain_table$country) <- domain_table$country == ""
-domain_table$country_final <- domain_table$deployment.country
-keep_country <- which(is.na(domain_table$deployment.country) & !is.na(domain_table$country))
-domain_table$country_final[keep_country] <- domain_table$country[keep_country]
+is.na(domain_table$countries) <- domain_table$countries == "{}" | 
+  domain_table$countries == "{No country}"
+domain_table$country_final <- domain_table$countries
+use_deployment_country <- which(is.na(domain_table$countries) & !is.na(domain_table$deployment.country))
+domain_table$country_final[use_deployment_country] <- 
+  domain_table$deployment.country[use_deployment_country]
+
 #Consolidate Dimagi level of support
 is.na(domain_table$internal.services) <- domain_table$internal.services == ""
 is.na(domain_table$internal.self_started) <- domain_table$internal.self_started == ""
@@ -118,7 +127,6 @@ all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain",
 #Change column names as needed
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names (all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
-#names (all_monthly)[names(all_monthly) == "id"] = "domain_numeric"
 names(all_monthly)[names(all_monthly) == "domain_id"] = "domain_numeric"
 
 #Convert calendar month to actual date
@@ -129,8 +137,8 @@ all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 #Exclude any users who logged > 100 visits in any month
 #These are probably atypical users
 all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
-user_ge_100 <- all_monthly %.%
-  group_by(user_id) %.%
+user_ge_100 <- all_monthly %>%
+  group_by(user_id) %>%
   summarise(ge_100 = sum(visits_ge_100))
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
 all_monthly <- all_monthly[all_monthly$user_id %in% user_le_100$user_id, ]
@@ -196,14 +204,14 @@ all_monthly <- merge(all_monthly, lifetime_table, by = "user_pk", all.x = T)
 
 #Lifetime aggregate table is not available on the db as of 2/17/15.
 #I will calculate months_on_cc, active_months here until the lifetime table is available.
-total_months_cc <- all_monthly %>% group_by(domain_user) %>% 
-  summarise(first_month = min(calendar_month),
-            last_month = max(calendar_month), 
-            active_months = length(unique(calendar_month)))
-total_months_cc$months_on_cc <- (interval(total_months_cc$first_month, 
-                                          total_months_cc$last_month) %/% months(1))+1
-total_months_cc <- select(total_months_cc, domain_user, active_months, months_on_cc)
-all_monthly <- merge(all_monthly, total_months_cc, by = "domain_user", all.x = T)
+#total_months_cc <- all_monthly %>% group_by(domain_user) %>% 
+#  summarise(first_month = min(calendar_month),
+#            last_month = max(calendar_month), 
+#            active_months = length(unique(calendar_month)))
+#total_months_cc$months_on_cc <- (interval(total_months_cc$first_month, 
+#                                          total_months_cc$last_month) %/% months(1))+1
+#total_months_cc <- select(total_months_cc, domain_user, active_months, months_on_cc)
+#all_monthly <- merge(all_monthly, total_months_cc, by = "domain_user", all.x = T)
 
 #Exclude a samples of users (from pradan-mis-dev?) so that each domain contributes only 
 #< 5% of the total users
@@ -211,6 +219,7 @@ nusers <- all_monthly %>% group_by(domain) %>% summarise(nusers = length(unique(
 nusers <- arrange(nusers, desc(nusers))
 nusers$total_users <- sum(nusers$nusers)
 nusers$per_users <- (nusers$nusers/nusers$total_users)*100
+#NEED TO MANUALLLY CHECK ABOVE FOR EACH BLOG DATASET TO CHECK DOMAIN WEIGHTAGE
 exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pradan-mis-dev"]), 299)
 all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude_users_pathfinder),]
 
@@ -235,11 +244,13 @@ c("aaharsneha", "aarohi", "acf", "aed-hth", "arogyasarita", "care-ecd",
   "tulasalud", "world-renew", "wvindia", "wvindia-nutrition", "wvindia2",
   "wvindonesia", "wvug", "yonsei-emco")
 
-blog <- merge(all_monthly, domain_master_list, by = "domain_numeric", all.x = T)
-blog$typical_flw <- blog$domain %in% typical_flw_domains
-blog <- select(blog, -domain)
+domains <- select(domain_table, domain_id, name)
+blog <- merge(all_monthly, domains, by.x = "domain_numeric", by.y = "domain_id", 
+              all.x = T)
+blog$typical_flw <- blog$name %in% typical_flw_domains
+blog <- select(blog, -c(name, domain_user))
 
-#write.csv(blog, file = "blog_data_2_13_15.csv")
+write.csv(blog, file = "blog_data_6_11_15.csv")
 
 #----------------------------------------------------------------------#
 #Older code - not used to create future blog datasets
