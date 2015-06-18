@@ -4,13 +4,17 @@ library("reshape2")
 library('gridExtra')
 library('ggplot2')
 library('xtable')
-
+elapsed_months <- function(end_date, start_date) {
+  ed <- as.POSIXlt(end_date)
+  sd <- as.POSIXlt(start_date)
+  12 * (ed$year - sd$year) + (ed$mon - sd$mon)
+}
 
 render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   split_by <- report_options$split_by
   print(paste(c("split on: ", split_by)))
   source(file.path("function_libraries","db_queries.R", fsep = .Platform$file.sep))
-  domain_table <- get_domain_table(db)
+  domain_table <- get_post_processed_domain_table(db)
   
   source(file.path("data_sources.R", fsep = .Platform$file.sep))
   sf_table <- get_salesforce_contract_table(db)
@@ -23,57 +27,29 @@ render <- function(db, domains_for_run, report_options, tmp_report_pdf_dir) {
   names (monthly_table)[names(monthly_table) == "numeric_index"] = "obsnum"
   
   active_monthly <- monthly_table[monthly_table$nforms>0 & !is.na(monthly_table$nforms), ]
-  
-  nbu <- FALSE
-  if (split_by=="new_business_unit") {
-    nbu <- TRUE
-    split_by <- "business_unit"
-  }
-  
-  inc_list <- c("California", "Canada", "United Kingdom", "United States", "United States of America", "Wales", "France", "france", "Spain", "US", "USA")
-  dsi_list <- c("Afghanistan", "Bangladesh", "Burma", "India", "Indonesia", "Laos", "Myanmar", "Nepal", "Pakistan", "Philippines", "Philippines", "Thailand", "bangladesh", "india")
-  dsa_list <- c("Angola", "Burundi", "Ethiopia", "Kenya", "Lesotho", "Madagascar", "Malawi", "Rwanda", "South Africa", "South Sudan", "Tanzania", "Uganda", "Zambia", "Zimbabwe", "ethiopia", "kenya", "malawi", "south africa", "south africa ", "Sri Lanka")
-  dwa_list <- c("Benin", "Burkina Faso", "Ghana", "Guinea", "Mali", "Niger and Burkina Faso", "Nigeria", "Senegal", "Sierra Leone", "Togo", "senegal")
-  dlac_list <- c("Brazil", "Colombia", "Dominican Republic", "Grenada", "Guatemala", "Haiti", "Mexico", "Nicaragu", "Nicaragua") 
-  dmoz_list <- c("Mozambique")
-  list_of_lists <- list(inc_list, dsi_list, dsa_list, dwa_list, dlac_list, dmoz_list)
-  names(list_of_lists) <- c("Inc", "DSI", "DSA", "DWA", "DLAC", "DMOZ")
-  set_unit <- function(business_unit, country) {
-    if (is.na(business_unit) | business_unit %in% c("None", "")) {
-      for(unit in names(list_of_lists)) {
-        if (country %in% list_of_lists[[unit]]) {
-          return(unit)
-        }
-      }
-    }
-    return(business_unit)
-  }
-  if (nbu) { # logic for the new business unit
-    domain_table[["business_unit"]] <- mapply(set_unit, domain_table$business_unit, domain_table$deployment.country)
-  }
-  
   active_monthly <- add_splitby_col(active_monthly, domain_table, split_by)
   
   #Remove demo users
   #We also need to find a way to exclude admin/unknown users
-  active_monthly = active_monthly[!(all_monthly$user_id =="demo_user"),]
+  active_monthly = active_monthly[!(active_monthly$user_id =="demo_user"),]
   
   #Remove any dates before report start_date and after report end_date
-  names (active_monthly)[names(active_monthly) == "first_visit_date.x"] = "first_visit_date"
-  active_monthly$date_first_visit = as.Date(active_monthly$date_first_visit, origin="1970-01-01")
-  active_monthly$date_last_visit = as.Date(active_monthly$date_last_visit, origin="1970-01-01")
-  start_date = as.Date(report_options$start_date)
-  end_date = as.Date(report_options$end_date)
-  active_monthly = subset(active_monthly, active_monthly$date_first_visit >= start_date
-                          & active_monthly$date_last_visit <= end_date)
+  start_first <- as.Date(as.yearmon(as.Date(report_options$start_date)))
+  end_first <- as.Date(as.yearmon(as.Date(report_options$end_date)))
+  num_months <- elapsed_months(end_first, start_first)
+  month_list <- as.yearmon(seq(start_first, length = num_months + 1, by = "+1 months"))
+  old_am <- active_monthly
+  active_monthly = active_monthly[active_monthly$calendar_month %in% as.factor(month_list), ]
+
+
   
   #add countries
-  active_monthly <- add_splitby_col(active_monthly, domain_table, "deployment.country", "country")
+  active_monthly <- add_splitby_col(active_monthly, domain_table, "country_final", "country")
   #add self starters
   active_monthly <- add_splitby_col(active_monthly, domain_table, "internal.self_started", "self_started")
   
   cur_month = as.yearmon(Sys.Date())
-  cur_month <- "Nov 2014"
+  cur_month <- "Mar 2015"
   recent_monthly <- active_monthly[active_monthly$calendar_month==cur_month & !is.na(active_monthly$calendar_month), ]  
   
   splits = unique(recent_monthly[, "split_by"])

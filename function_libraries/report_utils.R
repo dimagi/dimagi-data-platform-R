@@ -7,10 +7,19 @@
 # db: the database to use (connection through dplyr src_postgres)
 # table_name: the name of the aggregate table to fetch
 # domain_names: a list of domain names to filter the aggregate table by
-get_aggregate_table <- function (db,table_name, domain_names) {
+get_aggregate_table <- function (db,table_name, domain_names, numeric_conversion=TRUE) {
   agg_table <- tbl(db, table_name)
   agg_table <- filter(agg_table, domain %in% domain_names)
-  return(collect(agg_table))
+  ret_table = collect(agg_table)
+  if (numeric_conversion) {
+    if (NROW(ret_table$active_days) > 0) {
+      ret_table$active_days <- as.numeric(ret_table$active_days)
+    }
+    if (NROW(ret_table$nforms) > 0) {
+      ret_table$nforms <- as.numeric(ret_table$nforms)
+    }
+  }
+  return(ret_table)
 }
 
 # FUNCTION merged_monthly_table
@@ -145,4 +154,46 @@ replace.df <- function(x,y,by,cols=NULL){
   
   x[idx,cols] <- y[idy,cols]
   x
+}
+
+add_country_final <- function(domain_table) {
+  #Consolidate country information
+  is.na(domain_table$deployment.country) <- domain_table$deployment.country == ""
+  is.na(domain_table$country) <- domain_table$country == ""
+  domain_table$country_final <- domain_table$deployment.country
+  keep_country <- which(is.na(domain_table$deployment.country) & !is.na(domain_table$country))
+  domain_table$country_final[keep_country] <- domain_table$country[keep_country]
+  return(domain_table)
+}
+
+add_nbu_col <- function(domain_table, country_var_name='deployment.country') {
+  inc_list <- c("California", "Canada", "United Kingdom", "United States", "United States of America", "Wales", "France", "france", "Spain", "US", "USA")
+  dsi_list <- c("Afghanistan", "Bangladesh", "Burma", "India", "Indonesia", "Laos", "Myanmar", "Nepal", "Pakistan", "Philippines", "Philippines", "Thailand", "bangladesh", "india")
+  dsa_list <- c("Angola", "Burundi", "Ethiopia", "Kenya", "Lesotho", "Madagascar", "Malawi", "Rwanda", "South Africa", "South Sudan", "Tanzania", "Uganda", "Zambia", "Zimbabwe", "ethiopia", "kenya", "malawi", "south africa", "south africa ", "Sri Lanka")
+  dwa_list <- c("Benin", "Burkina Faso", "Ghana", "Guinea", "Mali", "Niger and Burkina Faso", "Nigeria", "Senegal", "Sierra Leone", "Togo", "senegal")
+  dlac_list <- c("Brazil", "Colombia", "Dominican Republic", "Grenada", "Guatemala", "Haiti", "Mexico", "Nicaragu", "Nicaragua") 
+  dmoz_list <- c("Mozambique")
+  list_of_lists <- list(inc_list, dsi_list, dsa_list, dwa_list, dlac_list, dmoz_list)
+  names(list_of_lists) <- c("Inc", "DSI", "DSA", "DWA", "DLAC", "DMOZ")
+
+  set_unit <- function(business_unit, country) {
+    if (is.na(business_unit) | business_unit %in% c("None", "")) {
+      for(unit in names(list_of_lists)) {
+        if (country %in% list_of_lists[[unit]]) {
+          return(unit)
+        }
+      }
+    }
+    return(business_unit)
+  }
+  
+  domain_table[["new_business_unit"]] <- mapply(set_unit, domain_table$business_unit, domain_table[[country_var_name]])
+  return(domain_table)
+}
+
+get_post_processed_domain_table <- function(db) {
+  domain_table <- get_domain_table(db)
+  domain_table <- add_country_final(domain_table)
+  domain_table <- add_nbu_col(domain_table, "country_final")
+  return(domain_table)
 }
