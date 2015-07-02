@@ -1,3 +1,10 @@
+#How many days on average between form_end and form_received?
+form_table$form_start_date <- as.Date(substr(form_table$time_start, 1, 10))
+form_table$form_end_date <- as.Date(substr(form_table$time_end, 1, 10))
+form_table$form_received_date <- as.Date(substr(form_table$received_on, 1, 10))
+form_table$days_to_server <- as.numeric(form_table$form_received_date - form_table$form_end_date)
+form_table$days_to_server_gt <- form_table$days_to_server > 10
+
 #How many users have forms in DP for a particular month
 #but no monthly rows in the aggregate table? We should monitor
 #this list on a regular basis till we figure out the issues

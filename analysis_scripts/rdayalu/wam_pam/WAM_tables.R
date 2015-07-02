@@ -39,6 +39,8 @@ all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 #Concat user and month in monthly table
 all_monthly$user_month_concat <- paste(all_monthly$user_pk, 
                                                 all_monthly$calendar_month, sep = "_")
+#Add unique integer column
+all_monthly$unique_int <- 1:nrow(all_monthly)
 
 #Import user table and user_type table
 users <- tbl(db, "users") 
@@ -68,7 +70,7 @@ names(form_table)[names(form_table) == "user_id"] = "user_pk"
 form_table <- filter(form_table, !(is.na(application_id)))
 
 #Pull domain table
-domain <- get_domain_table(db)
+domain <- get_post_processed_domain_table(db)
 
 #------------------------------------------------------------------------#
 #User exclusions
@@ -76,9 +78,15 @@ domain <- get_domain_table(db)
 
 #Exclude demo users and NA/NONE users
 #First count these users per domain per month
-#all_monthly <- all_monthly %>% group_by(domain, calendar_month) %>% 
-#  mutate(nusers_id_demo_na_none = sum(user_id =="demo_user" | user_id =="NONE" | 
-#                                   user_id =="none" | is.na(user_id)))
+user_exclusion <- all_monthly %>% group_by(domain) %>% 
+  summarise(users_initial = length(unique(user_pk)),
+            user_months_initial = length(unique(unique_int)),
+            user_months_user_id_demo_na = length(unique(unique_int[user_id =="demo_user" | 
+                                                                user_id =="NONE" | 
+                                                                user_id == "none" | 
+                                                                is.na(user_id)])))
+
+
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="NONE"),]
 all_monthly = all_monthly[!(all_monthly$user_id =="none"),]
@@ -86,44 +94,68 @@ all_monthly = all_monthly[!is.na(all_monthly$user_id),]
 
 #Exclude users who submit to multiple domains
 #First count these users per domain per month
-#chw_single_domain <- all_monthly %>% group_by(user_pk) %>% 
-#  summarise(n_domains = length(unique(domain)))
-#chw_single_domain <- filter(chw_single_domain, n_domains >1)
-#all_monthly <- all_monthly %>% group_by(domain, calendar_month) %>% 
-#  mutate(nusers_multiple_domains = sum(user_pk %in% chw_single_domain$user_pk))
 chw_single_domain <- all_monthly %>% group_by(user_pk) %>% 
   summarise(n_domains = length(unique(domain)))
 chw_single_domain <- filter(chw_single_domain, n_domains == 1)
+all_monthly$user_multiple_domain <- !(all_monthly$user_pk %in% chw_single_domain$user_pk)
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(user_months_user_pk_multiple_domains = sum(user_multiple_domain))
+test <- all_monthly %>% group_by(domain) %>% summarise(check=unique(user_months_user_pk_multiple_domains))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_user_pk_multiple_domains"
 all_monthly <- all_monthly[all_monthly$user_pk %in% chw_single_domain$user_pk,]
 
-#Exclude rows with nforms = NA. These are not rows where the user is truly active
-#First count nrows with nforms = NA per domain per month
-#all_monthly <- all_monthly %>% group_by(domain, calendar_month) %>% 
-#  mutate(nusers_forms_na = sum(is.na(nforms)))
-all_monthly <- filter(all_monthly, !is.na(nforms))
+#Exclude rows with active_days = NA. These are not rows where the user is truly active
+#First count nrows with active_days = NA per domain per month
+#Did nforms previously - don't know if there is a difference...
+all_monthly$active_days_na <- is.na(all_monthly$active_days)
+test <- all_monthly %>% group_by(domain) %>% summarise(check=sum(active_days_na))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_active_days_na"
+all_monthly <- filter(all_monthly, !is.na(active_days))
+
+#Exclude rows with calendar_month = NA
+all_monthly$calendar_month_na <- is.na(all_monthly$calendar_month)
+test <- all_monthly %>% group_by(domain) %>% summarise(check=sum(calendar_month_na))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_calendar_month_na"
+all_monthly <- filter(all_monthly, !is.na(calendar_month))
 
 #Exclude users with user_type = web and summary_device_type != cloud care during any month
 #First count these users per domain per month
 all_monthly <- merge(all_monthly, users, by = "user_pk", all.x = T)
 exclude1 <- filter(all_monthly, user_type == "web" & 
                      summary_device_type != "Cloudcare")
-#all_monthly <- all_monthly %>% group_by(domain, calendar_month) %>% 
-#  mutate(nusers_web_not_cloudcare = sum(user_pk %in% exclude1$user_pk))
+all_monthly$user_web_notCC <- all_monthly$user_pk %in% exclude1$user_pk
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(user_months_web_not_cloudcare = sum(user_web_notCC))
+test <- all_monthly %>% group_by(domain) %>% summarise(check=unique(user_months_web_not_cloudcare))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_web_not_cloudcare"
 all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude1$user_pk),]
 
 #Exclude dimagi users and superusers
 #First count these users per domain per month
-exclude2 <- all_monthly[grep("dimagi", all_monthly$email, fixed=T),]
-#all_monthly <- all_monthly %>% group_by(domain, calendar_month) %>% 
-#  mutate(nusers_dimagi_superuser = sum(user_pk %in% exclude2$user_pk | is_superuser == T))
-all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude2$user_pk),]
+dimagi_users <- all_monthly$user_pk[grep("dimagi", all_monthly$email, fixed=T)]
+all_monthly$dimagi_user <- all_monthly$user_pk %in% dimagi_users
+all_monthly$user_dimagi_super <- all_monthly$dimagi_user == T | all_monthly$is_superuser == T
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(user_months_dimagi_superuser = sum(user_dimagi_super, na.rm=T))
+test <- all_monthly %>% group_by(domain) %>% summarise(check=unique(user_months_dimagi_superuser))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_dimagi_superuser"
+all_monthly <- filter(all_monthly, dimagi_user == F)
 all_monthly <- filter(all_monthly, is_superuser == F | is.na(is_superuser))
 
 #Exclude users with summary_device_type = SMS during any month
 #First count these users per domain per month
 exclude3 <- filter(all_monthly, summary_device_type == "Sms")
-all_monthly <- all_monthly %>% group_by(domain, calendar_month) %>% 
-  mutate(nusers_sms_any_month = sum(user_pk %in% exclude3$user_pk))
+all_monthly$sms_any_month <- all_monthly$user_pk %in% exclude3$user_pk
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(user_months_sms_any_month = sum(sms_any_month))
+test <- all_monthly %>% group_by(domain) %>% summarise(check=unique(user_months_sms_any_month))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_sms_any_month"
 all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude3$user_pk),]
 
 #Based on form table...
@@ -134,11 +166,18 @@ chw_n_app <- form_table %>% group_by(user_pk) %>%
 #write.csv(chw_n_app, file = "chw_n_app.csv")
 chw_multiple_app <- filter(chw_n_app, n_applications > 1)
 chw_single_app <- filter(chw_n_app, n_applications == 1)
-
 #Flag users in monthly table
 all_monthly$submitted_single_app <- all_monthly$user_pk %in% chw_single_app$user_pk
 all_monthly$submitted_multiple_app <- all_monthly$user_pk %in% chw_multiple_app$user_pk
+
 #Exclude users without form_ids and app_ids
+all_monthly$form_app_id_na <- all_monthly$submitted_single_app == F & 
+  all_monthly$submitted_multiple_app == F
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(user_months_form_app_id_na = sum(form_app_id_na))
+test <- all_monthly %>% group_by(domain) %>% summarise(check=unique(user_months_form_app_id_na))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_form_app_id_na"
 all_monthly <- all_monthly[!(all_monthly$submitted_single_app == F & 
                                all_monthly$submitted_multiple_app == F),]
 
@@ -147,6 +186,26 @@ all_monthly_single <- filter(all_monthly, submitted_single_app == T)
 
 #Multiple_app users
 all_monthly_multiple <- filter(all_monthly, submitted_multiple_app == T)
+
+#Add final columns to user_exclusion table
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(user_months_final = length(unique(unique_int)), 
+         users_final = length(unique(user_pk)))
+test <- all_monthly %>% group_by(domain) %>% summarise(check=unique(user_months_final), 
+                                                       check2=unique(users_final))
+user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
+names(user_exclusion)[names(user_exclusion) == "check"] = "user_months_final"
+names(user_exclusion)[names(user_exclusion) == "check2"] = "users_final"
+#Convert all NA values to 0
+user_exclusion[is.na(user_exclusion)] <- 0
+
+write.csv(user_exclusion, file = "table_6_user_exclusion.csv", row.names = F)
+
+#Check user_exclusion table
+#user_exclusion$sum_exclude_months <- rowSums(user_exclusion[,c(4:10)])
+#user_exclusion$calc_user_months_final <- user_exclusion$user_months_initial - user_exclusion$sum_exclude_months
+#user_exclusion$equal_final <- user_exclusion$calc_user_months_final == user_exclusion$user_months_final
+#user_exclusion <- arrange(user_exclusion, equal_final)
 
 #------------------------------------------------------------------------#
 #Parse amplifies_X values from app table
@@ -160,14 +219,10 @@ app_amplifies$amplifies_workers[grep("_amplifies_workers_=>_yes_", app_amplifies
 app_amplifies$amplifies_workers[grep("_amplifies_workers_=>_no_", app_amplifies$attributes, 
                                      fixed=T)] <- F
 #Manually tag domains
-app_amplifies$amplifies_workers[app_amplifies$id == 10724] <- F #pradan-mis "CDC"
 app_amplifies$amplifies_workers[app_amplifies$id == 339] <- T #tulasalud "Kawok Vigilancia Comunitario 3.0"
 app_amplifies$amplifies_workers[app_amplifies$id == 1140] <- T #tulasalud "Kawok Vigilancia Comunitario 2.0"
 app_amplifies$amplifies_workers[app_amplifies$id == 1567] <- T #tulasalud "Kawok Vigilancia Comunitario 2.1"
 app_amplifies$amplifies_workers[app_amplifies$id == 109] <- T #opm "Bihar Child Support Programme"
-app_amplifies$amplifies_workers[app_amplifies$id == 290] <- T #ssqh-cs "mSante"
-app_amplifies$amplifies_workers[app_amplifies$id == 2014] <- F #ssqh-cs "Referans Klinik"
-
 
 #amplifies_project
 app_amplifies$amplifies_project <- NA
@@ -176,13 +231,10 @@ app_amplifies$amplifies_project[grep("_amplifies_project_=>_yes_", app_amplifies
 app_amplifies$amplifies_project[grep("_amplifies_project_=>_no_", app_amplifies$attributes, 
                                      fixed=T)] <- F
 #Manually tag domains
-app_amplifies$amplifies_project[app_amplifies$id == 10724] <- T #pradan-mis "CDC"
 app_amplifies$amplifies_project[app_amplifies$id == 339] <- T #tulasalud "Kawok Vigilancia Comunitario 3.0"
 app_amplifies$amplifies_project[app_amplifies$id == 1140] <- T #tulasalud "Kawok Vigilancia Comunitario 2.0"
 app_amplifies$amplifies_project[app_amplifies$id == 1567] <- T #tulasalud "Kawok Vigilancia Comunitario 2.1"
 app_amplifies$amplifies_project[app_amplifies$id == 109] <- T #opm "Bihar Child Support Programme"
-app_amplifies$amplifies_project[app_amplifies$id == 290] <- F #ssqh-cs "mSante"
-app_amplifies$amplifies_project[app_amplifies$id == 2014] <- F #ssqh-cs "Referans Klinik"
 
 #Add amplifies_workers and amplifies_project to form_table by app_id
 form_table <- merge(form_table, 
@@ -191,9 +243,9 @@ form_table <- merge(form_table,
 
 #Filter form_table by multiple_app users
 #Create form_month and concat with user_pk
-#USE received_on instead of time_start??
 forms_users_multiple_apps <- filter(form_table, user_pk %in% all_monthly_multiple$user_pk)
-forms_users_multiple_apps$form_date <- as.Date(substr(forms_users_multiple_apps$time_start, 1, 10))
+#forms_users_multiple_apps$form_date <- as.Date(substr(forms_users_multiple_apps$time_start, 1, 10))
+forms_users_multiple_apps$form_date <- as.Date(substr(forms_users_multiple_apps$received_on, 1, 10))
 forms_users_multiple_apps$form_month <- floor_date(forms_users_multiple_apps$form_date, "month")
 
 forms_users_multiple_apps$user_month_concat <- paste(forms_users_multiple_apps$user_pk, 
@@ -270,20 +322,23 @@ domain_subsector <- collect(domain_subsector)
 domain_subsector <- select(domain_subsector, domain_id, subsector_id)
 domain <- merge(domain, domain_subsector, by = "domain_id", all.x = T)
 domain <- merge(domain, subsector, by.x = "subsector_id", by.y = "id", all.x = T)
-#Consolidate country information
-is.na(domain$deployment.country) <- domain$deployment.country == ""
-is.na(domain$country) <- domain$country == ""
-domain$country_final <- domain$deployment.country
-keep_country <- which(is.na(domain$deployment.country) & !is.na(domain$country))
-domain$country_final[keep_country] <- domain$country[keep_country]
-#Consolidate Dimagi level of support
-is.na(domain$internal.services) <- domain$internal.services == ""
-is.na(domain$internal.self_started) <- domain$internal.self_started == ""
-domain$self_start[domain$internal.self_started == "True"] <- "self"
-domain$dimagi_services <- domain$internal.services
-keep_self <- which(is.na(domain$internal.services) & !is.na(domain$self_start))
-domain$dimagi_services[keep_self] <- domain$self_start[keep_self]
 
+#Consolidate country information
+#Remove all double quotes from inside countries string.
+domain$countries <- gsub('"', "", domain$countries)
+is.na(domain$deployment.country) <- domain$deployment.country == ""
+is.na(domain$countries) <- domain$countries == "{}" | 
+  domain$countries == "{No country}"
+domain$country_final <- domain$countries
+use_deployment_country <- which(is.na(domain$countries) & !is.na(domain$deployment.country))
+domain$country_final[use_deployment_country] <- 
+  domain$deployment.country[use_deployment_country]
+
+#Flag Dimagi self-starts
+domain$self_start <- domain$internal.self_started
+
+#Domain start date
+domain$domain_start_date <- as.Date(substr(domain$cp_first_form, 1, 10))
 
 all_monthly$amp_w_true <- NA
 all_monthly$amp_w_false <- NA
@@ -389,8 +444,10 @@ all_monthly_multiple$pam_eligible[all_monthly_multiple$amp_p_false == T &
 #                       all_monthly_multiple$amp_w_true == F & 
 #                       all_monthly_multiple$amp_w_false == F,]$wam_eligible <- NA
 
-#Append single app and multiple app tables together
+#Check single app and multiple app tables before appending together
 summary(names(all_monthly_single) == names(all_monthly_multiple))
+
+#Append together
 all_monthly <- rbind(all_monthly_single, all_monthly_multiple)
 
 #------------------------------------------------------------------------#
@@ -454,6 +511,13 @@ all_monthly$na_notexp_using <- is.na(all_monthly$wam_eligible)& all_monthly$wam_
 all_monthly$na_notexp_notusing <- is.na(all_monthly$wam_eligible) & all_monthly$wam_experienced == F & 
   all_monthly$wam_using == F
 
+#We have 4 combinations for wam_experienced(T/F) and wam_using(T/F)
+all_monthly$using_exp <- all_monthly$wam_experienced == T & all_monthly$wam_using == T
+all_monthly$notusing_exp <- all_monthly$wam_experienced == T & all_monthly$wam_using == F
+all_monthly$using_notexp <- all_monthly$wam_experienced == F & all_monthly$wam_using == T
+all_monthly$notusing_notexp <- all_monthly$wam_experienced == F & all_monthly$wam_using == F
+
+
 #------------------------------------------------------------------------#
 #PAM categories for output tables
 #------------------------------------------------------------------------#
@@ -496,6 +560,10 @@ all_monthly$na_notexp_notusing_pam <- is.na(all_monthly$pam_eligible) & all_mont
 #Create Table 1
 table_1_wam <- all_monthly %>% group_by(calendar_month) %>% 
   summarise(nusers = length(unique(user_pk)),
+            eligible = sum(wam_eligible, na.rm = T), 
+            using = sum(wam_using, na.rm = T), 
+            experienced = sum(wam_experienced, na.rm=T), 
+            wams_generated = sum(elig_exp_using, na.rm=T),
             elig_using_exp = sum(elig_exp_using, na.rm=T),
             elig_notusing_exp = sum(elig_exp_notusing, na.rm=T),
             elig_using_notexp = sum(elig_notexp_using, na.rm=T), 
@@ -510,47 +578,155 @@ table_1_wam <- all_monthly %>% group_by(calendar_month) %>%
             naelig_notusing_exp = sum(na_exp_notusing, na.rm=T), 
             naelig_using_notexp = sum(na_notexp_using, na.rm=T),
             naelig_notusing_notexp = sum(na_notexp_notusing, na.rm=T)) 
-
 #Filter table_1
-table_1_wam <- filter(table_1_wam, calendar_month >= "2013-01-01", calendar_month <= "2015-04-01")
-
-write.csv(table_1_wam, file = "table_1_wam.csv")
-
-#------------------------------------------------------------------------#
-#Table 2: WAM DATA
-#------------------------------------------------------------------------#
+table_1_wam <- filter(table_1_wam, calendar_month >= "2013-01-01", calendar_month <= "2015-05-01")
+names(table_1_wam)[names(table_1_wam) == "calendar_month"] = "Calendar Month"
+names(table_1_wam)[names(table_1_wam) == "nusers"] = "Active Users"
+names(table_1_wam)[names(table_1_wam) == "eligible"] = "Eligible Users"
+names(table_1_wam)[names(table_1_wam) == "using"] = "Sufficient Users"
+names(table_1_wam)[names(table_1_wam) == "experienced"] = "Experienced Users"
+names(table_1_wam)[names(table_1_wam) == "wams_generated"] = "WAMs Generated"
+write.csv(table_1_wam, file = "table_1_wam.csv", row.names=F)
 
 #Merge domain facets to all_monthly
 facets_to_merge <- select(domain, name, domain_id, country_final, sector_final, 
                           subsector_final, self_start, domain_has_amplifies_workers, 
-                          domain_has_amplifies_project)
+                          domain_has_amplifies_project, new_business_unit, is_test, domain_start_date)
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
                      by.y = "name", all.x = T)
 names(all_monthly)[names(all_monthly) == "domain_id"] = "domain_numeric"
 
-#Table of #SMS users per domain per month
-domain_nusers_month_sms <- all_monthly %>% group_by(domain, calendar_month) %>% 
-  summarise(nusers_month_sms = unique(nusers_sms_any_month))
+# new_business_unit is currently based on deployment.country in Yedi's code:
+# https://github.com/dimagi/dimagi-data-platform-R/blob/bf6e55f639abfd84a4310bc0bfa6578c8c3aa01c/function_libraries/report_utils.R#L169-L192
+# Therefore the BU won't be specified for the countries variable which has the two-letter country code
+# Need to manually define BU for these two-letter country codes
+all_monthly$new_business_unit[is.na(all_monthly$new_business_unit)] <- "None"
+
+missing_bu <- filter(all_monthly, new_business_unit == "None")
+assign_bu <- unique(missing_bu$country_final)
+table(all_monthly$new_business_unit, useNA = "always")
+
+all_monthly$new_business_unit[all_monthly$country_final == "{BR,HT,IN,KE,MW,PE,ZA,TH,UG,ZW}"] <- "DLAC"
+all_monthly$new_business_unit[all_monthly$country_final == "{IN}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{US}"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{NE}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{MM}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{NG}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{SN}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{NP}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{HT}"] <- "DLAC"
+all_monthly$new_business_unit[all_monthly$country_final == "{ID}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{TZ}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{ET}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{GD}"] <- "DLAC"
+all_monthly$new_business_unit[all_monthly$country_final == "{ZA}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{ML,SN}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{LA}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{AF}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{GT}"] <- "DLAC"
+all_monthly$new_business_unit[all_monthly$country_final == "{KE}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{BF}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{ZM}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{TH}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{SL}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{CO}"] <- "DLAC"
+all_monthly$new_business_unit[all_monthly$country_final == "{BJ}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{BJ}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{GN}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{ET,UG}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{LS}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{GH}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{MW}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{MY}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{SS}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "Syria"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{SY}"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{IQ}"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{BD}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{JO}"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{MZ}"] <- "DMOZ"
+all_monthly$new_business_unit[all_monthly$country_final == "{CN,GN}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{ZA,UG}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{VN}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{TR}"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{BZ,GT,HN}"] <- "DLAC"
+all_monthly$new_business_unit[all_monthly$country_final == "{LR}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{BF,TD,NE}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{PK}"] <- "DSI"
+all_monthly$new_business_unit[all_monthly$country_final == "{ML}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{SY,TR}"] <- "Inc"
+all_monthly$new_business_unit[all_monthly$country_final == "{TD}"] <- "DWA"
+
+business_unit <- unique(all_monthly$new_business_unit)
+for (i in business_unit) {
+  single_bu <- all_monthly[all_monthly$new_business_unit == i,]
+  #Create Table 1
+  table_1_wam_bu <- single_bu %>% group_by(calendar_month) %>% 
+    summarise(nusers = length(unique(user_pk)),
+              eligible = sum(wam_eligible, na.rm = T), 
+              using = sum(wam_using, na.rm = T), 
+              experienced = sum(wam_experienced, na.rm=T),
+              wams_generated = sum(elig_exp_using, na.rm=T),
+              elig_using_exp = sum(elig_exp_using, na.rm=T),
+              elig_notusing_exp = sum(elig_exp_notusing, na.rm=T),
+              elig_using_notexp = sum(elig_notexp_using, na.rm=T), 
+              elig_notusing_notexp = sum(elig_notexp_notusing, na.rm=T),
+              
+              notelig_using_exp = sum(notelig_exp_using, na.rm=T),
+              notelig_notusing_exp = sum(notelig_exp_notusing, na.rm=T),
+              notelig_using_notexp = sum(notelig_notexp_using, na.rm=T), 
+              notelig_notusing_notexp = sum(notelig_notexp_notusing, na.rm=T), 
+              
+              naelig_using_exp = sum(na_exp_using, na.rm=T),
+              naelig_notusing_exp = sum(na_exp_notusing, na.rm=T), 
+              naelig_using_notexp = sum(na_notexp_using, na.rm=T),
+              naelig_notusing_notexp = sum(na_notexp_notusing, na.rm=T)) 
+  
+  #Filter table_1
+  table_1_wam_bu <- filter(table_1_wam_bu, calendar_month >= "2013-01-01", calendar_month <= "2015-05-01")
+  names(table_1_wam_bu)[names(table_1_wam_bu) == "calendar_month"] = "Calendar Month"
+  names(table_1_wam_bu)[names(table_1_wam_bu) == "nusers"] = "Active Users"
+  names(table_1_wam_bu)[names(table_1_wam_bu) == "eligible"] = "Eligible Users"
+  names(table_1_wam_bu)[names(table_1_wam_bu) == "using"] = "Sufficient Users"
+  names(table_1_wam_bu)[names(table_1_wam_bu) == "experienced"] = "Experienced Users"
+  names(table_1_wam_bu)[names(table_1_wam_bu) == "wams_generated"] = "WAMs Generated"
+  
+  #Rename table specific to BU
+  assign(paste("table_1_wam", i, sep="_"), table_1_wam_bu)
+}
+
+write.csv(table_1_wam_None, file = "table_1_wam_None.csv", row.names=F)
+write.csv(table_1_wam_Inc, file = "table_1_wam_Inc.csv", row.names=F)
+write.csv(table_1_wam_DSI, file = "table_1_wam_DSI.csv", row.names=F)
+write.csv(table_1_wam_DWA, file = "table_1_wam_DWA.csv", row.names=F)
+write.csv(table_1_wam_DSA, file = "table_1_wam_DSA.csv", row.names=F)
+write.csv(table_1_wam_DLAC, file = "table_1_wam_DLAC.csv", row.names=F)
+write.csv(table_1_wam_DMOZ, file = "table_1_wam_DMOZ.csv", row.names=F)
+
+#------------------------------------------------------------------------#
+#Table 2: WAM DATA (complete)
+#------------------------------------------------------------------------#
 
 #Set table parameters
-all_monthly$start_month <- as.Date("2015-04-01")
-all_monthly$end_month <- as.Date("2015-04-01") 
+all_monthly$start_month <- as.Date("2015-05-01")
+all_monthly$end_month <- as.Date("2015-05-01") 
 
 all_monthly_table2 <- filter(all_monthly, calendar_month >= start_month, 
                              calendar_month <= end_month)
-all_monthly_table2$unique_number <- 1:nrow(all_monthly_table2)
 
 #Create Table 2
 table_2_wam <- all_monthly_table2 %>% group_by(domain) %>% 
-  summarise(start_month = unique(start_month),
-            end_month = unique(end_month),
-            country = unique(country_final),
-            sector = unique(sector_final),
-            subsector = unique(subsector_final),
-            nusers_active = length(unique(user_pk)),
+  summarise(calendar_month = unique(start_month),
+            Country = unique(country_final),
+            Sector = unique(sector_final),
+            Subsector = unique(subsector_final),
+            business_unit = unique(new_business_unit), 
+            self_service = unique(self_start), 
+            test = unique(is_test), 
+            domain_start_date = unique(domain_start_date, na.rm=T), 
+            nusers = length(unique(user_pk)), 
             domain_has_amplifies_workers = unique(domain_has_amplifies_workers),
-            domain_has_amplifies_project = unique(domain_has_amplifies_project), 
-            nuser_months = length(unique(unique_number)),
+            domain_has_amplifies_project = unique(domain_has_amplifies_project),
             
             elig_using_exp = sum(elig_exp_using, na.rm=T),
             elig_notusing_exp = sum(elig_exp_notusing, na.rm=T),
@@ -567,61 +743,237 @@ table_2_wam <- all_monthly_table2 %>% group_by(domain) %>%
             naelig_using_notexp = sum(na_notexp_using, na.rm=T),
             naelig_notusing_notexp = sum(na_notexp_notusing, na.rm=T))
 
-month_sms <- filter(domain_nusers_month_sms, calendar_month == unique(all_monthly$start_month))
-month_sms <- select(month_sms, -calendar_month)
-table_2_wam <- merge(table_2_wam, month_sms, by = "domain", all.x = T)
-table_2_wam <- table_2_wam[c(1:7, 23, 8:22)]
+names(table_2_wam)[names(table_2_wam) == "domain"] = "Domain"
+names(table_2_wam)[names(table_2_wam) == "calendar_month"] = "Calendar Month"
+names(table_2_wam)[names(table_2_wam) == "business_unit"] = "Business Unit"
+names(table_2_wam)[names(table_2_wam) == "self_service"] = "Self Service"
+names(table_2_wam)[names(table_2_wam) == "test"] = "Test Domain"
+names(table_2_wam)[names(table_2_wam) == "domain_start_date"] = "Domain Start Date"
+names(table_2_wam)[names(table_2_wam) == "nusers"] = "Active Users"
+names(table_2_wam)[names(table_2_wam) == "domain_has_amplifies_workers"] = "Eligible for WAMs"
+names(table_2_wam)[names(table_2_wam) == "domain_has_amplifies_project"] = "Eligible for PAMs"
 
-write.csv(table_2_wam, file = "table_2_wam_apr_2015.csv")
-
-
-#------------------------------------------------------------------------#
-#Table 3: ANNOTATION STATS
-#------------------------------------------------------------------------#
-
-#Create Table 3
-table_3_wam <- table(app_amplifies$amplifies_project, 
-                     app_amplifies$amplifies_workers, 
-                     dnn=c("amplifies_project","amplifies_workers"), useNA = "always")
-write.csv(table_3_wam, file = "table_3_wam.csv")
+write.csv(table_2_wam, file = "table_2_wam_original.csv")
 
 #------------------------------------------------------------------------#
-#Table 4: PAM OVERVIEW
+#Table 2_1: WAM DATA (modified from Table 2
 #------------------------------------------------------------------------#
 
-#Create Table 4
-table_4_pam <- all_monthly %>% group_by(calendar_month) %>% 
-  summarise(nusers = length(unique(user_pk)),
-            elig_using_exp_pam = sum(elig_exp_using_pam, na.rm=T),
-            elig_notusing_exp_pam = sum(elig_exp_notusing_pam, na.rm=T),
-            elig_using_notexp_pam = sum(elig_notexp_using_pam, na.rm=T), 
-            elig_notusing_notexp_pam = sum(elig_notexp_notusing_pam, na.rm=T),
+#Set table parameters for current_month
+all_monthly$current_month <- as.Date("2015-05-01")
+all_monthly$prior_1_month <- floor_date(rollback(all_monthly$current_month), "month")
+all_monthly$prior_2_months <- floor_date(rollback(all_monthly$prior_1_month), "month")
+
+#Create denominators for table 2_1, section 4
+
+#d1: all users who ever submitted forms as of the month in question
+#We are flagging the first calendar month of each user
+all_monthly <- all_monthly %>% group_by(domain_numeric, user_pk) %>% 
+  mutate(new_user = calendar_month == min(calendar_month))
+#Sort by domain and calendar_month before calculating the cumulative sum 
+#of new users in the next step
+all_monthly <- ungroup(all_monthly)
+all_monthly <- arrange(all_monthly, domain_numeric, calendar_month)
+#Calculate cumulative sum of new users by domain
+all_monthly <- all_monthly %>% group_by(domain_numeric) %>% 
+  mutate(max_users = cumsum(new_user))
+# Create variable for total users to date 
+all_monthly <- all_monthly %>% group_by(domain_numeric, calendar_month) %>% 
+  mutate(total_users_to_date = max(max_users))
+
+#d2: all users who submitted forms at least 4+ months ago, regardless of whether or not they 
+#are experienced as of the month in question (i.e., these users could theoretically be 
+#experienced by the month in question. For example, a user who submitted just one form 
+#6 months ago)
+#Calculate user_start_date
+all_monthly <- all_monthly %>% group_by(domain, user_pk) %>% 
+  mutate(user_start_month = min(calendar_month, na.rm=T))
+#Based on user_start_date for each user, we will count out three months
+#This is when the user will be theoretically experienced
+all_monthly$user_exp_month_theoretical <- all_monthly$user_start_month %m+% months(3)
+#Calculate the number of new theoretically experienced users per user_exp_month_theoretical
+all_monthly <- all_monthly %>% group_by(domain, user_exp_month_theoretical) %>% 
+  mutate(nusers_exp_month_theoretical = length(unique(user_pk)))
+#Keep only one row per domain, user_exp_month_theoretical combination. 
+d2_calc <- all_monthly[!duplicated(all_monthly[c("domain", "user_exp_month_theoretical")]),]
+d2_calc <- select(d2_calc, domain, user_exp_month_theoretical, nusers_exp_month_theoretical)
+d2_calc <- arrange(d2_calc, domain, user_exp_month_theoretical)
+#Calculate cumulative sum of theoretical experienced users by domain
+d2_calc <- d2_calc %>% group_by(domain) %>% 
+  mutate(total_exp_theoretical_users_to_date = cumsum(nusers_exp_month_theoretical), 
+         last_calc_month = max(user_exp_month_theoretical), 
+         max_total_exp = max(total_exp_theoretical_users_to_date))
+#Merge to all_monthly by domain, user_exp_month_theoretical
+all_monthly <- merge(all_monthly, d2_calc, by.x=c("domain","calendar_month"), 
+              by.y = c("domain", "user_exp_month_theoretical"), all.x=T)
+all_monthly <- all_monthly %>% group_by(domain) %>% 
+  mutate(last_calc_month2 = max(last_calc_month, na.rm=T), 
+         max_total_exp2 = max(max_total_exp, na.rm=T))
+all_monthly$last_calc_month2[is.na(all_monthly$last_calc_month2)] <- as.Date("1900-01-01")
+all_monthly$total_exp_theoretical_users_to_date[all_monthly$calendar_month > all_monthly$last_calc_month2] <- 
+  all_monthly$max_total_exp2[all_monthly$calendar_month > all_monthly$last_calc_month2]
+all_monthly$total_exp_theoretical_users_to_date[is.na(all_monthly$total_exp_theoretical_users_to_date)] <- 
+  0
+
+#d3: all experienced users (all users who are actually experienced by the time they reach 
+#the month in question, regardless of whether or not they are active during the month 
+#in question)
+#We are flagging the calendar month in which each user actually becomes experienced
+all_monthly$new_exp_user <- all_monthly$previous_active_months_rolling == 3
+#Sort by domain and calendar_month before calculating the cumulative sum 
+#of new users in the next step
+all_monthly <- ungroup(all_monthly)
+all_monthly <- arrange(all_monthly, domain_numeric, calendar_month)
+#Calculate cumulative sum of new experienced users by domain
+all_monthly <- all_monthly %>% group_by(domain_numeric) %>% 
+  mutate(max_exp_users = cumsum(new_exp_user))
+# Create row for total experienced users to date 
+all_monthly <- all_monthly %>% group_by(domain_numeric, calendar_month) %>% 
+  mutate(total_exp_users_to_date = max(max_exp_users))
+
+#Create all_monthly subset for time range parameters
+all_monthly_table2 <- filter(all_monthly, calendar_month >= prior_2_months, 
+                             calendar_month <= current_month) 
+
+#Create Table 2_1_1
+table_2_1_1 <- all_monthly_table2 %>% group_by(domain) %>% 
+  summarise(Country = unique(country_final),
+            Sector = unique(sector_final),
+            Subsector = unique(subsector_final),
+            business_unit = unique(new_business_unit), 
+            self_service = unique(self_start), 
+            test = unique(is_test), 
+            domain_start_date = unique(domain_start_date, na.rm=T), 
+            nusers = length(unique(user_pk[calendar_month == current_month])), 
+            domain_has_amplifies_workers = unique(domain_has_amplifies_workers),
+            domain_has_amplifies_project = unique(domain_has_amplifies_project))
+
+names(table_2_1_1)[names(table_2_1_1) == "domain"] = "Domain"
+names(table_2_1_1)[names(table_2_1_1) == "business_unit"] = "Business Unit"
+names(table_2_1_1)[names(table_2_1_1) == "self_service"] = "Self Service"
+names(table_2_1_1)[names(table_2_1_1) == "test"] = "Test Domain"
+names(table_2_1_1)[names(table_2_1_1) == "domain_start_date"] = "Domain Start Date"
+names(table_2_1_1)[names(table_2_1_1) == "nusers"] = "Active Users"
+names(table_2_1_1)[names(table_2_1_1) == "domain_has_amplifies_workers"] = "Eligible for WAMs"
+names(table_2_1_1)[names(table_2_1_1) == "domain_has_amplifies_project"] = "Eligible for PAMs"
+
+#write.csv(table_2_1_1, file = "table_2_1_1.csv", row.names = F)
+
+table_2_1_2 <- all_monthly_table2 %>% group_by(domain) %>% 
+  summarise(prior_2_months = unique(prior_2_months), 
+            prior_1_month = unique(prior_1_month),
+            current_month = unique(current_month), 
+            wams_2_mos_prior = sum(elig_exp_using[calendar_month == prior_2_months], na.rm=T), 
+            wams_1_mo_prior = sum(elig_exp_using[calendar_month == prior_1_month], na.rm=T), 
+            wams_current_mo = sum(elig_exp_using[calendar_month == current_month], na.rm=T))
+names(table_2_1_2)[names(table_2_1_2) == "domain"] = "Domain"
+names(table_2_1_2)[names(table_2_1_2) == "prior_2_months"] = "Prior 2 Calendar Month"
+names(table_2_1_2)[names(table_2_1_2) == "prior_1_month"] = "Prior 1 Calendar Month"
+names(table_2_1_2)[names(table_2_1_2) == "current_month"] = "Current Calendar Month"
+names(table_2_1_2)[names(table_2_1_2) == "wams_2_mos_prior"] = "WAMs 2 months prior"
+names(table_2_1_2)[names(table_2_1_2) == "wams_1_mo_prior"] = "WAMs 1 month prior"
+names(table_2_1_2)[names(table_2_1_2) == "wams_current_mo"] = "WAMs current month"
+
+#write.csv(table_2_1_2, file = "table_2_1_2.csv", row.names = F)
+
+table_2_1_3 <- all_monthly_table2 %>% group_by(domain) %>%
+  summarise(using_exp = sum(using_exp[calendar_month == current_month], na.rm=T),
+            inelig_exp_using = sum(notelig_exp_using[calendar_month == current_month] == T | 
+                                     na_exp_using[calendar_month == current_month] == T, na.rm = T),
+            notusing_exp = sum(notusing_exp[calendar_month == current_month], na.rm=T),
+            using_notexp = sum(using_notexp[calendar_month == current_month], na.rm=T), 
+            notusing_notexp = sum(notusing_notexp[calendar_month == current_month], na.rm=T))
+names(table_2_1_3)[names(table_2_1_3) == "domain"] = "Domain"
+names(table_2_1_3)[names(table_2_1_3) == "using_exp"] = "Sufficient Use and Experience"
+names(table_2_1_3)[names(table_2_1_3) == "inelig_exp_using"] = "Ineligible - Sufficient Use and Experience"
+names(table_2_1_3)[names(table_2_1_3) == "notusing_exp"] = "Low Use"
+names(table_2_1_3)[names(table_2_1_3) == "using_notexp"] = "Not Experienced"
+names(table_2_1_3)[names(table_2_1_3) == "notusing_notexp"] = "Low Use + Not Experienced"
+
+#write.csv(table_2_1_3, file = "table_2_1_3.csv", row.names = F)
             
-            notelig_using_exp_pam = sum(notelig_exp_using_pam, na.rm=T),
-            notelig_notusing_exp_pam = sum(notelig_exp_notusing_pam, na.rm=T),
-            notelig_using_notexp_pam = sum(notelig_notexp_using_pam, na.rm=T), 
-            notelig_notusing_notexp_pam = sum(notelig_notexp_notusing_pam, na.rm=T), 
-            
-            naelig_using_exp_pam = sum(na_exp_using_pam, na.rm=T),
-            naelig_notusing_exp_pam = sum(na_exp_notusing_pam, na.rm=T), 
-            naelig_using_notexp_pam = sum(na_notexp_using_pam, na.rm=T),
-            naelig_notusing_notexp_pam = sum(na_notexp_notusing_pam, na.rm=T))
+table_2_1_4 <- filter(all_monthly_table2, calendar_month == current_month) %>% 
+  group_by(domain) %>% 
+  summarise(d1_total_users_to_date = unique(total_users_to_date), 
+            #d2_exp_theory = unique(total_exp_theoretical_users_to_date), 
+            d3_exp_real = unique(total_exp_users_to_date), 
+            d4_exp_active_current = sum(wam_experienced, na.rm=T),
+            d5_active = length(unique(user_pk)), 
+            wams_current_mo = sum(elig_exp_using, na.rm=T))
+table_2_1_4$per_wams_current <- round((table_2_1_4$wams_current_mo/table_2_1_4$d4_exp_active_current)*100, digits = 1)
+table_2_1_4$per_wams_current[table_2_1_4$d4_exp_active_current == 0] <- 0
 
-#Filter table_4
-table_4_pam <- filter(table_4_pam, calendar_month >= "2013-01-01", calendar_month <= "2015-04-01")
-write.csv(table_4_pam, file = "table_4_pam.csv")
+names(table_2_1_4)[names(table_2_1_4) == "domain"] = "Domain"
+names(table_2_1_4)[names(table_2_1_4) == "d1_total_users_to_date"] = "D1 All Users Ever Active"
+#names(table_2_1_4)[names(table_2_1_4) == "d2_exp_theory"] = "D2 All Possibly Exp Users"
+names(table_2_1_4)[names(table_2_1_4) == "d3_exp_real"] = "D3 All Actually Exp Users"
+names(table_2_1_4)[names(table_2_1_4) == "d4_exp_active_current"] = "D4 All Experienced + Active Users"
+names(table_2_1_4)[names(table_2_1_4) == "d5_active"] = "D5 All Active Users"
+names(table_2_1_4)[names(table_2_1_4) == "wams_current_mo"] = "WAMs Current"
+names(table_2_1_4)[names(table_2_1_4) == "per_wams_current"] = "Per WAMs Current"
+
+#Here is the code if we want to add back in denomiantors from prior 1 month or
+#prior 2 months
+#dplyr code
+#exp_prior_2 = sum(wam_experienced[calendar_month == prior_2_months], na.rm=T), 
+#exp_prior_1 = sum(wam_experienced[calendar_month == prior_1_month], na.rm=T),
+#wams_2_mos_prior = sum(elig_exp_using[calendar_month == prior_2_months], na.rm=T), 
+#wams_1_mo_prior = sum(elig_exp_using[calendar_month == prior_1_month], na.rm=T),
+#regular code after table has been created through dplyr
+#table_2_1_4$per_wams_prior_2 <- round((table_2_1_4$wams_2_mos_prior/table_2_1_4$exp_prior_2)*100, digits = 1)
+#table_2_1_4$per_wams_prior_2[table_2_1_4$exp_prior_2 == 0] <- 0
+#table_2_1_4$per_wams_prior_1 <- round((table_2_1_4$wams_1_mo_prior/table_2_1_4$exp_prior_1)*100, digits = 1)
+#table_2_1_4$per_wams_prior_1[table_2_1_4$exp_prior_1 == 0] <- 0
+#table_2_1_4$slope_prior_2_to_current <- (table_2_1_4$per_wams_current - table_2_1_4$per_wams_prior_2) / 2
+#table_2_1_4$slope_prior_1_to_current <- (table_2_1_4$per_wams_current - table_2_1_4$per_wams_prior_1) / 1
+#names(table_2_1_4)[names(table_2_1_4) == "exp_prior_2"] = "Experienced + Active Users Prior 2"
+#names(table_2_1_4)[names(table_2_1_4) == "exp_prior_1"] = "Experienced + Active Users Prior 1"
+#names(table_2_1_4)[names(table_2_1_4) == "wams_2_mos_prior"] = "WAMs Prior 2"
+#names(table_2_1_4)[names(table_2_1_4) == "wams_1_mo_prior"] = "WAMs Prior 1"
+#names(table_2_1_4)[names(table_2_1_4) == "per_wams_prior_2"] = "Per WAMs Prior 2"
+#names(table_2_1_4)[names(table_2_1_4) == "per_wams_prior_1"] = "Per WAMs Prior 1"
+#names(table_2_1_4)[names(table_2_1_4) == "slope_prior_2_to_current"] = "Slope Prior 2 to Current"
+#names(table_2_1_4)[names(table_2_1_4) == "slope_prior_1_to_current"] = "Slope Prior 2 to Current"
+#write.csv(table_2_1_4, file = "table_2_1_4.csv", row.names = F)
+
+#Merge all sections to make overall table_2_1
+table_2_1 <- merge(table_2_1_1, table_2_1_2, by = "Domain", all = T)
+table_2_1 <- merge(table_2_1, table_2_1_3, by = "Domain", all = T)
+table_2_1 <- merge(table_2_1, table_2_1_4, by = "Domain", all = T)
+
+#IN THE FUTURE, NEED TO CONVERT ALL NAs IN DENOMINATOR COLUMNS TO 0
+
+write.csv(table_2_1, file = "table_2_1_update.csv", row.names = F)
 
 #------------------------------------------------------------------------#
-#Table 5: WAM Delta Table
+#Table 3: WAM Delta Table
 #------------------------------------------------------------------------#
 
-#Set table parameters for Month 1
-all_monthly$start_month <- as.Date("2015-02-01")
-all_monthly$end_month <- as.Date("2015-02-01") 
+#Table parameters already set for Table 2
+#Just use those tables
 
-all_monthly_table2 <- filter(all_monthly, calendar_month >= start_month, 
-                             calendar_month <= end_month)
-all_monthly_table2$unique_number <- 1:nrow(all_monthly_table2)
+table_3 <- all_monthly_table2 %>% group_by(domain) %>% 
+  summarise(Country = unique(country_final),
+            Sector = unique(sector_final),
+            Subsector = unique(subsector_final),
+            business_unit = unique(new_business_unit), 
+            self_service = unique(self_start), 
+            test = unique(is_test), 
+            domain_start_date = min(calendar_month, na.rm=T), 
+            nusers = length(unique(user_pk)), 
+            domain_has_amplifies_workers = unique(domain_has_amplifies_workers),
+            domain_has_amplifies_project = unique(domain_has_amplifies_project),
+            M1 = unique(current_month)
+            nusers)
+
+names(table_2_1_1)[names(table_2_1_1) == "domain"] = "Domain"
+names(table_2_1_1)[names(table_2_1_1) == "business_unit"] = "Business Unit"
+names(table_2_1_1)[names(table_2_1_1) == "self_service"] = "Self Service"
+names(table_2_1_1)[names(table_2_1_1) == "test"] = "Test Domain"
+names(table_2_1_1)[names(table_2_1_1) == "domain_start_date"] = "Domain Start Date"
+names(table_2_1_1)[names(table_2_1_1) == "nusers"] = "Active Users"
+names(table_2_1_1)[names(table_2_1_1) == "domain_has_amplifies_workers"] = "Eligible for WAMs"
+names(table_2_1_1)[names(table_2_1_1) == "domain_has_amplifies_project"] = "Eligible for PAMs"
 
 #Create Table 2 Month 1
 table_2_M1 <- all_monthly_table2 %>% group_by(domain) %>% 
@@ -728,8 +1080,47 @@ table_5_wam <- table_5_wam[c(1:10, 37, 11:12, 38, 13:14, 39, 15:16, 40, 17:18, 4
 write.csv(table_5_wam, file = "table_5_wam.csv")
 
 #------------------------------------------------------------------------#
+#Table 4: PAM OVERVIEW
+#------------------------------------------------------------------------#
+
+#Create Table 4
+table_4_pam <- all_monthly %>% group_by(calendar_month) %>% 
+  summarise(nusers = length(unique(user_pk)),
+            elig_using_exp_pam = sum(elig_exp_using_pam, na.rm=T),
+            elig_notusing_exp_pam = sum(elig_exp_notusing_pam, na.rm=T),
+            elig_using_notexp_pam = sum(elig_notexp_using_pam, na.rm=T), 
+            elig_notusing_notexp_pam = sum(elig_notexp_notusing_pam, na.rm=T),
+            
+            notelig_using_exp_pam = sum(notelig_exp_using_pam, na.rm=T),
+            notelig_notusing_exp_pam = sum(notelig_exp_notusing_pam, na.rm=T),
+            notelig_using_notexp_pam = sum(notelig_notexp_using_pam, na.rm=T), 
+            notelig_notusing_notexp_pam = sum(notelig_notexp_notusing_pam, na.rm=T), 
+            
+            naelig_using_exp_pam = sum(na_exp_using_pam, na.rm=T),
+            naelig_notusing_exp_pam = sum(na_exp_notusing_pam, na.rm=T), 
+            naelig_using_notexp_pam = sum(na_notexp_using_pam, na.rm=T),
+            naelig_notusing_notexp_pam = sum(na_notexp_notusing_pam, na.rm=T))
+
+#Filter table_4
+table_4_pam <- filter(table_4_pam, calendar_month >= "2013-01-01", calendar_month <= "2015-05-01")
+write.csv(table_4_pam, file = "table_4_pam.csv")
+
+
+#------------------------------------------------------------------------#
 #Table 6: User Exclusion Table
 #------------------------------------------------------------------------#
+
+#Already generated above
+
+#------------------------------------------------------------------------#
+#Table 7: ANNOTATION STATS
+#------------------------------------------------------------------------#
+
+#Create Table 3
+table_3_wam <- table(app_amplifies$amplifies_project, 
+                     app_amplifies$amplifies_workers, 
+                     dnn=c("amplifies_project","amplifies_workers"), useNA = "always")
+write.csv(table_3_wam, file = "table_3_wam.csv")
 
 #------------------------------------------------------------------------#
 #Old code

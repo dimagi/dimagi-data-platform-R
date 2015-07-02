@@ -10,6 +10,7 @@ blog <- blog %>% group_by(domain_numeric, user_pk) %>%
 
 #Sort by domain and calendar_month before calculating the cumulative sum 
 #of new users in the next step
+blog <- ungroup(blog)
 blog <- arrange(blog, domain_numeric, calendar_month)
 
 #Calculate cumulative sum of new users by domain
