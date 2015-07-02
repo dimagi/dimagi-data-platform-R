@@ -11,7 +11,7 @@ library("dplyr")
 # PARAMS 
 # config_path : path to config file config_run.json
 get_run_config <- function (path_to_run_config) {
-  conf<-fromJSON(path_to_run_config)$data_platform
+  conf<-jsonlite::fromJSON(path_to_run_config)$data_platform
   return(conf)
 }
 
@@ -22,7 +22,7 @@ get_run_config <- function (path_to_run_config) {
 # PARAMS 
 # config_path : path to config file config_run.json
 get_system_config <- function (path_to_system_config) {
-  conf<-fromJSON(path_to_system_config)$data_platform
+  conf<-jsonlite::fromJSON(path_to_system_config)$data_platform
   return(conf)
 }
 
