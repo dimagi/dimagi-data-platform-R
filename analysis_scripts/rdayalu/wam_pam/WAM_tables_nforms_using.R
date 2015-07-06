@@ -468,15 +468,16 @@ all_monthly$wam_experienced <- all_monthly$previous_active_months_rolling >= 3
 all_monthly$pam_experienced <- all_monthly$previous_active_months_rolling >= 3
 
 #------------------------------------------------------------------------#
-#wam_using, pam_using
+#wam_using, pam_using - nforms instead of active_days
 #------------------------------------------------------------------------#
 
 #wam_using == T or pam_using == T
 #if the user met our criteria this month for sufficient usage of the app. 
-#Specifically, they submitted forms on at least 4 different days. That is, they have at
-#least for active days in the month in question.
-all_monthly$wam_using <- all_monthly$active_days >= 4
-all_monthly$pam_using <- all_monthly$active_days >= 4
+#Specifically, they submitted >= 15 forms in a given month. This is a universal
+#threshold that we are using right now, but this will probably be customized for
+#some specific domains in the future
+all_monthly$wam_using <- all_monthly$nforms >= 15
+all_monthly$pam_using <- all_monthly$nforms >= 15
 
 #------------------------------------------------------------------------#
 #WAM categories for output tables

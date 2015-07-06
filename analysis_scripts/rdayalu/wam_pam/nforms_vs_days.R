@@ -42,20 +42,20 @@ all_monthly$false_positive <- all_monthly$nforms_ge_15 == T & all_monthly$wam_us
 all_monthly$true_negative <- all_monthly$nforms_ge_15 == F & all_monthly$wam_using == F
 all_monthly$false_negative <- all_monthly$nforms_ge_15 == F & all_monthly$wam_using == T
 
-all_monthly$true_positive <- all_monthly$nforms_ge_20 == T & all_monthly$wam_using == T
-all_monthly$false_positive <- all_monthly$nforms_ge_20 == T & all_monthly$wam_using == F
-all_monthly$true_negative <- all_monthly$nforms_ge_20 == F & all_monthly$wam_using == F
-all_monthly$false_negative <- all_monthly$nforms_ge_20 == F & all_monthly$wam_using == T
+all_monthly$true_positive <- all_monthly$nforms_ge_10 == T & all_monthly$wam_using == T
+all_monthly$false_positive <- all_monthly$nforms_ge_10 == T & all_monthly$wam_using == F
+all_monthly$true_negative <- all_monthly$nforms_ge_10 == F & all_monthly$wam_using == F
+all_monthly$false_negative <- all_monthly$nforms_ge_10 == F & all_monthly$wam_using == T
 
 #all_monthly$unique_int <- 1:nrow(all_monthly)
 check_nforms <- all_monthly %>% group_by(domain) %>% 
   summarise(nuser_months = length(unique(unique_int)), 
-            nforms_20_equal_using = sum(nforms_ge_20_and_using, na.rm=T), 
+            nforms_10_equal_using = sum(nforms_ge_10_and_using, na.rm=T), 
             true_positive = sum(true_positive), 
             false_positive = sum(false_positive), 
             true_negative = sum(true_negative), 
             false_negative = sum(false_negative))
-check_nforms$per_equal_20 <- (check_nforms$nforms_20_equal_using/check_nforms$nuser_months)*100
+check_nforms$per_equal_10 <- (check_nforms$nforms_10_equal_using/check_nforms$nuser_months)*100
 check_nforms$per_true_pos <- (check_nforms$true_positive/check_nforms$nuser_months)*100
 check_nforms$per_false_pos <- (check_nforms$false_positive/check_nforms$nuser_months)*100
 check_nforms$per_true_neg <- (check_nforms$true_negative/check_nforms$nuser_months)*100
@@ -63,8 +63,8 @@ check_nforms$per_false_neg <- (check_nforms$false_negative/check_nforms$nuser_mo
 
 #Merge to check_nforms
 check_nforms <- merge(check_nforms, domain, by.x = "domain", by.y = "name", all.x = T)
-check_nforms <- arrange(check_nforms, per_equal_20)
-write.csv(check_nforms, file = "nforms_T_20.csv", row.names=F)
+check_nforms <- arrange(check_nforms, desc(nuser_months))
+write.csv(check_nforms, file = "nforms_T_10.csv", row.names=F)
 
 
 #test_15 <- filter(check_nforms, domain_has_amplifies_workers == T)
