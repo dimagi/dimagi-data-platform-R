@@ -656,6 +656,8 @@ all_monthly$new_business_unit[all_monthly$country_final == "{PK}"] <- "DSI"
 all_monthly$new_business_unit[all_monthly$country_final == "{ML}"] <- "DWA"
 all_monthly$new_business_unit[all_monthly$country_final == "{SY,TR}"] <- "Inc"
 all_monthly$new_business_unit[all_monthly$country_final == "{TD}"] <- "DWA"
+all_monthly$new_business_unit[all_monthly$country_final == "{MG}"] <- "DSA"
+all_monthly$new_business_unit[all_monthly$country_final == "{PH,TH}"] <- "DSI"
 
 business_unit <- unique(all_monthly$new_business_unit)
 for (i in business_unit) {

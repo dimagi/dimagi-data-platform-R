@@ -1,11 +1,12 @@
-domain$domain_id[domain$name == "ssqh-cs"]
+domain$domain_id[domain$name == "jhccpmz"]
 
-test <- filter(form_table, domain_id == 146)
+test <- filter(form_table, domain_id == 72)
 test$received_date <- as.Date(substr(test$received_on, 1, 10))
 test$received_month <- floor_date(test$received_date, "month")
 test$start_date <- as.Date(substr(test$time_start, 1, 10))
 test$start_month <- floor_date(test$start_date, "month")
 test2 <- filter(test, received_month == "2015-05-01")
+test2 <- filter(test, start_month == "2015-05-01")
 length(unique(test2$user_pk[test2$start_month == "2015-04-01"]))
 
 test2 <- filter(test, start_month == "2015-04-01")
