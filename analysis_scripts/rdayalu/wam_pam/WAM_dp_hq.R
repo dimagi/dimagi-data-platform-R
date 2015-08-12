@@ -1,7 +1,8 @@
-#This code is to create the WAM table based on the DP MALT and HQ MALT that live in the 
-#dropbox folder here: Dropbox (Dimagi)\Dimagi\CommCare\Data Platform\WAM-PAM tables\Working Files\Ingredients for July WAM
+#This code is to create the WAM table based on the DP MALT, HQ MALT, project space lists, etc. that live in the 
+#dropbox folder here: Dropbox (Dimagi)\Dimagi\CommCare\Data Platform\WAM-PAM tables\Working Files\wam_ingredients
 #We are only using the files in this folder - they are kept up to date by files downloaded from HQ
 #so we are not dependent on the DP.
+#We currently have data from the main server and the India server.
 
 library(dplyr)
 library(lubridate)
