@@ -7,11 +7,28 @@ library(dplyr)
 library(lubridate)
 
 #------------------------------------------------------------------------#
-#User configurable settings
-#Import files from dropbox
+#User configurable settings:
+#Set read/output directories
+#Set report time range
 #------------------------------------------------------------------------#
 
-setwd("/Users/rdayalu/dimagi-data-platform-R")
+#Set read_directory and output_directory for your Windows or Mac machine
+#There is a way to write this code independent of the operating system, but I am not sure how
+#Will figure this out later
+
+#Windows
+#Where the WAM ingredients are stored
+read_directory = "C:/Users/Rashmi/Dropbox (Dimagi)/Dimagi/CommCare/Data Platform/WAM-PAM tables/Working Files/wam_ingredients/"
+#Where WAM tables are to be written
+#I have been running into admin privilege errors if I set my ouput_directory as a DB folder,
+#so I am setting it as my desktop
+output_directory = "C:/Users/Rashmi/Desktop/"
+
+#MAC OSX
+#Where the WAM ingredients are stored
+read_directory = "/Users/rdayalu/Dropbox (Dimagi)/Dimagi/CommCare/Data Platform/WAM-PAM tables/Working Files/wam_ingredients/"
+#Where WAM tables are to be written
+output_directory = "/Users/rdayalu/Dropbox (Dimagi)/Dimagi/CommCare/Data Platform/WAM-PAM tables/Working Files/outputs/Rashmi/"
 
 #Define start_month for WAM tables
 #WAM table 1 will start at this month
@@ -19,23 +36,34 @@ start_month <- as.Date("2013-01-01")
 
 #Define current_month for WAM tables
 #WAM table 2 will be generated for this month
-current_month <- as.Date("2015-06-01")
-
-#Import HQ malt files by name
-#I need to come up with a way to import multiple HQ MALTs by name
-#without listing them all here, but this will work for now.
-hq_malt <- read.csv(file = "malt_hq_main_jun_2015.csv")
-india_malt <- read.csv(file = "malt_hq_india_jan_jun_2015.csv")
+current_month <- as.Date("2015-07-01")
 
 #------------------------------------------------------------------------#
-#Import static files from dropbox
+#The rest of this code should run end to end without any extra user input
 #------------------------------------------------------------------------#
 
-#These file names shouldn't change
-domain <- read.csv(file = "project_spaces_hq.csv")
-domain_india <- read.csv(file = "project_spaces_india.csv")
-dp_malt <- read.csv(file = "malt_dp.csv")
-country_bu_mapping <- read.csv(file = "country_bu_mapping.csv")
+#Import files from dropbox
+#Vectors of HQ MALT filenames to import - we need one vector per server
+files_hq_main <- list.files(path=read_directory, pattern="malt_hq_main*")
+files_hq_india <- list.files(path=read_directory, pattern="malt_hq_india*")
+
+#Define function to rbind multiple csv files (HQ MALTs)
+multmerge <- function(filenames){
+  datalist <- lapply(filenames, function(x){read.csv(file=paste0(read_directory, x), header=T)})
+  Reduce(function(x,y) {rbind(x,y)}, datalist)
+}
+
+#Import and rbind multiple files for hq_malt
+hq_malt <- multmerge(files_hq_main)
+
+#Import and rbind multiple files for india_malt
+india_malt <- multmerge(files_hq_india)
+
+#Import single files
+domain <- read.csv(file = paste0(read_directory, "project_spaces_hq.csv"))
+domain_india <- read.csv(file = paste0(read_directory, "project_spaces_india.csv"))
+dp_malt <- read.csv(file = paste0(read_directory, "malt_dp.csv"))
+country_bu_mapping <- read.csv(file = paste0(read_directory, "country_bu_mapping.csv"))
 
 #Delete is_app_deleted, id row
 #This was added to the HQ MALT and represents apps that were deleted 
@@ -198,8 +226,8 @@ dp_malt <- select(dp_malt, -amplifies_workers)
 names(dp_malt)[names(dp_malt) == "amplifies_workers2"] = "amplifies_workers"
 
 hq_malt$amplifies_workers2 <- NA
-hq_malt$amplifies_workers2[hq_malt$amplifies_workers == "no"] <- F
-hq_malt$amplifies_workers2[hq_malt$amplifies_workers == "yes"] <- T
+hq_malt$amplifies_workers2[hq_malt$amplifies_workers == "f"] <- F
+hq_malt$amplifies_workers2[hq_malt$amplifies_workers == "t"] <- T
 hq_malt <- select(hq_malt, -amplifies_workers)
 names(hq_malt)[names(hq_malt) == "amplifies_workers2"] = "amplifies_workers"
 
@@ -217,8 +245,8 @@ dp_malt <- select(dp_malt, -amplifies_project)
 names(dp_malt)[names(dp_malt) == "amplifies_project2"] = "amplifies_project"
 
 hq_malt$amplifies_project2 <- NA
-hq_malt$amplifies_project2[hq_malt$amplifies_project == "no"] <- F
-hq_malt$amplifies_project2[hq_malt$amplifies_project == "yes"] <- T
+hq_malt$amplifies_project2[hq_malt$amplifies_project == "f"] <- F
+hq_malt$amplifies_project2[hq_malt$amplifies_project == "t"] <- T
 hq_malt <- select(hq_malt, -amplifies_project)
 names(hq_malt)[names(hq_malt) == "amplifies_project2"] = "amplifies_project"
 
@@ -307,7 +335,7 @@ names(user_exclusion)[names(user_exclusion) == "check2"] = "users_final"
 #Convert all NA values to 0
 user_exclusion[is.na(user_exclusion)] <- 0
 
-write.csv(user_exclusion, file = "user_exclusions.csv", row.names = F)
+write.csv(user_exclusion, file = paste0(output_directory, "user_exclusions.csv"), row.names = F)
 
 #------------------------------------------------------------------------#
 #Consolidate WAM categories for output tables so that each user has only
@@ -541,7 +569,7 @@ names(table_1_wam)[names(table_1_wam) == "using"] = "Sufficient Users"
 names(table_1_wam)[names(table_1_wam) == "experienced"] = "Experienced Users"
 names(table_1_wam)[names(table_1_wam) == "d2_exp_theory"] = "D2 All Possibly Exp Users"
 names(table_1_wam)[names(table_1_wam) == "d3_exp_real"] = "D3 All Ever Exp Users"
-write.csv(table_1_wam, file = "table_1_wam.csv", row.names=F)
+write.csv(table_1_wam, file = paste0(output_directory, "table_1_wam.csv"), row.names=F)
 
 #Create table 1 for each business unit
 business_unit <- unique(all_malt_user_month$new_business_unit)
@@ -616,13 +644,13 @@ for (j in business_unit) {
     assign(paste("table_1_wam", j, sep="_"), table_1_wam_bu)
 }
 
-write.csv(table_1_wam_None, file = "table_1_wam_None.csv", row.names=F)
-write.csv(table_1_wam_INC, file = "table_1_wam_INC.csv", row.names=F)
-write.csv(table_1_wam_DSI, file = "table_1_wam_DSI.csv", row.names=F)
-write.csv(table_1_wam_DWA, file = "table_1_wam_DWA.csv", row.names=F)
-write.csv(table_1_wam_DSA, file = "table_1_wam_DSA.csv", row.names=F)
-write.csv(table_1_wam_DLAC, file = "table_1_wam_DLAC.csv", row.names=F)
-write.csv(table_1_wam_DMOZ, file = "table_1_wam_DMOZ.csv", row.names=F)
+write.csv(table_1_wam_None, file = paste0(output_directory, "table_1_wam_None.csv"), row.names=F)
+write.csv(table_1_wam_INC, file = paste0(output_directory, "table_1_wam_INC.csv"), row.names=F)
+write.csv(table_1_wam_DSI, file = paste0(output_directory, "table_1_wam_DSI.csv"), row.names=F)
+write.csv(table_1_wam_DWA, file = paste0(output_directory, "table_1_wam_DWA.csv"), row.names=F)
+write.csv(table_1_wam_DSA, file = paste0(output_directory, "table_1_wam_DSA.csv"), row.names=F)
+write.csv(table_1_wam_DLAC, file = paste0(output_directory, "table_1_wam_DLAC.csv"), row.names=F)
+write.csv(table_1_wam_DMOZ, file = paste0(output_directory, "table_1_wam_DMOZ.csv"), row.names=F)
 
 #------------------------------------------------------------------------#
 #Table 2: WAM DATA (complete)
@@ -653,7 +681,7 @@ table_2_wam <- all_malt_table2 %>% group_by(domain) %>%
               naelig_using_notexp = sum(na_notexp_using, na.rm=T),
               naelig_notusing_notexp = sum(na_notexp_notusing, na.rm=T))
 
-write.csv(table_2_wam, file = "table_2_wam.csv", row.names=F)
+write.csv(table_2_wam, file = paste0(output_directory, "table_2_wam.csv"), row.names=F)
 
 #------------------------------------------------------------------------#
 #Table 2_1: WAM DATA (modified from Table 2)
@@ -739,8 +767,6 @@ names(table_2_1_1)[names(table_2_1_1) == "nusers"] = "Active Users"
 names(table_2_1_1)[names(table_2_1_1) == "domain_has_amplifies_workers"] = "Eligible for WAMs"
 names(table_2_1_1)[names(table_2_1_1) == "domain_has_amplifies_project"] = "Eligible for PAMs"
 
-#write.csv(table_2_1_1, file = "table_2_1_1.csv", row.names = F)
-
 table_2_1_2 <- all_monthly_table2 %>% group_by(domain) %>% 
     summarise(prior_2_months = unique(prior_2_months), 
               prior_1_month = unique(prior_1_month),
@@ -756,8 +782,6 @@ names(table_2_1_2)[names(table_2_1_2) == "wams_2_mos_prior"] = "WAMs 2 months pr
 names(table_2_1_2)[names(table_2_1_2) == "wams_1_mo_prior"] = "WAMs 1 month prior"
 names(table_2_1_2)[names(table_2_1_2) == "wams_current_mo"] = "WAMs current month"
 
-#write.csv(table_2_1_2, file = "table_2_1_2.csv", row.names = F)
-
 table_2_1_3 <- all_monthly_table2 %>% group_by(domain) %>%
     summarise(using_exp = sum(using_exp[form_month == current_month], na.rm=T),
               inelig_exp_using = sum(notelig_exp_using[form_month == current_month] == T | 
@@ -771,8 +795,6 @@ names(table_2_1_3)[names(table_2_1_3) == "inelig_exp_using"] = "Ineligible - Suf
 names(table_2_1_3)[names(table_2_1_3) == "notusing_exp"] = "Low Use"
 names(table_2_1_3)[names(table_2_1_3) == "using_notexp"] = "Not Experienced"
 names(table_2_1_3)[names(table_2_1_3) == "notusing_notexp"] = "Low Use + Not Experienced"
-
-#write.csv(table_2_1_3, file = "table_2_1_3.csv", row.names = F)
 
 table_2_1_4 <- filter(all_monthly_table2, form_month == current_month) %>% 
     group_by(domain) %>% 
@@ -818,12 +840,11 @@ names(table_2_1_4)[names(table_2_1_4) == "per_wams_current"] = "Per WAMs Current
 #names(table_2_1_4)[names(table_2_1_4) == "per_wams_prior_1"] = "Per WAMs Prior 1"
 #names(table_2_1_4)[names(table_2_1_4) == "slope_prior_2_to_current"] = "Slope Prior 2 to Current"
 #names(table_2_1_4)[names(table_2_1_4) == "slope_prior_1_to_current"] = "Slope Prior 2 to Current"
-#write.csv(table_2_1_4, file = "table_2_1_4.csv", row.names = F)
 
 #Merge all sections to make overall table_2_1
 table_2_1 <- merge(table_2_1_1, table_2_1_2, by = "Domain", all = T)
 table_2_1 <- merge(table_2_1, table_2_1_3, by = "Domain", all = T)
 table_2_1 <- merge(table_2_1, table_2_1_4, by = "Domain", all = T)
 
-write.csv(table_2_1, file = "table_2_1_update.csv", row.names = F)
+write.csv(table_2_1, file = paste0(output_directory, "table_2_1_update.csv"), row.names = F)
 
