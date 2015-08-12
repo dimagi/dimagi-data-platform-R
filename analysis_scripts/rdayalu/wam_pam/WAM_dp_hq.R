@@ -69,7 +69,7 @@ country_bu_mapping <- read.csv(file = paste0(read_directory, "country_bu_mapping
 #Delete is_app_deleted, id row
 #This was added to the HQ MALT and represents apps that were deleted 
 #some time after forms were submitted using the app. We don't treat these rows differently
-#while calculating WAMs. Per Neal, we don't need to worry about this right now.
+#while calculating WAMs. Per Neal, we don't need to worry about this column right now.
 hq_malt <- select(hq_malt, -c(id, is_app_deleted))
 india_malt <- select(india_malt, -c(id, is_app_deleted))
 
@@ -278,21 +278,27 @@ all_malt$unique_int <- 1:nrow(all_malt)
 #User exclusions
 #------------------------------------------------------------------------#
 
-#Exclude demo users and NA/NONE users
+#Exclude demo, admin, unknown, NA/NONE users
 #First count these users per domain per month
 user_exclusion <- all_malt %>% group_by(domain) %>% 
     summarise(users_initial = length(unique(user_id)),
               user_app_months_initial = length(unique(unique_int)),
-              user_app_months_user_id_demo_na = length(unique(unique_int[user_id =="demo_user" | 
+              user_app_months_user_demo_admin_na = length(unique(unique_int[user_id =="demo_user" | 
                                                                              user_id =="NONE" | 
                                                                              user_id == "none" | 
-                                                                             is.na(user_id)])))
+                                                                             is.na(user_id) | 
+                                                                              user_type == "AdminUser" | 
+                                                                              user_type == "DemoUser" | 
+                                                                              user_type == "UnknownUser"])))
 
 
 all_malt = all_malt[!(all_malt$user_id =="demo_user"),]
 all_malt = all_malt[!(all_malt$user_id =="NONE"),]
 all_malt = all_malt[!(all_malt$user_id =="none"),]
 all_malt = all_malt[!is.na(all_malt$user_id),]
+all_malt = all_malt[!(all_malt$user_type =="AdminUser"),]
+all_malt = all_malt[!(all_malt$user_type =="DemoUser"),]
+all_malt = all_malt[!(all_malt$user_type =="UnknownUser"),]
 
 #Keep only users with user_type = CommCareUser
 #First count these users per domain per month
