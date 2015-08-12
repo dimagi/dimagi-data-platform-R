@@ -193,6 +193,10 @@ hq_malt$app_id <- as.character(hq_malt$app_id)
 hq_malt$amplifies_workers <- as.character(hq_malt$amplifies_workers)
 hq_malt$amplifies_project <- as.character(hq_malt$amplifies_project)
 hq_malt$user_type <- as.character(hq_malt$user_type)
+#Exclude rows with missing app_id
+#We already excluded forms with missing app_id before we generated DP MALT,
+#so we don't want to keep those rows in the HQ MALT either.
+hq_malt <- filter(hq_malt, app_id != "_MISSING_APP_ID")
 
 #Format india_malt as needed
 india_malt$form_month <- as.character(india_malt$form_month)
@@ -205,6 +209,10 @@ india_malt$app_id <- as.character(india_malt$app_id)
 india_malt$amplifies_workers <- as.character(india_malt$amplifies_workers)
 india_malt$amplifies_project <- as.character(india_malt$amplifies_project)
 india_malt$user_type <- as.character(india_malt$user_type)
+#Exclude rows with missing app_id
+#We already excluded forms with missing app_id before we generated DP MALT,
+#so we don't want to keep those rows in the HQ MALT either.
+india_malt <- filter(india_malt, app_id != "_MISSING_APP_ID")
 #A few India MALT domains have identical names as the main MALT domains
 #This will cause a problem in the WAM table 2 creation, so we will append those
 #duplicate India server domains with "india_server" for now
