@@ -296,19 +296,18 @@ all_malt = all_malt[!(all_malt$user_id =="demo_user"),]
 all_malt = all_malt[!(all_malt$user_id =="NONE"),]
 all_malt = all_malt[!(all_malt$user_id =="none"),]
 all_malt = all_malt[!is.na(all_malt$user_id),]
-all_malt = all_malt[!(all_malt$user_type =="AdminUser"),]
-all_malt = all_malt[!(all_malt$user_type =="DemoUser"),]
-all_malt = all_malt[!(all_malt$user_type =="UnknownUser"),]
+all_malt$keep_user <- all_malt$user_type == "CommCareUser" | all_malt$user_type == "WebUser" | 
+  is.na(all_malt$user_type)
+all_malt <- filter(all_malt, keep_user == T)
 
 #Keep only users with user_type = CommCareUser
 #First count these users per domain per month
-all_malt$user_type_web <- all_malt$user_type == "WebUser"
 all_malt <- all_malt %>% group_by(domain) %>% 
-    mutate(user_app_months_web = sum(user_type_web, na.rm=T))
+    mutate(user_app_months_web = sum(user_type == "WebUser", na.rm=T))
 test <- all_malt %>% group_by(domain) %>% summarise(check=unique(user_app_months_web))
 user_exclusion <- merge(user_exclusion, test, by = "domain", all.x = T)
 names(user_exclusion)[names(user_exclusion) == "check"] = "user_app_months_type_web"
-all_malt$keep_user <- all_malt$user_type_web == F | is.na(all_malt$user_type_web)
+all_malt$keep_user <- all_malt$user_type == "CommCareUser" | is.na(all_malt$user_type)
 all_malt <- filter(all_malt, keep_user == T)
 
 #Exclude users who submit to multiple domains
