@@ -220,8 +220,10 @@ nusers <- arrange(nusers, desc(nusers))
 nusers$total_users <- sum(nusers$nusers)
 nusers$per_users <- (nusers$nusers/nusers$total_users)*100
 #NEED TO MANUALLLY CHECK ABOVE FOR EACH BLOG DATASET TO CHECK DOMAIN WEIGHTAGE
-exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pradan-mis-dev"]), 299)
-all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude_users_pathfinder),]
+
+#Sample users as needed
+#exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pradan-mis-dev"]), 299)
+#all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude_users_pathfinder),]
 
 #Was the user ever active again after an attrition event (defined as next_month_active == F)?
 all_monthly$attrition_event <- !(all_monthly$next_month_active == T | is.na(all_monthly$next_month_active))
@@ -250,7 +252,7 @@ blog <- merge(all_monthly, domains, by.x = "domain_numeric", by.y = "domain_id",
 blog$typical_flw <- blog$name %in% typical_flw_domains
 blog <- select(blog, -c(name, domain_user))
 
-write.csv(blog, file = "blog_data_6_11_15.csv")
+write.csv(blog, file = "blog_data_8_21_15.csv")
 
 #----------------------------------------------------------------------#
 #Older code - not used to create future blog datasets
