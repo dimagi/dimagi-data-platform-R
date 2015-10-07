@@ -4,12 +4,62 @@
 # Outline of analysis here:
 # https://docs.google.com/document/d/1udyW-YO5d2sdVDAKC-pE2b44tORsDjfLZShJJwlF9MI/edit
 
+library(dplyr)
+library(lubridate)
 library(ggplot2)
 library(scales)
+
+# Get db connection
+source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+source(file.path("data_sources.R"))
+system_conf <- get_system_config(file.path("config_system.json"))
+db <- get_db_connection(system_conf)
 
 # Import visit table
 visit <- tbl(db, "visit")
 visit <- collect(visit)
+
+# Format visit table
+names(visit)[names(visit) == "id"] <- "visit_id"
+names(visit)[names(visit) == "user_id"] <- "user_pk"
+names(visit)[names(visit) == "domain_id"] <- "domain_pk"
+
+#Merge in domain table
+domain <- get_domain_table(db)
+names(domain)[names(domain) == "id"] = "domain_pk"
+names(domain)[names(domain) == "name"] = "domain"
+domain$subsector <- lapply(domain$subsector, as.character)
+domains_mch_subsector <- seq_along(domain$subsector)[sapply(domain$subsector, FUN=function(X) "Maternal, Newborn, & Child Health" %in% X)]
+domain$mch_subsector <- F
+domain$mch_subsector[domains_mch_subsector] <- T
+visit <- merge(visit, select(domain, domain_pk, domain, is_test, subsector), by = "domain_pk", all.x = T)
+
+#Import user table and user_type table
+#We are going to keep only mobile users
+users <- tbl(db, "users") 
+users <- collect(users)
+names(users)[names(users) == "id"] = "user_pk"
+users <- select(users, user_pk, user_id, username, email)
+
+user_type <- get_user_type_table(db)
+user_type <- collect(user_type)
+user_type <- select(user_type, user_pk, user_type)
+
+users <- merge(users, user_type, by = "user_pk", all.x = T)
+visit <- merge(visit, users, by = "user_pk", all.x = T)
+
+#Import form annotations and formdef table
+form_annotations <- read.csv(file = "form_annotations.csv", stringsAsFactors = F)
+formdef <- tbl(db, "formdef")
+formdef <- collect(formdef)
+
+#Import form table
+form_table <- tbl(db, "form")
+form_table <- collect(form_table)
+
+#------------------------------------------------------------------------#
+# Create variables for real-time analysis
+#------------------------------------------------------------------------#
 
 # Extract and format time/date variables
 visit$visit_date <- as.Date(substr(visit$time_start, 1, 10))
@@ -37,51 +87,135 @@ visit$nighttime <- visit$visit_time_start >= hms("18:00:00") | visit$visit_time_
 # doesn't like class = Period
 visit <- select(visit, -c(visit_time_start, visit_time_end))
 # Sort by user, date and time 
-visit <- arrange(visit, user_id, visit_date_time_start)
+visit <- arrange(visit, user_pk, visit_date_time_start)
+users <- unique(visit$user_pk)
 
-# Divide into 5 groups of 1.5 million rows (5K users) each (we have 25161 users total)
-users <- unique(visit$user_id)
-visit1 <- filter(visit, user_id <= 5000)
-visit2 <- filter(visit, user_id > 5000 & user_id <= 5750)
-visit3 <- filter(visit, user_id > 5750 & user_id <= 10000)
-visit4 <- filter(visit, user_id > 10000 & user_id <= 17500)
-visit5 <- filter(visit, user_id > 17500)
-
-# Add previous visit times to each row by user_id and date
-visit1 <- visit1 %>% group_by(user_id, visit_date) %>% 
-  mutate(previous_visit_end_time = lag(visit_date_time_end))
-visit2 <- visit2 %>% group_by(user_id, visit_date) %>% 
-  mutate(previous_visit_end_time = lag(visit_date_time_end))
-visit3 <- visit3 %>% group_by(user_id, visit_date) %>% 
-  mutate(previous_visit_end_time = lag(visit_date_time_end))
-visit4 <- visit4 %>% group_by(user_id, visit_date) %>% 
-  mutate(previous_visit_end_time = lag(visit_date_time_end))
-visit5 <- visit5 %>% group_by(user_id, visit_date) %>% 
+# Add previous visit times to each row by user_pk
+visit <- visit %>% group_by(user_pk) %>% 
   mutate(previous_visit_end_time = lag(visit_date_time_end))
 
-# Add next visit times to each row by user_id and date
-visit1 <- visit1 %>% group_by(user_id, visit_date) %>% 
+# Add next visit times to each row by user_pk
+visit <- visit %>% group_by(user_pk) %>% 
   mutate(next_visit_start_time = lead(visit_date_time_start))
-visit2 <- visit2 %>% group_by(user_id, visit_date) %>% 
-  mutate(next_visit_start_time = lead(visit_date_time_start))
-visit3 <- visit3 %>% group_by(user_id, visit_date) %>% 
-  mutate(next_visit_start_time = lead(visit_date_time_start))
-visit4 <- visit4 %>% group_by(user_id, visit_date) %>% 
-  mutate(next_visit_start_time = lead(visit_date_time_start))
-visit5 <- visit5 %>% group_by(user_id, visit_date) %>% 
-  mutate(next_visit_start_time = lead(visit_date_time_start))
-
-#Append all tables together
-summary(names(visit1) == names(visit2))
-visit <- rbind(visit1, visit2, visit3, visit4, visit5)
-remove(visit1)
 
 #Calculate time to next visit and time from previous visit
-visit$time_to_next_visit <- as.numeric((visit$next_visit_start_time - visit$visit_date_time_end)/60)
-visit$time_from_prev_visit <- as.numeric((visit$visit_date_time_start - visit$previous_visit_end_time)/60)
+visit$time_to_next_visit <- round(as.numeric((visit$next_visit_start_time - visit$visit_date_time_end)/60), digits = 1)
+visit$time_from_prev_visit <- round(as.numeric((visit$visit_date_time_start - visit$previous_visit_end_time)/60), digits = 1)
 
 #Flag batch visits
 visit$batch_visit <- visit$time_to_next_visit < 10 | visit$time_from_prev_visit < 10
+#Recode batch_visit = NA as batch_visit = F. They only show up as NA because the time_to_next and/or time_from_prev
+#are NA. If one of these times is <10, the visit will be flagged as batch even if the other is NA, so there's nothing to worry about here.
+visit$batch_visit[is.na(visit$batch_visit)] <- F
+
+#Note that 4.7% of visits are nested for some reason: they have time_to_next_visit < 0
+#In other words, they have end times after the next visit start time. Should probably chuck out these visits because phone time is off. 
+#Visit duration and time between visits for these nested visits is unreliable.
+#But which one to throw out? The previous visit that ended after the next visit started or the next visit that started before the 
+#previous visit ended? Maybe both.
+#Let's flag both nested visits. Note that nested_visit = NA means that it is not a nested visit. We can keep these visits 
+#They only show up as NA because the time_to_next and/or time_from_prev
+#are NA. If one of these times is negative, the visit will be flagged as nested even if the other is NA, so there's nothing to worry about here.
+#This gives us a total of 6.0% nested visits in either direction
+
+visit$nested_visit <- visit$time_to_next_visit < 0 | visit$time_from_prev_visit < 0
+
+#Some domains/users have more nested visits than others. Spoke with Amelia and confirmed that this is not necessarily a phone time problem.
+#It can also be because the user can start a form, interrupt it and then start another form. 
+domain_nested <- visit %>% group_by(domain) %>% 
+  summarise(nvisits = length(unique(visit_id)), 
+            nvisits_nested = sum(nested_visit, na.rm = T), 
+            is_test = unique(is_test))
+domain_nested$nested_per_domain <- round((domain_nested$nvisits_nested/domain_nested$nvisits)*100, digits = 1)
+domain_nested$nested_per_overall <- round((domain_nested$nvisits_nested/nrow(filter(visit, nested_visit == T)))*100, digits = 1)
+domain_nested <- arrange(domain_nested, desc(nested_per_overall))
+write.csv(domain_nested, file = "domains_nested.csv", row.names = F)
+
+#Exclude visits with duration < 0 mins or duration > 30 mins
+visit_working <- filter(visit, visit_duration <= 30)
+visit_working <- filter(visit_working, visit_duration >= 0)
+
+#Exclude nested visits
+visit_working <- filter(visit_working, nested_visit == F | is.na(nested_visit))
+
+#Only keep test = F domains
+visit_working <- filter(visit_working, is_test == "false")
+
+#Only keep travel domain visits and forms
+test <- filter(form_annotations, Travel.visit == "Yes")
+travel_visits <- filter(visit_working, domain %in% test$Domain.name)
+travel_domains <- filter(domain, domain %in% test$Domain.name)
+forms_travel <- filter(form_table, domain_id %in% travel_domains$domain_pk)
+formdef_travel <- filter(formdef, xmlns %in% test$Form.xmlns) #Not sure why this has > 200 domains... will look into this later
+forms_travel <- filter(forms_travel, formdef_id %in% formdef_travel$id)
+travel_visits <- filter(travel_visits, visit_id %in% forms_travel$visit_id)
+visit_working <- travel_visits
+
+#Only keep crs-remind and tulasalud
+crs_visits <- filter(visit_working, domain == "crs-remind")
+tula_visits <- filter(visit_working, domain == "tulasalud")
+visit_working <- crs_visits
+
+crs_forms_travel <- filter(forms_travel, domain_id == 40)
+crs_travel_visits <- filter(travel_visits, visit_id %in% crs_forms_travel$visit_id)
+visit_working <- crs_travel_visits
+crs_travel_subset <- filter(crs_travel_visits, visit_date >= "2012-07-28" & visit_date <= "2014-04-09")
+
+#Only keep travel domains without crs-remind
+travel_visits_subset <- filter(travel_visits, domain != "crs-remind")
+visit_working <- travel_visits_subset
+
+#------------------------------------------------------------------------#
+#TABLE 1
+#------------------------------------------------------------------------#
+visit_working$group_num <- 1
+
+table_1 <- visit_working %>% group_by(group_num) %>% 
+  summarise(A1 = sum(batch_visit == F & duration_ge_5min == T & daytime == T), 
+            B1 = sum(batch_visit == F & duration_ge_1min_lt_5min == T & daytime == T), 
+            C1 = sum(batch_visit == F & duration_lt_1min == T & daytime == T), 
+            A2 = sum(batch_visit == F & duration_ge_5min == T & nighttime == T), 
+            B2 = sum(batch_visit == F & duration_ge_1min_lt_5min == T & nighttime == T), 
+            C2 = sum(batch_visit == F & duration_lt_1min == T & nighttime == T), 
+            A3 = sum(batch_visit == T & duration_ge_5min == T & daytime == T), 
+            B3 = sum(batch_visit == T & duration_ge_1min_lt_5min == T & daytime == T), 
+            C3 = sum(batch_visit == T & duration_lt_1min == T & daytime == T), 
+            A4 = sum(batch_visit == T & duration_ge_5min == T & nighttime == T), 
+            B4 = sum(batch_visit == T & duration_ge_1min_lt_5min == T & nighttime == T), 
+            C4 = sum(batch_visit == T & duration_lt_1min == T & nighttime == T))
+
+#Add percentages
+table_1 <- rbind(table_1, round((table_1/nrow(visit_working))*100, digits = 1))
+table_1[2,] <- paste0("(", table_1[2,],")")
+
+write.csv(table_1, file = "table_1.csv", row.names = F)
+
+#------------------------------------------------------------------------#
+#User exclusions
+#------------------------------------------------------------------------#
+
+#Exclude demo, admin, unknown, NA/NONE users
+visit_working <- visit_working[!(visit_working$user_id == "demo_user"),]
+visit_working <- visit_working[!(visit_working$user_id == "NONE"),]
+visit_working <- visit_working[!(visit_working$user_id == "none"),]
+visit_working <- visit_working[!is.na(visit_working$user_id),]
+
+#Keep only users with user_type = mobile
+visit_working <- filter(visit_working, user_type == "mobile")
+
+#Exclude users who submit to multiple domains
+users_multiple_domain <- visit_working %>% group_by(user_pk) %>% 
+  summarise(n_domains = length(unique(domain)))
+users_multiple_domain <- filter(users_multiple_domain, n_domains > 1)
+visit_working <- visit_working[!(visit_working$user_pk %in% users_multiple_domain$user_pk),]
+
+#Exclude dimagi users based on username and email
+dimagi_users <- unique(c(visit_working$user_pk[grep("dimagi", visit_working$email, fixed=T)], 
+                         visit_working$user_pk[grep("dimagi", visit_working$username, fixed=T)]))
+visit_working$dimagi_user <- visit_working$user_pk %in% dimagi_users
+visit_working <- filter(visit_working, dimagi_user == F)
+
+#-----------------------------------------------------------------------------------------#
 
 # A basic box plot
 visit$cond <- 1
@@ -94,8 +228,6 @@ ggplot(visits_valid_duration, aes(x=cond, y=visit_duration)) +
 #duration_lt_1min
 test2 <- filter(visits_valid_duration, batch_visit == T & duration_lt_1min == T & nighttime == T)
 length(unique(test2$domain_id))
-
-#-----------------------------------------------------------------------------------------#
 
 #Look at DSA domains
 test <- filter(monthly_table, nvisits_travel > 0)

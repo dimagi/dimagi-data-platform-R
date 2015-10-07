@@ -26,6 +26,8 @@ form_table <- tbl(db, "form")
 form_table <- get_data_source(db, "form", 1000) #limited number of forms
 form_table <- collect(form_table)
 
+formdef <- get_data_source(db, "formdef", 1000)
+formdef <- collect(formdef)
 
 visit <- tbl(db, "visit")
 visit <- collect(visit)
