@@ -15,6 +15,34 @@ source(file.path("data_sources.R"))
 system_conf <- get_system_config(file.path("config_system.json"))
 db <- get_db_connection(system_conf)
 
+#Import form table and form annotations
+form_table <- tbl(db, "form")
+form_table <- collect(form_table)
+form_annotations <- read.csv(file = "form_annotations.csv", stringsAsFactors = F)
+
+#Get domain table
+domain <- get_domain_table(db)
+names(domain)[names(domain) == "id"] = "domain_pk"
+names(domain)[names(domain) == "name"] = "domain"
+domain$subsector <- lapply(domain$subsector, as.character)
+domains_mch_subsector <- seq_along(domain$subsector)[sapply(domain$subsector, FUN=function(X) "Maternal, Newborn, & Child Health" %in% X)]
+domain$mch_subsector <- F
+domain$mch_subsector[domains_mch_subsector] <- T
+
+#We are only going to keep only travel forms because we only want to know which visits used travel forms 
+#based on the form_annotation file.
+test <- filter(form_annotations, Travel.visit == "Yes")
+travel_domains <- filter(domain, domain %in% test$Domain.name)
+forms_travel <- filter(form_table, domain_id %in% travel_domains$domain_pk)
+#Import formdef table
+formdef <- tbl(db, "formdef")
+formdef <- collect(formdef)
+formdef_travel <- filter(formdef, xmlns %in% test$Form.xmlns) #Not sure why this has > 200 domains... will look into this later
+remove(formdef)
+#Keep only travel forms
+forms_travel <- filter(forms_travel, formdef_id %in% formdef_travel$id)
+remove(form_table)
+
 # Import visit table
 visit <- tbl(db, "visit")
 visit <- collect(visit)
@@ -23,15 +51,12 @@ visit <- collect(visit)
 names(visit)[names(visit) == "id"] <- "visit_id"
 names(visit)[names(visit) == "user_id"] <- "user_pk"
 names(visit)[names(visit) == "domain_id"] <- "domain_pk"
+visit <- select(visit, -c(time_end, time_start)) #These columns are missing the time element because of the size of the table
+
+#Pull in visit time columns separately and merge into visit table
+visit_times <- visit_pull_times(db)
 
 #Merge in domain table
-domain <- get_domain_table(db)
-names(domain)[names(domain) == "id"] = "domain_pk"
-names(domain)[names(domain) == "name"] = "domain"
-domain$subsector <- lapply(domain$subsector, as.character)
-domains_mch_subsector <- seq_along(domain$subsector)[sapply(domain$subsector, FUN=function(X) "Maternal, Newborn, & Child Health" %in% X)]
-domain$mch_subsector <- F
-domain$mch_subsector[domains_mch_subsector] <- T
 visit <- merge(visit, select(domain, domain_pk, domain, is_test, subsector), by = "domain_pk", all.x = T)
 
 #Import user table and user_type table
@@ -48,14 +73,7 @@ user_type <- select(user_type, user_pk, user_type)
 users <- merge(users, user_type, by = "user_pk", all.x = T)
 visit <- merge(visit, users, by = "user_pk", all.x = T)
 
-#Import form annotations and formdef table
-form_annotations <- read.csv(file = "form_annotations.csv", stringsAsFactors = F)
-formdef <- tbl(db, "formdef")
-formdef <- collect(formdef)
 
-#Import form table
-form_table <- tbl(db, "form")
-form_table <- collect(form_table)
 
 #------------------------------------------------------------------------#
 # Create variables for real-time analysis
@@ -144,10 +162,6 @@ visit_working <- filter(visit_working, is_test == "false")
 #Only keep travel domain visits and forms
 test <- filter(form_annotations, Travel.visit == "Yes")
 travel_visits <- filter(visit_working, domain %in% test$Domain.name)
-travel_domains <- filter(domain, domain %in% test$Domain.name)
-forms_travel <- filter(form_table, domain_id %in% travel_domains$domain_pk)
-formdef_travel <- filter(formdef, xmlns %in% test$Form.xmlns) #Not sure why this has > 200 domains... will look into this later
-forms_travel <- filter(forms_travel, formdef_id %in% formdef_travel$id)
 travel_visits <- filter(travel_visits, visit_id %in% forms_travel$visit_id)
 visit_working <- travel_visits
 
