@@ -87,6 +87,8 @@ all_monthly <- all_monthly[all_monthly$user_pk %in% chw_single_app$user_pk,]
 #Get report_options from config run file
 report <- run_conf$reports$modules$name
 report_options <- get_report_options(run_conf,report)
+#start_date <- as.Date("2010-01-01")
+#end_date <- as.Date("2015-06-01")
 
 #Keep rows only from 1/1/10 - 11/30/14 (based on config run file)
 #This leaves us with 2397 FLWs
@@ -167,8 +169,8 @@ all_monthly$month_abbr <- month(all_monthly$calendar_month, label = T, abbr = T)
 #We lose one domain because of this step (crc-intervention)
 #We are left with 2149 FLWs that have only <= 100 visits per month
 all_monthly$visits_ge_100 <- all_monthly$nvisits > 100
-user_ge_100 <- all_monthly %.%
-  group_by(user_pk) %.%
+user_ge_100 <- all_monthly %>%
+  group_by(user_pk) %>%
   summarise(ge_100 = sum(visits_ge_100))
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
 all_monthly <- all_monthly[all_monthly$user_pk %in% user_le_100$user_pk, ]

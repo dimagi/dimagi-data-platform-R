@@ -4,14 +4,24 @@
 #First import monthly_table for all test = F domains then run the following code
 #permitted_data_only = true
 #Be sure to set config_run first
-source(file.path("analysis_scripts","raw_data","data_import.R", fsep = .Platform$file.sep))
+#source(file.path("analysis_scripts","raw_data","data_import.R", fsep = .Platform$file.sep))
 
+library(dplyr)
+
+# Load system config file
+source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
+source(file.path("data_sources.R"))
+system_conf <- get_system_config(file.path("config_system.json"))
+
+# Get db connection
+db <- get_db_connection(system_conf)
+
+monthly_table <- tbl(db, "aggregate_monthly_interactions")
+monthly_table <- collect(monthly_table)
 
 library(data.table)
-library(zoo)
 detach("package:lubridate")
 library(lubridate)
-library(ggplot2)
 
 #------------------------------------------------------------------------#
 #DATA MANAGEMENT
@@ -21,9 +31,6 @@ library(ggplot2)
 source(file.path("function_libraries","config_file_funcs.R", fsep = .Platform$file.sep))
 source(file.path("data_sources.R"))
 system_conf <- get_system_config(file.path("config_system.json"))
-
-# Get db connection
-# db <- get_db_connection(system_conf)
 
 #List of users by user_type, keeping only mobile users
 #Get user_type table from db (mobile, web, superuser, etc.)
@@ -38,9 +45,11 @@ all_monthly <- monthly_table
 all_monthly <- merge(all_monthly, user_type, by = "user_pk", all.x = T)
 all_monthly <- filter(all_monthly, user_type == "mobile")
 
-#Set report_options
-report <- run_conf$reports$modules$name
-report_options <- get_report_options(run_conf,report)
+#Set blog date range
+#report <- run_conf$reports$modules$name
+#report_options <- get_report_options(run_conf,report)
+start_date <- as.Date("2010-01-01")
+end_date <- as.Date("2015-06-30")
 
 #Remove demo users and NA/NONE users
 all_monthly = all_monthly[!(all_monthly$user_id =="demo_user"),]
@@ -51,18 +60,21 @@ all_monthly = all_monthly[!is.na(all_monthly$user_id),]
 #Remove any dates before report start_date and after report end_date
 all_monthly$date_first_visit = as.Date(all_monthly$date_first_visit)
 all_monthly$date_last_visit = as.Date(all_monthly$date_last_visit)
-start_date = as.Date(report_options$start_date)
-end_date = as.Date(report_options$end_date)
+#start_date = as.Date(report_options$start_date)
+#end_date = as.Date(report_options$end_date)
 all_monthly = subset(all_monthly, all_monthly$date_first_visit >= start_date
                      & all_monthly$date_last_visit <= end_date)
-report_end_date <- as.Date(report_options$end_date)
-end_month <- as.yearmon(report_end_date)
+end_month <- as.yearmon(end_date)
 end_month <- parse_date_time(paste('01', end_month), '%d %b %Y!')
 end_month <- as.Date(end_month)
 
-#Bring in domain_numeric
-#domain <- tbl(db, "domain")
-#domain <- collect(domain)
+#Convert character to numberic
+all_monthly$nforms <- as.numeric(all_monthly$nforms)
+all_monthly$active_days <- as.numeric(all_monthly$active_days)
+
+#Bring in domain_table
+domain_table <- get_domain_table(db)
+
 #domain <- select(domain, id, name)
 #write.csv(domain, file = "domain_master_list.csv")
 
@@ -96,16 +108,11 @@ domain_subsector <- select(domain_subsector, domain_id, subsector_id)
 domain_table <- merge(domain_table, domain_subsector, by.x = "id", by.y = "domain_id", all.x = T)
 domain_table <- merge(domain_table, subsector, by.x = "subsector_id", by.y = "id", all.x = T)
 
-#Consolidate country information
-#Remove all double quotes from inside countries string.
+#Countries
 domain_table$countries <- gsub('"', "", domain_table$countries)
-is.na(domain_table$deployment.country) <- domain_table$deployment.country == ""
-is.na(domain_table$countries) <- domain_table$countries == "{}" | 
-  domain_table$countries == "{No country}"
-domain_table$country_final <- domain_table$countries
-use_deployment_country <- which(is.na(domain_table$countries) & !is.na(domain_table$deployment.country))
-domain_table$country_final[use_deployment_country] <- 
-  domain_table$deployment.country[use_deployment_country]
+domain_table$countries[domain_table$countries == "{No country}"] <- NA
+domain_table$countries[domain_table$countries == "{}"] <- NA
+domain_table$countries <- gsub("\\{|\\}", "", domain_table$countries)
 
 #Consolidate Dimagi level of support
 is.na(domain_table$internal.services) <- domain_table$internal.services == ""
@@ -117,8 +124,9 @@ domain_table$dimagi_services[keep_self] <- domain_table$self_start[keep_self]
 
 #Keep only columns of interest
 names(domain_table)[names(domain_table) == "id"] = "domain_id"
-facets_to_merge <- select(domain_table, name, domain_id, country_final, sector_final, 
-                          subsector_final, dimagi_services, test)
+names(domain_table)[names(domain_table) == "internal.can_use_data"] = "can_use_data"
+facets_to_merge <- select(domain_table, name, domain_id, countries, sector_final, 
+                          subsector_final, dimagi_services, is_test, can_use_data)
 
 #Merge domain facets from domain table into all_monthly table
 all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain", 
@@ -128,6 +136,12 @@ all_monthly <- merge(all_monthly, facets_to_merge, by.x = "domain",
 names (all_monthly)[names(all_monthly) == "month.index"] = "calendar_month"
 names (all_monthly)[names(all_monthly) == "numeric_index"] = "month_index"
 names(all_monthly)[names(all_monthly) == "domain_id"] = "domain_numeric"
+
+#Keep only can_use_data = True (Exlude False and NA)
+all_monthly <- filter(all_monthly, can_use_data == "True")
+
+#Keep only test = F domains (Exclude false and none)
+all_monthly <- filter(all_monthly, is_test == "false")
 
 #Convert calendar month to actual date
 all_monthly$calendar_month <- parse_date_time(paste('01', all_monthly$calendar_month), '%d %b %Y!')
@@ -143,21 +157,21 @@ user_ge_100 <- all_monthly %>%
 user_le_100 <- filter(user_ge_100, ge_100 == 0)
 all_monthly <- all_monthly[all_monthly$user_id %in% user_le_100$user_id, ]
 
-#Calculate differences between month_index to calculate next_month_active and 
-#previous_month_active variables
-all_monthly <- arrange(all_monthly, domain_numeric, user_pk, calendar_month)
-df <- data.table(all_monthly)
-setkey(df,user_pk)
-df[,diff_days:=c(NA,diff(calendar_month)),by=user_pk]
-all_monthly <- as.data.frame(df)
-all_monthly$previous_month_active <- all_monthly$diff_days <= 31
-all_monthly$previous_two_months_active <- all_monthly$diff_days <= 62
-all_monthly$previous_three_months_active <- all_monthly$diff_days <= 93
-
 #We are working with user_pk/domain combination since user_pk
 #might not be unique across domains. A single user_pk can submit to multiple domains. 
 all_monthly$domain_user <- paste(all_monthly$domain, all_monthly$user_pk, sep = "_") 
 users <- unique(all_monthly$domain_user)
+
+#Calculate differences between month_index to calculate next_month_active and 
+#previous_month_active variables
+all_monthly <- arrange(all_monthly, domain_user, calendar_month)
+df <- data.table(all_monthly)
+setkey(df,domain_user)
+df[,diff_days:=c(NA,diff(calendar_month)),by=domain_user]
+all_monthly <- as.data.frame(df)
+all_monthly$previous_month_active <- all_monthly$diff_days <= 31
+all_monthly$previous_two_months_active <- all_monthly$diff_days <= 62
+all_monthly$previous_three_months_active <- all_monthly$diff_days <= 93
 
 next_month_active <- c()
 for (i in users) {
@@ -193,14 +207,17 @@ is.na(all_monthly$next_two_months_active) <- all_monthly$calendar_month >= end_m
 is.na(all_monthly$next_three_months_active) <- all_monthly$calendar_month >= end_month - months(2)
 
 #Get lifetime table for total nunique_followups, active_months per user
-lifetime_table <- get_aggregate_table(db, "aggregate_lifetime_interactions", domains_for_run)
-lifetime_table <- lifetime_table[lifetime_table$user_pk %in% all_monthly$user_pk,]
+lifetime_table <- tbl(db, "aggregate_lifetime_interactions")
+lifetime_table <- collect(lifetime_table)
+#We are working with user_pk/domain combination since user_pk
+#might not be unique across domains. A single user_pk can submit to multiple domains. 
+lifetime_table$domain_user <- paste(lifetime_table$domain, lifetime_table$user_pk, sep = "_") 
 
 #Merge nunique_followups, active_months to all_monthly
-lifetime_table <- select(lifetime_table, user_pk, nunique_followups, active_months, calendar_month_on_cc)
+lifetime_table <- select(lifetime_table, domain_user, nunique_followups, active_months, calendar_month_on_cc)
 names(lifetime_table)[names(lifetime_table) == "nunique_followups"] = "lifetime_followup"
 names(lifetime_table)[names(lifetime_table) == "calendar_month_on_cc"] = "months_on_cc"
-all_monthly <- merge(all_monthly, lifetime_table, by = "user_pk", all.x = T)
+all_monthly <- merge(all_monthly, lifetime_table, by = "domain_user", all.x = T)
 
 #Lifetime aggregate table is not available on the db as of 2/17/15.
 #I will calculate months_on_cc, active_months here until the lifetime table is available.
@@ -220,7 +237,6 @@ nusers <- arrange(nusers, desc(nusers))
 nusers$total_users <- sum(nusers$nusers)
 nusers$per_users <- (nusers$nusers/nusers$total_users)*100
 #NEED TO MANUALLLY CHECK ABOVE FOR EACH BLOG DATASET TO CHECK DOMAIN WEIGHTAGE
-
 #Sample users as needed
 #exclude_users_pathfinder <- sample(unique(all_monthly$user_pk[all_monthly$domain == "pradan-mis-dev"]), 299)
 #all_monthly <- all_monthly[!(all_monthly$user_pk %in% exclude_users_pathfinder),]
@@ -230,8 +246,6 @@ all_monthly$attrition_event <- !(all_monthly$next_month_active == T | is.na(all_
 all_monthly$continuing <- all_monthly$month_index < all_monthly$months_on_cc
 all_monthly$ever_active_again <- all_monthly$attrition_event == T & all_monthly$continuing == T
 is.na(all_monthly$ever_active_again) <- all_monthly$attrition_event == F
-
-all_monthly <- select(all_monthly, -c(user_id, domain, test, visits_ge_100))
 
 #Flag users from typical FLW domains
 #Note that it's better to flag at the user level (based on apps) in the future as 
@@ -246,13 +260,10 @@ c("aaharsneha", "aarohi", "acf", "aed-hth", "arogyasarita", "care-ecd",
   "tulasalud", "world-renew", "wvindia", "wvindia-nutrition", "wvindia2",
   "wvindonesia", "wvug", "yonsei-emco")
 
-domains <- select(domain_table, domain_id, name)
-blog <- merge(all_monthly, domains, by.x = "domain_numeric", by.y = "domain_id", 
-              all.x = T)
-blog$typical_flw <- blog$name %in% typical_flw_domains
-blog <- select(blog, -c(name, domain_user))
+all_monthly$typical_flw <- all_monthly$domain %in% typical_flw_domains
+blog <- select(all_monthly, -c(user_id, domain, is_test, visits_ge_100, domain_user, can_use_data))
 
-write.csv(blog, file = "blog_data_8_21_15.csv")
+write.csv(blog, file = "blog_data_11_2_15.csv", row.names = F)
 
 #----------------------------------------------------------------------#
 #Older code - not used to create future blog datasets
