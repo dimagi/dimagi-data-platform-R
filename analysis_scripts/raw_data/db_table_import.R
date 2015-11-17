@@ -35,8 +35,8 @@ visit <- get_data_source(db, "visit", 1000)
 app <- tbl(db, "application")
 device_log <- tbl(db, "device_log")
 domain <- tbl(db, "domain")
-users <- tbl(db, "users") 
 
+users <- tbl(db, "users") 
 #Get table for user_type (mobile, web, superuser, etc.)
 #This function has been defined in data_sources.R
 user_type <- get_user_type_table(db)
@@ -45,6 +45,9 @@ user_type <- get_user_type_table(db)
 #First run functions in data_sources.R
 visit_detail <- get_visit_detail(db, 1000)
 
+#Get case tables
+cases <- tbl(db, "cases")
+cases <- collect(cases)
 
 
 
