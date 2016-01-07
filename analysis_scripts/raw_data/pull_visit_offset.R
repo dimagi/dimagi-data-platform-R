@@ -5,6 +5,8 @@
 #Time component drops with offset > 0 and limit approximately > 10,000
 #test <- visit_pull_times(db)
 
+#Form table has 12,787,766 rows through June 2015
+
 #Function to pull visit times from the visit table using offset parameter
 visit_pull_times <- function (db, limit=-1, offset=-1) {
   con <- db$con
